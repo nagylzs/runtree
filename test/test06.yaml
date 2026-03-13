@@ -1,0 +1,39 @@
+# This is to test rlock
+tree:
+  id: root
+  title: test01
+  on_error: "paused"
+  max_proc: 10
+  envs:
+    TERM: xterm-256color
+    COLORTERM: truecolor
+  par:
+    - type: par
+      id: "n1"
+      rlocks: ["x1"]
+      nodes:
+        - type: run
+          id: "n1-1"
+          rlocks: ["x1","x2"]
+          args: [ "/bin/bash" ]
+        - type: run
+          id: "n1-2"
+          rlocks: ["x1","x3"]
+          args: [ "/bin/bash" ]
+    - type: par
+      id: "n2"
+      rlocks: ["x4"]
+      nodes:
+        - type: run
+          id: "n2-1"
+          rlocks: ["x4","x1"]
+          args: [ "/bin/bash" ]
+        - type: run
+          id: "n2-2"
+          rlocks: ["x4","x1"]
+          args: [ "/bin/bash" ]
+        - type: run
+          id: "n2-3"
+          xlocks: ["x3"]
+          args: [ "/bin/bash" ]
+

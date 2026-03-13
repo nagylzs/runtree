@@ -1,0 +1,64 @@
+tree:
+  id: root
+  title: test01
+  description: >
+    Cheese strings stilton chalk and cheese. Everyone loves ricotta cauliflower cheese fromage frais fromage frais cheese and biscuits cheese and wine who moved my cheese. St. agur blue cheese danish fontina feta pecorino cheesy feet mozzarella ricotta emmental. Mozzarella.
+
+    Goat cheddar dolcelatte. Macaroni cheese cut the cheese fromage frais bocconcini the big cheese cheese and wine everyone loves manchego. Squirty cheese halloumi swiss who moved my cheese mascarpone blue castello rubber cheese chalk and cheese. Babybel cheeseburger cheese on toast.
+
+    Cauliflower cheese taleggio port-salut. Manchego mascarpone pepper jack parmesan cream cheese cut the cheese cut the cheese smelly cheese. Feta red leicester chalk and cheese when the cheese comes out everybody's happy parmesan gouda edam pepper jack. Croque monsieur cheese triangles emmental goat danish fontina bavarian bergkase.
+
+    The big cheese danish fontina camembert de normandie. Cheese and wine queso rubber cheese croque monsieur queso goat pecorino cheddar. Cream cheese red leicester croque monsieur smelly cheese cottage cheese feta cheese strings monterey jack. Camembert de normandie cheddar the big cheese boursin cow port-salut cheese on toast babybel. Fromage frais.
+
+    Halloumi cauliflower cheese caerphilly. Bavarian bergkase fromage cheesy grin smelly cheese emmental who moved my cheese mozzarella cheese and wine. Pepper jack everyone loves chalk and cheese hard cheese mascarpone cheesecake cow paneer. Cheese and biscuits gouda.
+  vars:
+    build_command: "/bin/bash"
+    deploy_command: "/bin/bash"
+  envs:
+    TERM: xterm-256color
+    COLORTERM: truecolor
+  seq:
+    - type: run
+      id: "n1"
+      #on_error: "success"
+      args: ["{build_command}"]
+    - type: par
+      id: "n2"
+      on_error: "paused"
+      max_proc: 2
+      nodes:
+        - type: par
+          id: "n2-1"
+          xlocks: ["x1", "x2"]
+          nodes:
+          - type: run
+            id: "n2-1-1"
+            title: "n2-1-1"
+            args: [ "/bin/bash" ]
+        - type: run
+          id: "n2-2"
+          args: [ "/bin/bash" ]
+          xlocks: ["x1"]
+        - type: run
+          id: "n2-3"
+          args: [ "/bin/bash" ]
+          xlocks: ["x2"]
+    - type: par
+      id: "n3"
+      on_error: "paused"
+      max_proc: 2
+      nodes:
+        - type: run
+          id: "n3-1"
+          args: [ "/bin/bash" ]
+          provides: ["n3-1"]
+        - type: run
+          id: "n3-2"
+          args: [ "/bin/bash" ]
+          requires: ["n3-1"]
+        - type: run
+          id: "n3-3"
+          args: [ "/bin/bash" ]
+    - type: run
+      id: "n4"
+      args: ["{deploy_command}"]

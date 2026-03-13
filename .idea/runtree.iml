@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="WEB_MODULE" version="4">
+  <component name="Go" enabled="true" />
+  <component name="NewModuleRootManager">
+    <content url="file://$USER_HOME$/oh-deploy/runtree-oh-deploy" />
+    <content url="file://$MODULE_DIR$/../gotk4-vte">
+      <sourceFolder url="file://$MODULE_DIR$/../gotk4-vte" isTestSource="false" />
+    </content>
+    <content url="file://$MODULE_DIR$" />
+    <content url="file://$USER_HOME$/secrets/runtrees" />
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

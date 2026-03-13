@@ -1,0 +1,35 @@
+# This is to test schedule up-propagation
+tree:
+  id: root
+  title: test01
+  on_error: ["paused", "cancel"]
+  max_proc: 2
+  envs:
+    TERM: xterm-256color
+    COLORTERM: truecolor
+  par:
+    - type: par
+      id: "n1"
+      xlocks: ["x1"]
+      nodes:
+        - type: run
+          id: "n1-1"
+          xlocks: ["x2"]
+          args: [ "/bin/bash" ]
+        - type: run
+          id: "n1-2"
+          xlocks: ["x3"]
+          args: [ "/bin/bash" ]
+    - type: par
+      id: "n2"
+      xlocks: ["x3"]
+      nodes:
+        - type: run
+          id: "n2-1"
+          xlocks: ["x4"]
+          args: [ "/bin/bash" ]
+        - type: run
+          id: "n2-2"
+          xlocks: ["x2"]
+          args: [ "/bin/bash" ]
+

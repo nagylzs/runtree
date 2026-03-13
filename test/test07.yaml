@@ -1,0 +1,54 @@
+# This is to test on_error.siblings
+tree:
+  id: root
+  title: test01
+  max_proc: 2
+  envs:
+    TERM: xterm-256color
+    COLORTERM: truecolor
+  on_error: ["paused"]
+  seq:
+    - type: seq
+      id: "n1"
+      nodes:
+        - type: run
+          id: "n1-1"
+          args: [ "/bin/bash" ]
+          on_error: ["success", "cancel"]
+          description: "type exit 1. Node should succeed, its sibling cancelled and its parent succeeded"
+        - type: run
+          id: "n1-2"
+          args: [ "/bin/bash" ]
+    - type: seq
+      id: "n2"
+      nodes:
+        - type: run
+          id: "n2-1"
+          args: [ "/bin/bash" ]
+          on_error: ["success", "freeze"]
+          description: "type exit 1. Node should succeed, and its sibling frozen"
+        - type: run
+          id: "n2-2"
+          args: [ "/bin/bash" ]
+    - type: seq
+      id: "n3"
+      nodes:
+        - type: run
+          id: "n3-1"
+          args: [ "/bin/bash" ]
+          on_error: ["paused", "freeze"]
+          description: "type exit 1. It should pause, and its sibling freeze"
+        - type: run
+          id: "n4-2"
+          args: [ "/bin/bash" ]
+    - type: seq
+      id: "n5"
+      nodes:
+        - type: run
+          id: "n5-1"
+          args: [ "/bin/bash" ]
+          on_error: "paused"
+          description: "type exit 1. It should pause"
+        - type: run
+          id: "n5-2"
+          args: [ "/bin/bash" ]

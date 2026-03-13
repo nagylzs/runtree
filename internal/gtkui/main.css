@@ -1,0 +1,140 @@
+/*
+
+General problem: these colors only work well for dark themes.
+
+But gtk 4 does not provide a way to query colors from the current theme,
+so it is not trivial to create new classes that use colors from other elements
+of the current theme.
+
+ */
+.node {
+    background-clip: padding-box;
+}
+
+.node:hover {
+    color: #a1b5b0;
+    border-color: rgba(0, 0, 0, 0.25);
+    background-color: #38464b;
+}
+
+.node:active, .node.keyboard-activating, .node:checked {
+    color: #ffffff;
+    border-color: rgba(0, 0, 0, 0.25);
+    background-color: #205246;
+}
+
+.node:disabled {
+    border-color: rgba(0, 0, 0, 0.15);
+    background-color: rgba(38, 48, 52, 0.55);
+}
+
+.node:disabled label, .node:disabled {
+    color: rgba(204, 215, 212, 0.45);
+}
+
+.node:disabled:active, .node:disabled:checked {
+    border-color: rgba(46, 179, 152, 0.75);
+    background-color: rgba(46, 179, 152, 0.75);
+    opacity: 0.6;
+}
+
+.node:disabled:active label, .node:disabled:active, .node:disabled:checked label, .node:disabled:checked {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.node-title {
+    font-family: monospace;
+}
+
+.type-label {
+    padding: 0.2em 0.2em;
+    margin: 0.2em 0.2em;
+    border-radius: 0.2em;
+    border: 1px solid currentColor;
+    color: #4b4b4b;
+    background-color: #ffffff;
+}
+
+.node-status {
+    font-size: 0.85em;
+}
+
+.status-label {
+    padding: 0.2em 0.2em;
+    margin: 0.2em 0.2em;
+    border-radius: 0.2em;
+    border: 1px solid currentColor;
+}
+
+.status-waiting {
+    background-color: #cb4b16;
+    color: #002b36;
+}
+
+.status-frozen {
+    background-color: #d33682;
+    color: #002b36;
+}
+
+.status-running {
+    background-color: #268bd2;
+    color: #002b36;
+}
+
+.status-success {
+    background-color: #859900;
+    color: #002b36;
+}
+
+.status-failed {
+    background-color: #dc322f;
+    color: #002b36;
+}
+
+.status-cancelled {
+    background-color: #2aa198;
+    color: #002b36;
+}
+
+.status-paused {
+    background-color: #6c71c4;
+    color: #002b36;
+}
+
+.tools-title {
+    font-size: 150%;
+    font-weight: bold;
+}
+
+.toast {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.node-elapsed {
+    font-size: 70%;
+    opacity: 0.5;
+}
+
+
+.button-sigkill {
+    color: #dc322f;
+    background-color: #002b36;
+}
+
+.button-sigint {
+    color: #cb4b16;
+    background-color: #002b36;
+}
+
+.button-sighup {
+    color: #6c71c4;
+    background-color: #002b36;
+}
+
+.button-sigabort {
+    color: #cb4b16;
+    background-color: #002b36;
+}
