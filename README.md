@@ -13,7 +13,7 @@ tasks by maximizing parallel execution, while making it easy to supervise (view,
 
 # License
 
-`runtree` is distributed under the permissive MIT license.
+`runtree` is distributed under GNU GPLv3.
 
 # How to build
 
