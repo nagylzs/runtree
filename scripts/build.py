@@ -1,15 +1,18 @@
 import os
 import sys
+import re
 import platform
 import copy
 import datetime
 import subprocess as sp
 
 targets=["rtrunner", "runtree"]
-version_prefix="github.com/nagylzs/runtree/internal/version"
-
 
 DIR=os.path.abspath(os.path.join(__file__,os.pardir,os.pardir))
+
+module_line = next(open(os.path.join(DIR, "go.mod"), "r"))
+module_name = re.match(r"module\s+(.+)", module_line).group(1)
+version_prefix=f"{module_name}/internal/version"
 
 
 oss = platform.system().lower()
