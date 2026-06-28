@@ -1,4 +1,3 @@
 /dist/
 *.prof
-rtrunner
 scripts/deploy
