@@ -2,7 +2,8 @@
 tree:
   id: root
   title: test01
-  on_error: ["paused", "cancel"]
+  status: "frozen"
+  on_error: ["paused", "skip"]
   max_proc: 2
   envs:
     TERM: xterm-256color

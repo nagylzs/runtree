@@ -45,7 +45,7 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 		addOps(OpFreeze, OpSkip)
 	}
 	if n.Status == StatusFrozen {
-		addOps(OpThaw, OpSkip)
+		addOps(OpThaw, OpSkip, OpResetToWaiting)
 	}
 	if n.Type != TypeRun {
 		return ops
@@ -125,9 +125,25 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 	// set status manually on seq/par node
 	if n.Type == TypeSeq || n.Type == TypePar {
 		// Manually fail/success on paused seq/par node
-		if n.Status == StatusPaused && (op == OpFail || op == OpSuccess || op == OpResetToWaiting) {
+		if n.Status == StatusPaused && (op == OpFail || op == OpSuccess) {
 			n.WantManualStatus = true
 			n.ManualStatus = ms
+			n.SchedulerMessage = ""
+			changed = true
+		}
+		// When a paused node is reset to waiting mode,  then we do not want it to have manual status anymore.
+		// calcParStatus/calSeqStatus will calculate it
+		if n.Status == StatusPaused && (op == OpResetToWaiting) {
+			n.WantManualStatus = false
+			n.SchedulerMessage = ""
+			changed = true
+		}
+		// Set waiting / thaw frozen seq/par node
+		// This is **not** manual status, so later calcParStatus/calSeqStatus can change it.
+		// However, calcParStatus/calSeqStatus will refrain from changing it from frozen to anything.
+		if n.Status == StatusFrozen && (op == OpResetToWaiting || op == OpThaw) {
+			n.WantManualStatus = false
+			n.Status = ms
 			n.SchedulerMessage = ""
 			changed = true
 		}
