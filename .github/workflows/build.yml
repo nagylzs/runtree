@@ -20,9 +20,9 @@ jobs:
         python-version: '3.x'
 
     - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential pkg-config golang libgtk-4-dev libvte-2.91-gtk4-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config golang libgtk-4-dev libvte-2.91-gtk4-dev libgirepository1.0-dev
 
     - name: Run build script
       env:
