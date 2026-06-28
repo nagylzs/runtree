@@ -1,4 +1,4 @@
-name: Build Go Programs
+name: Build Runtree
 
 on:
   push:
