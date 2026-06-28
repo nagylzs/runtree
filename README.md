@@ -25,10 +25,17 @@ tasks by maximizing parallel execution, while making it easy to supervise (view,
 * golang with cgo enabled
 * python3 (only for build scripts)
 
+
 On Arch/Manjaro:
 
 ```bash
 sudo pacman -S base-devel extra/go extra/gtk4 extra/vte4
+```
+
+On Ubuntu/Debian:
+
+```bash
+sudo apt update && sudo apt install -y build-essential golang libgtk-4-dev libvte-2.91-gtk4-dev libgirepository1.0-dev
 ```
 
 ## Clone and build
@@ -55,7 +62,7 @@ but in that case, version information will not be included in the binary.
 It is possible to build the `rtrunner` utility with a regular go compiler. But building the `runtree` (GUI) is not possible, because runtree uses the VTE terminal emulator, and it depends on syscalls that are not available on Windows.
 
 
-# GTK 4 settings 
+# GTK 4 settings
 
 The `runtree` utility is a GTK 4 application.
 
@@ -114,7 +121,7 @@ Each node has a state, which is one of:
 There are certain operations that can be performed on nodes, some of them change the state of the node:
 
 * Freeze
-* Melt
+* Thaw
 * Start
 * Cancel
 * Signal
@@ -510,7 +517,7 @@ There are certain operations defined **on single nodes**:
 
 * `freeze` - set `frozen` status, can only be performed by the user in `waiting` status, this is a manual operation,
   the scheduler will never perform it.
-* `melt` - set `waiting` status, can only be performed by the user in `frozen` status, this is a manual operation,
+* `thaw` - set `waiting` status, can only be performed by the user in `frozen` status, this is a manual operation,
   the scheduler will never perform it.
 * `run` - the scheduler can only perform this in `waiting` state for run-type nodes, and only when all conditions are 
    met (for example, locks can be locked and required resources are provided). The user can manually perform this 
@@ -519,18 +526,18 @@ There are certain operations defined **on single nodes**:
    or one of its sub-nodes fails). It can also be set manually in `paused` state.
 * `signal` - can only be performed in `running` state, it sends a signal (selected by the user) to the process
 
-### Freeze and melt
+### Freeze and thaw
 
-The `freeze` and `melt` operations are performed by the user manually (on the user interface). `freeze` can be performed
-in `waiting` state, `melt` can be performed in `frozen` state. In the GUI, this can be a recursive operation: when you 
-activate the `freeze all` or `melt all` action on a node, then it will be performed on the node and all of its subnodes 
+The `freeze` and `thaw` operations are performed by the user manually (on the user interface). `freeze` can be performed
+in `waiting` state, `thaw` can be performed in `frozen` state. In the GUI, this can be a recursive operation: when you 
+activate the `freeze all` or `thaw all` action on a node, then it will be performed on the node and all of its subnodes 
 that are in the appropriate state.
 
 A node in the `frozen` state is very similar to a `waiting` node, except that the scheduler will never consider 
 running it. By freezing the node, you can instruct the scheduler not to start the node yet, but also telling that it
 is not finished yet (will change state later). 
 
-The `freeze` and `melt` operations are non-blocking (e.g., they can always be performed in a very short amount of time),
+The `freeze` and `thaw` operations are non-blocking (e.g., they can always be performed in a very short amount of time),
 but freezing a node may block other operations (through dependencies or locks and other ways).
 
 It is possible to define initially `frozen` nodes in the `run tree`:

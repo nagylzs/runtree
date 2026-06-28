@@ -151,7 +151,7 @@ func (n *Node) calcRunStatus() (Status, bool) {
 		return n.ManualStatus, false
 	}
 
-	if n.Status == StatusCancelled || n.Status == StatusFrozen {
+	if n.Status == StatusSkipped || n.Status == StatusFrozen {
 		return n.Status, false
 	}
 
@@ -207,7 +207,7 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 			StatusName(n.ManualStatus)))
 	}
 
-	if n.Status == StatusCancelled || n.Status == StatusFrozen {
+	if n.Status == StatusSkipped || n.Status == StatusFrozen {
 		return n.Status, false
 	}
 

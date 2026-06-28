@@ -21,6 +21,11 @@ func (n *Node) Start(locked bool) error {
 
 	defer n.updateStatusesUp(true)
 
+	// Once we start a node that was manually waiting, we do not want it to have manual status anymore
+	if n.WantManualStatus && n.ManualStatus == StatusWaiting {
+		n.WantManualStatus = false
+	}
+
 	n.calcClientArgs()
 	logger := slog.With("node", n.Id)
 	ctx := context.Background()

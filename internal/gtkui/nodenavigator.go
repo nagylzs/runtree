@@ -19,7 +19,7 @@ const (
 	NavModeRunning
 	NavModeSuccess
 	NavModeFailed
-	NavModeCancelled
+	NavModeSkipped
 	NavModePaused
 )
 
@@ -29,7 +29,7 @@ var AllNavModesWithStatus = []NavMode{
 	NavModeRunning,
 	NavModeSuccess,
 	NavModeFailed,
-	NavModeCancelled,
+	NavModeSkipped,
 	NavModePaused,
 }
 
@@ -47,8 +47,8 @@ func NavModeToStatus(mode NavMode) rt.Status {
 		return rt.StatusSuccess
 	case NavModeFailed:
 		return rt.StatusFailed
-	case NavModeCancelled:
-		return rt.StatusCancelled
+	case NavModeSkipped:
+		return rt.StatusSkipped
 	case NavModePaused:
 		return rt.StatusPaused
 	default:
@@ -68,8 +68,8 @@ func StatusToNavMode(status rt.Status) NavMode {
 		return NavModeSuccess
 	case rt.StatusFailed:
 		return NavModeFailed
-	case rt.StatusCancelled:
-		return NavModeCancelled
+	case rt.StatusSkipped:
+		return NavModeSkipped
 	case rt.StatusPaused:
 		return NavModePaused
 	default:

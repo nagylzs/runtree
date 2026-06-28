@@ -22,7 +22,7 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 
 	// recursive operations, node has children
 	if recursive {
-		addOps(OpFreeze, OpMelt, OpCancel)
+		addOps(OpFreeze, OpThaw, OpSkip, OpResetToWaiting)
 		if !StatusFinished(n.Status) {
 			addOps(OpSignal, OpFail, OpSuccess)
 		}
@@ -32,7 +32,7 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 	// non-recursive operations, node does not have children
 	if n.HasChild() {
 		if n.Status == StatusFrozen {
-			addOps(OpMelt, OpCancel)
+			addOps(OpThaw, OpSkip, OpResetToWaiting)
 		}
 		if !StatusFinished(n.Status) {
 			addOps(OpFail, OpSuccess)
@@ -42,10 +42,10 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 
 	// default: non-recursive operation, node doesn't have children
 	if n.Status == StatusWaiting {
-		addOps(OpFreeze, OpCancel)
+		addOps(OpFreeze, OpSkip)
 	}
 	if n.Status == StatusFrozen {
-		addOps(OpMelt, OpCancel)
+		addOps(OpThaw, OpSkip)
 	}
 	if n.Type != TypeRun {
 		return ops
@@ -57,7 +57,7 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 		addOps(OpRun)
 	}
 	if n.Status == StatusPaused {
-		addOps(OpFail, OpCancel, OpSuccess)
+		addOps(OpFail, OpSuccess, OpResetToWaiting)
 	}
 	return ops
 }
@@ -82,7 +82,7 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 		switch op {
 		case OpFreeze:
 			ms = StatusFrozen
-		case OpMelt:
+		case OpThaw:
 			ms = StatusWaiting
 		case OpRun:
 			start = true
@@ -91,10 +91,13 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 			ms = StatusFailed
 		case OpSignal:
 			return false, fmt.Errorf("internal error: signal operation must be sent using Node.Client.Signal")
-		case OpCancel:
-			ms = StatusCancelled
+		case OpSkip:
+			ms = StatusSkipped
 		case OpSuccess:
 			ms = StatusSuccess
+		case OpResetToWaiting:
+			// TODO
+			ms = StatusWaiting
 		default:
 			return false, fmt.Errorf("internal error: unknown operation: %s", OpName(op))
 		}
@@ -122,7 +125,7 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 	// set status manually on seq/par node
 	if n.Type == TypeSeq || n.Type == TypePar {
 		// Manually fail/success on paused seq/par node
-		if n.Status == StatusPaused && (op == OpFail || op == OpSuccess) {
+		if n.Status == StatusPaused && (op == OpFail || op == OpSuccess || op == OpResetToWaiting) {
 			n.WantManualStatus = true
 			n.ManualStatus = ms
 			n.SchedulerMessage = ""
@@ -163,7 +166,7 @@ func (n *Node) performOnErrorSiblings(locked bool) {
 		println(sib.Id+" "+StatusName(sib.Status), "->", OpName(n.OnError.Siblings))
 		_, err := sib.PerformOp(n.OnError.Siblings, true, sib.HasChild(), false)
 		if err != nil {
-			sib.Tree.logger.Error("performOnErrorSiblings: %w", err)
+			sib.Tree.logger.Error("performOnErrorSiblings: %v", err)
 		}
 	}
 }

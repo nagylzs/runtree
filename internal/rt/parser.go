@@ -332,7 +332,7 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 	if err != nil {
 		return DefaultOnError, err
 	}
-	failed, paused, success, none, cancel, freeze := false, false, false, false, false, false
+	failed, paused, success, none, skip, freeze := false, false, false, false, false, false
 	stc, sbc := 0, 0
 	for _, v := range one {
 		v = strings.TrimSpace(strings.ToLower(v))
@@ -349,8 +349,8 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 		case "none":
 			none = true
 			sbc++
-		case "cancel":
-			cancel = true
+		case "skip":
+			skip = true
 			sbc++
 		case "freeze":
 			freeze = true
@@ -381,8 +381,8 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 		if none {
 			res.Siblings = OpNone
 		}
-		if cancel {
-			res.Siblings = OpCancel
+		if skip {
+			res.Siblings = OpSkip
 		}
 		if freeze {
 			res.Siblings = OpFreeze
@@ -653,7 +653,7 @@ func (n *Node) SelfCheck() error {
 		return fmt.Errorf("invalid OnError.Status: %s", StatusName(n.OnError.Status))
 	}
 	es := n.OnError.Siblings
-	if es != OpNone && es != OpCancel && es != OpFreeze {
+	if es != OpNone && es != OpSkip && es != OpFreeze {
 		return fmt.Errorf("invalid OnError.Siblings: %s", OpName(n.OnError.Siblings))
 	}
 

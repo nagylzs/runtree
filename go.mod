@@ -2,7 +2,7 @@ module github.com/nagylzs/runtree
 
 go 1.24.6
 
-replace github.com/nagylzs/gotk4-vte => ../gotk4-vte
+// replace github.com/nagylzs/gotk4-vte => ../gotk4-vte
 
 require (
 	github.com/ActiveState/termtest/conpty v0.5.0
@@ -13,7 +13,7 @@ require (
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/lmittmann/tint v1.0.7
 	github.com/mattn/go-isatty v0.0.20
-	github.com/nagylzs/gotk4-vte v0.0.0-20250712145644-6b5e929b523d
+	github.com/nagylzs/gotk4-vte v0.0.0-20250713080014-ccf6bcafce26
 	github.com/nagylzs/set v0.0.0-20250912150903-ab46110d11ed
 	github.com/prometheus-community/pro-bing v0.6.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1

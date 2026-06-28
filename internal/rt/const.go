@@ -29,7 +29,7 @@ const (
 	StatusRunning
 	StatusSuccess
 	StatusFailed
-	StatusCancelled
+	StatusSkipped
 	StatusPaused
 )
 
@@ -38,15 +38,16 @@ type NodeOp = int
 const (
 	OpNone NodeOp = iota
 	OpFreeze
-	OpMelt
+	OpThaw
 	OpRun
 	OpFail
 	OpSignal
-	OpCancel
+	OpSkip
 	OpSuccess
+	OpResetToWaiting
 )
 
-var AllOps = []NodeOp{OpFreeze, OpMelt, OpRun, OpFail, OpSignal, OpCancel, OpSuccess}
+var AllOps = []NodeOp{OpFreeze, OpThaw, OpRun, OpFail, OpSignal, OpSkip, OpSuccess, OpResetToWaiting}
 
 func StatusActive(st Status) bool {
 	return st == StatusRunning
@@ -57,7 +58,7 @@ func StatusHoldsLocks(st Status) bool {
 }
 
 func StatusFinished(st Status) bool {
-	return st == StatusSuccess || st == StatusCancelled || st == StatusFailed
+	return st == StatusSuccess || st == StatusSkipped || st == StatusFailed
 }
 
 func StatusHasError(st Status) bool {
@@ -83,7 +84,7 @@ func StatusHasError(st Status) bool {
 //		return "✓"
 //	case StatusFailed:
 //		return "⚠"
-//	case StatusCancelled:
+//	case StatusSkipped:
 //		return "✘"
 //	case StatusPaused:
 //		return "⏸"
@@ -104,8 +105,8 @@ func StatusName(st Status) string {
 		return "Success"
 	case StatusFailed:
 		return "Failed"
-	case StatusCancelled:
-		return "Cancelled"
+	case StatusSkipped:
+		return "Skipped"
 	case StatusPaused:
 		return "Paused"
 	default:
@@ -118,15 +119,15 @@ func StatusDescription(st Status) string {
 	case StatusWaiting:
 		return "Waiting for the scheduler to start the node"
 	case StatusFrozen:
-		return "Frozen, the scheduler will not consider starting the node until it is melted manually."
+		return "Frozen, the scheduler will not consider starting the node until it is thawed manually."
 	case StatusRunning:
 		return "Running, it has at least one process running."
 	case StatusSuccess:
 		return "Success, the node was completed successfully."
 	case StatusFailed:
 		return "Failed, the node was not completed successfully."
-	case StatusCancelled:
-		return "Cancelled, the node will never be stated by the scheduler."
+	case StatusSkipped:
+		return "Skipped, the node will never be stated by the scheduler."
 	case StatusPaused:
 		return "Paused, the process(es) finished, but the next status must be chosen manually."
 	default:
@@ -140,18 +141,20 @@ func OpName(st NodeOp) string {
 		return "None"
 	case OpFreeze:
 		return "Freeze"
-	case OpMelt:
-		return "Melt"
+	case OpThaw:
+		return "Thaw"
 	case OpRun:
 		return "Run"
 	case OpFail:
 		return "Fail"
 	case OpSignal:
 		return "Signal"
-	case OpCancel:
-		return "Cancel"
+	case OpSkip:
+		return "Skip"
 	case OpSuccess:
 		return "Success"
+	case OpResetToWaiting:
+		return "ResetToWaiting"
 	default:
 		return "?"
 	}
