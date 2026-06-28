@@ -60,7 +60,12 @@ func NewHeaderFrame() *NodeFrameHeader {
 	ops.SetHAlign(gtk.AlignStart)
 	ops.SetVAlign(gtk.AlignCenter)
 	ops.Append(typ)
-	ops.Append(status)
+
+	opsRec := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	opsRec.SetHExpand(true)
+	opsRec.SetHAlign(gtk.AlignStart)
+	opsRec.SetVAlign(gtk.AlignCenter)
+	opsRec.Append(status)
 
 	bx := gtk.NewBox(gtk.OrientationVertical, 5)
 	bx.SetMarginStart(5)
@@ -68,6 +73,7 @@ func NewHeaderFrame() *NodeFrameHeader {
 	bx.Append(title)
 	bx.Append(path)
 	bx.Append(ops)
+	bx.Append(opsRec)
 	bx.SetHExpand(true)
 	bx.SetVExpand(true)
 
@@ -91,7 +97,11 @@ func NewHeaderFrame() *NodeFrameHeader {
 				h.onOp(op, recursive)
 			})
 		}
-		ops.Append(btn)
+		if recursive {
+			opsRec.Append(btn)
+		} else {
+			ops.Append(btn)
+		}
 		return btn
 	}
 	for _, op := range rt.AllOps {
