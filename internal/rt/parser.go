@@ -186,7 +186,11 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		return n, err
 	}
 
-	st, err := getStringDef(raw, "status", "waiting")
+	st := "waiting"
+	if parent != nil {
+		st = strings.ToLower(StatusName(parent.Status))
+	}
+	st, err = getStringDef(raw, "status", st)
 	if err != nil {
 		return n, err
 	}

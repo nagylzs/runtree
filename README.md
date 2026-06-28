@@ -171,9 +171,9 @@ Every node can have the following general read-write properties. They can be spe
 - `provides` - it is a list of strings, containing the names of resources that the node provides (see below)
 - `requires` - it is a list of strings, containing the names of resources that the node requires (see below)
 - `max_proc` - maximum number of processes, for this subtree. -1 is the default, and it means infinite. (see below)
-- `status` - the initial status of the node. This property cannot be inherited from the parent node. The default status 
-  is `waiting`. Possible values are `waiting` and `frozen` (there are other statuses, but they cannot be specified as
-  initial statuses).
+- `status` - the initial status of the node. This property can be inherited from the parent node (when the tree is 
+  loadded). The default status is `waiting`. Possible values are `waiting` and `frozen` (there are other statuses, 
+  but they cannot be specified as  initial statuses).
 - `expanded` - boolean, defaults to `false`. When set to false, the GUI will not show children of the node.
 - `expand_on_active` - boolean, defaults to `true`. When the node becomes active, it is expanded in the GUI.
 - `collapse_on_finished` - boolean, defaults to `true`. When the node becomes finished, it is collapsed in the GUI.
