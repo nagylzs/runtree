@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/nagylzs/set"
 )
 
@@ -24,7 +25,8 @@ func ParseToDom(rawTrees map[string]interface{}, maxDepth uint) (*Tree, error) {
 
 // LoadNode loads a node from an arbitrary map of values and adds it into a tree.
 // If the node should be excluded ("ifeq" and "ifneq") then it returns a nil node.
-func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree *Tree, rawTrees map[string]interface{}, maxDepth uint, idx *uint, level uint, loadInto *Node) (*Node, error) {
+func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree *Tree, rawTrees map[string]interface{},
+	maxDepth uint, idx *uint, level uint, loadInto *Node, overrideVars map[string]string) (*Node, error) {
 	if maxDepth == 0 {
 		return nil, fmt.Errorf("maximum depth exceeded")
 	}
@@ -98,7 +100,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		return n, err
 	}
 
-	n.Parsed.Vars, err = getStringStringMapDef(raw, "vars", nil) /* getStringMapDef */
+	n.Parsed.Vars, err = getStringStringMapDef(raw, "vars", overrideVars) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
@@ -260,7 +262,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	if hasInclude {
 		err = includeSubNodes(n, inc, tree, rawTrees, maxDepth, idx, level+1)
 		if err != nil {
-			return n, err
+			return n, fmt.Errorf("include %s: %w", inc, err)
 		}
 	}
 
@@ -405,7 +407,7 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]
 	for _, rsub := range l {
 		switch sub := rsub.(type) {
 		case map[interface{}]interface{}:
-			node, err := LoadNode(TypeRun, sub, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil)
+			node, err := LoadNode(TypeRun, sub, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -429,29 +431,93 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]
 	return nil
 }
 
+type IncludeConfig struct {
+	Sources []string            `mapstructure:"sources"`
+	ForVars map[string][]string `mapstructure:"forvars"` // Dynamic key-value pairs
+}
+
 // loadSubNodes includes sub-nodes when specified via "include" property
 func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]interface{}, maxDepth uint, idx *uint, level uint) error {
 	var names []string
 	var ok bool
-	items, ok := rl.([]interface{})
+
+	ic := IncludeConfig{}
+	source, ok := rl.(string)
 	if ok {
-		names = make([]string, len(items))
-		for i, item := range items {
-			name, ok := item.(string)
-			if !ok {
-				return fmt.Errorf("invalid type: %T, items after 'include' must be strings", item)
-			}
-			names[i] = name
-		}
+		ic.Sources = make([]string, 1)
+		ic.Sources[0] = source
+		ic.ForVars = nil
 	} else {
-		name, ok := rl.(string)
-		if !ok {
-			return fmt.Errorf("invalid type for inclusion: %T must be string or list of strings", rl)
+		err := mapstructure.Decode(rl, &ic)
+		if err != nil {
+			return fmt.Errorf("invalid include configuration: %v", err)
 		}
-		names = make([]string, 1)
-		names[0] = name
+		if ic.Sources == nil || len(ic.Sources) == 0 {
+			return fmt.Errorf("invalid include configuration: no sources")
+		}
 	}
-	for _, name := range names {
+
+	// When forvars is present, then we must iterate over them
+	if ic.ForVars != nil && len(ic.ForVars) > 0 {
+		keys := make([]string, 0, len(ic.ForVars))
+		for k := range ic.ForVars {
+			keys = append(keys, k)
+		}
+
+		// Track the current index position for each key
+		// e.g., if indices is [0, 1], it means the 0th element of keys[0] and 1st of keys[1]
+		indices := make([]int, len(keys))
+
+		for {
+			combination := make(map[string]string)
+			for i, key := range keys {
+				combination[key] = ic.ForVars[key][indices[i]]
+			}
+
+			for _, name := range ic.Sources {
+				item, ok := rawTrees[name]
+				if !ok {
+					return fmt.Errorf("cannot include %s, not found", name)
+				}
+				raw, ok := item.(map[interface{}]interface{})
+				if !ok {
+					return fmt.Errorf("cannot include %s, should be an object, got %T", name, item)
+				}
+				node, err := LoadNode(TypeRun, raw, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, combination)
+				if err != nil {
+					return err
+				}
+				// ifeq, ifneq
+				if node == nil {
+					continue
+				}
+				parent.Nodes = append(parent.Nodes, node)
+			}
+
+			// 4. Increment indices to move to the next combination (like odometer/counter)
+			next := len(keys) - 1
+			for next >= 0 {
+				indices[next]++
+
+				// If the index is within bounds of the current slice, we are good to go
+				if indices[next] < len(ic.ForVars[keys[next]]) {
+					break
+				}
+
+				// If it overflows, reset this index to 0 and carry over to the previous key
+				indices[next] = 0
+				next--
+			}
+
+			// If 'next' goes below 0, it means all combinations have been exhausted
+			if next < 0 {
+				break
+			}
+		}
+		return nil
+	}
+
+	for _, name := range ic.Sources {
 		item, ok := rawTrees[name]
 		if !ok {
 			return fmt.Errorf("cannot include %s, not found", name)
@@ -477,7 +543,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[stri
 		if canReduce {
 			loadInto = parent
 		}
-		node, err := LoadNode(TypeRun, raw, parent, tree, rawTrees, maxDepth-1, idx, level+1, loadInto)
+		node, err := LoadNode(TypeRun, raw, parent, tree, rawTrees, maxDepth-1, idx, level+1, loadInto, nil)
 		if err != nil {
 			return err
 		}
@@ -495,7 +561,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[stri
 func LoadRunNodeFromArgs(args []interface{}, parent *Node, tree *Tree, rawTrees map[string]interface{}, maxDepth uint, idx *uint, level uint) (*Node, error) {
 	rl := make(map[interface{}]interface{})
 	rl["args"] = args
-	return LoadNode(TypeRun, rl, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil)
+	return LoadNode(TypeRun, rl, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, nil)
 }
 
 func getString(raw map[interface{}]interface{}, name string) (string, error) {

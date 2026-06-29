@@ -525,6 +525,7 @@ There are certain operations defined **on single nodes**:
 * `fail` - the scheduler can perform this in `running` state, when the node fails (e.g., the corresponding process fails,
    or one of its sub-nodes fails). It can also be set manually in `paused` state.
 * `signal` - can only be performed in `running` state, it sends a signal (selected by the user) to the process
+* `reset to waiting` - TODO
 
 ### Freeze and thaw
 
@@ -935,42 +936,36 @@ show what part of the tree is failed, why and when.
 These operations are not defined and cannot be performed on par and seq nodes directly (but they can be performed
 recursively on their sub-nodes).
 
-## `use` nodes
+## `include`
 
-The purpose of a `use` node is abstract code re-use. A `use` node can re-use a previously defined node (with its
-subtree).
+Instead of `nodes` it is possible to use `include`. This keyword loads another subtree from the same yaml file.
 
-In the simplest case, the `use` node uses a previously defined node, possibly after setting some variables and
-environment variables:
-
-For example:
+There are two forms. The general form is to give `sources` - a list of references to other root nodes in the yaml file - and
+`forvars` which defines variable mappings.
 
 ```yaml
-build_and_rolling_deploy:
-  # When the id is not specified for a root object, then it defaults to its name.
-  # So the line below is not required.
-  #id: "build_and_rolling_deploy"
-  seq:
-    - "ssh {user}@{host} -t make build {target}"
-    - "ssh {user}@{host} -t make deploy {target}"
-    - "ssh {user}@{host} -t rolling_deploy.sh -f {target}"
 tree:
-  vars:
-    "user": "app_user"
-  for:
-    - vars:
-        host: "server01"
-    - vars:
-        host: "server02"
-      envs:
-        DEBUG: "1"
+  status: "frozen"
+  type: par
+  include:
+    sources: ["make_and_deploy", "health_check"]
+    forvars:
+      server: ["server01", "server02", "server03"]
+      target: ["dev", "uat"]
+
+make_and_deploy:
+  title: "build and deploy on {server}/{target}"
   seq:
-    - type: "use"
-      use: "build_and_rolling_deploy"
+    - args: ["ssh", "root@{server}", "make", "build", "{target}"]
+    - args: ["ssh", "root@{server}", "make", "deploy", "{target}"]
+
+health_check:
+  title: "health check {target} on {server}"
+  args: ["ssh", "root@{server}", "health_check", "{target}"]
 ```
 
-This will loop over `"server01"` and `"server02"`, and run the `build_and_rolling_deploy` node (defined at top level)
-for these loop cycles.
+This will generate nodes for the cartesian product of server="server01", "server02", "server03" and target="dev", "uat",
+and build nodes where health_check runs in parallel with make_and_deploy (which itself runs sequentiallly).
 
 It is possible to define a `run tree` with circular references, but it results in a compilation error (`runtree` will
 throw an error and refuse to start the tree).

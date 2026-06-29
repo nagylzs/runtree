@@ -1,0 +1,18 @@
+tree:
+  status: "frozen"
+  type: par
+  include:
+    sources: ["make_and_deploy", "health_check"]
+    forvars:
+      server: ["server01", "server02"]
+      target: ["dev", "uat"]
+
+make_and_deploy:
+  title: "build and deploy on {server}/{target}"
+  seq:
+    - args: ["ssh", "root@{server}", "make", "build", "{target}"]
+    - args: ["ssh", "root@{server}", "make", "deploy", "{target}"]
+
+health_check:
+  title: "health check {target} on {server}"
+  args: ["ssh", "root@{server}", "health_check", "{target}"]
