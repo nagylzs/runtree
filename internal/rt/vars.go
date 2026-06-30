@@ -241,18 +241,19 @@ func calcMap(raw map[string]interface{}, vars map[string]interface{}, defVars ma
 				return nil, err
 			}
 		}
-		s[k] = v
+		r[k] = v
 	}
 	return r, nil
 }
 
 func calcMapStringString(raw map[string]string, vars map[string]interface{}, defVars map[string]string,
 	inheritFrom map[string]string, includeSources bool) (map[string]string, error) {
-	s := make(map[string]string) // this is the source
+	s := make(map[string]interface{}) // this is the source
 	// first put inherited values into source
 	for k, v := range inheritFrom {
 		s[k] = v
 	}
+	ihf2 := maps.Clone(s)
 	vars2 := maps.Clone(vars)
 	if vars2 == nil {
 		vars2 = make(map[string]interface{})
@@ -262,40 +263,40 @@ func calcMapStringString(raw map[string]string, vars map[string]interface{}, def
 	for k, v := range vars2 {
 		sv, ok := v.(string)
 		if ok {
-			sv, err = varEvalString(sv, inheritFrom)
+			v, err = varEval(sv, ihf2)
+			if err != nil {
+				return nil, err
+			}
+		}
+		s[k] = v
+	}
+	for k, sv := range defVars {
+		_, ok := s[k]
+		if !ok {
+			sv, err = varEval(sv, ihf2)
 			if err != nil {
 				return nil, err
 			}
 			s[k] = sv
-		} else {
-			return nil, fmt.Errorf("variable '%s' is not a string", k)
-		}
-	}
-	for k, v := range defVars {
-		_, ok := s[k]
-		if !ok {
-			v, err = varEvalString(v, inheritFrom)
-			if err != nil {
-				return nil, err
-			}
-			s[k] = v
 		}
 	}
 	// this is the resulting map
-	var r map[string]string
+	var r = make(map[string]string)
 	if includeSources {
 		// include all source values
-		r = maps.Clone(s)
-	} else {
-		// only include the values that have keys in raw
-		r = make(map[string]string)
+		for k, v := range s {
+			sv, ok := v.(string)
+			if ok {
+				r[k] = sv
+			}
+		}
 	}
-	for k, v := range raw {
-		v, err = varEvalString(v, s)
+	for k, sv := range raw {
+		sv, err = varEval(sv, s)
 		if err != nil {
 			return nil, err
 		}
-		s[k] = v
+		r[k] = sv
 	}
 	return r, nil
 }
