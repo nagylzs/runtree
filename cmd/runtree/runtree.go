@@ -8,7 +8,6 @@ import (
 	_ "net/http"
 	_ "net/http/pprof"
 	"os"
-	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 
@@ -19,10 +18,7 @@ import (
 	"github.com/nagylzs/runtree/internal/gtkui"
 	"github.com/nagylzs/runtree/internal/rt"
 	"github.com/nagylzs/runtree/internal/version"
-	"gopkg.in/yaml.v2"
 )
-
-const MaxYamlFileSize = 1024 * 1024
 
 var exitCode int = 0
 
@@ -112,9 +108,13 @@ func main() {
 func runMain(args config.CLIArgs, posArgs []string) error {
 	inputFile := posArgs[1]
 	allTrees := make(map[string]map[string]interface{})
-	runTree, err := addTree(inputFile, allTrees, args.MaxDepth)
+	_, filename, err := rt.AddTree(inputFile, allTrees)
 	if err != nil {
 		return err
+	}
+	runTree, err := rt.ParseToDom(allTrees, filename, args.MaxDepth)
+	if err != nil {
+		return fmt.Errorf("could not parse input file %v: %w", inputFile, err)
 	}
 
 	err = gtkui.InitApplication(runTree)
@@ -124,30 +124,4 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 
 	exitCode = gtkui.RunApplication()
 	return nil
-}
-
-func addTree(inputFile string, allTrees map[string]map[string]interface{}, maxDepth uint) (*rt.Tree, error) {
-	fi, err := os.Stat(inputFile)
-	if err != nil {
-		return nil, fmt.Errorf("could not stat input file %v: %w", inputFile, err)
-	}
-	if fi.Size() > MaxYamlFileSize {
-		return nil, fmt.Errorf("input file %v bigger than %v bytes", inputFile, MaxYamlFileSize)
-	}
-	filename := filepath.Base(inputFile)
-	data, err := os.ReadFile(inputFile)
-	if err != nil {
-		return nil, fmt.Errorf("could not read input file %v: %w", inputFile, err)
-	}
-	var rawTrees map[string]interface{}
-	err = yaml.Unmarshal(data, &rawTrees)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse input file %v: %w", inputFile, err)
-	}
-	allTrees[filename] = rawTrees
-	runTree, err := rt.ParseToDom(allTrees, filename, maxDepth)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse input file %v: %w", inputFile, err)
-	}
-	return runTree, nil
 }

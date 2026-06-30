@@ -3,11 +3,16 @@ package rt
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/nagylzs/set"
+	"gopkg.in/yaml.v2"
 )
+
+const MaxYamlFileSize = 1024 * 1024
 
 var ValidNodeConfigs = set.FromArray([]string{
 	"id", "title", "description",
@@ -19,6 +24,28 @@ var ValidNodeConfigs = set.FromArray([]string{
 	"ifeq", "ifneq",
 	"for_vars",
 })
+
+func AddTree(inputFile string, allTrees map[string]map[string]interface{}) (map[string]interface{}, string, error) {
+	fi, err := os.Stat(inputFile)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not stat input file %v: %w", inputFile, err)
+	}
+	filename := filepath.Base(inputFile)
+	if fi.Size() > MaxYamlFileSize {
+		return nil, filename, fmt.Errorf("input file %v bigger than %v bytes", inputFile, MaxYamlFileSize)
+	}
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		return nil, filename, fmt.Errorf("could not read input file %v: %w", inputFile, err)
+	}
+	var rawTrees map[string]interface{}
+	err = yaml.Unmarshal(data, &rawTrees)
+	if err != nil {
+		return nil, filename, fmt.Errorf("could not parse input file %v: %w", inputFile, err)
+	}
+	allTrees[filename] = rawTrees
+	return rawTrees, filename, nil
+}
 
 func ParseToDom(allTrees map[string]map[string]interface{}, filename string, maxDepth uint) (*Tree, error) {
 	return LoadTree(allTrees, filename, "tree", maxDepth)
@@ -517,9 +544,27 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 	}
 
 	for _, name := range sources {
-		// TODO: support loading files
-		rawTrees := allTrees[filename]
-		item, ok := rawTrees[name]
+		var rawTrees map[string]interface{}
+		var localName string
+
+		// relative or absolute import?
+		iidx := strings.Index(name, ":")
+		if iidx < 0 {
+			rawTrees = allTrees[filename]
+			localName = name
+		} else {
+			filePath := name[:iidx]
+			localName = name[iidx+1:]
+			rawTrees, ok = allTrees[filePath]
+			if !ok {
+				var err error
+				rawTrees, filename, err = AddTree(filePath, allTrees)
+				if err != nil {
+					return fmt.Errorf("cannot load %v: %v", name, err.Error())
+				}
+			}
+		}
+		item, ok := rawTrees[localName]
 		if !ok {
 			return fmt.Errorf("cannot include %s, not found", name)
 		}
