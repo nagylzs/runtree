@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 
@@ -11,11 +12,11 @@ import (
 const StartTag = "{"
 const EndTag = "}"
 
-func (n *Node) calculate(idx *uint, level uint) bool {
+func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 	c := &Calculated{Idx: *idx, Level: level}
 
 	// Inherit from this
-	iv := make(map[string]string)
+	iv := make(map[string]interface{})
 	if n.Parent != nil && n.InheritVars {
 		for k, v := range n.Parent.Calculated.Vars {
 			iv[k] = v
@@ -27,11 +28,21 @@ func (n *Node) calculate(idx *uint, level uint) bool {
 	//	println(n.Id)
 	//}
 
-	c.Vars = calcMap(n.Parsed.Vars, n.Parsed.Vars, n.Parsed.DefVars, iv, true)
+	var err error
+	c.Vars, err = calcMap(n.Parsed.Vars, n.Parsed.Vars, n.Parsed.DefVars, iv, true)
+	if err != nil {
+		return false, err
+	}
 	// below this line, variable evaluation should use c.Vars and **not** n.Parsed.Vars!
 
-	c.IfEq = calcMap(n.Parsed.IfEq, n.Parsed.Vars, n.Parsed.DefVars, iv, false)
-	c.IfNEq = calcMap(n.Parsed.IfNEq, n.Parsed.Vars, n.Parsed.DefVars, iv, false)
+	c.IfEq, err = calcMap(n.Parsed.IfEq, n.Parsed.Vars, n.Parsed.DefVars, iv, false)
+	if err != nil {
+		return false, err
+	}
+	c.IfNEq, err = calcMap(n.Parsed.IfNEq, n.Parsed.Vars, n.Parsed.DefVars, iv, false)
+	if err != nil {
+		return false, err
+	}
 
 	for k, v1 := range c.IfEq {
 		v2, ok := c.Vars[k]
@@ -39,7 +50,7 @@ func (n *Node) calculate(idx *uint, level uint) bool {
 			v2 = ""
 		}
 		if v1 != v2 {
-			return false
+			return false, nil
 		}
 	}
 	for k, v1 := range c.IfNEq {
@@ -48,15 +59,21 @@ func (n *Node) calculate(idx *uint, level uint) bool {
 			v2 = ""
 		}
 		if v1 == v2 {
-			return false
+			return false, nil
 		}
 	}
 
 	// we will keep this node, register new index
 	*idx += 1
 
-	c.Title = varEval(n.Parsed.Title, c.Vars)
-	c.Description = varEval(n.Parsed.Description, c.Vars)
+	c.Title, err = varEval(n.Parsed.Title, c.Vars)
+	if err != nil {
+		return false, err
+	}
+	c.Description, err = varEval(n.Parsed.Description, c.Vars)
+	if err != nil {
+		return false, err
+	}
 
 	// Inherit from this
 	ie := make(map[string]string)
@@ -65,7 +82,10 @@ func (n *Node) calculate(idx *uint, level uint) bool {
 			ie[k] = v
 		}
 	}
-	c.Envs = calcMap(n.Parsed.Envs, c.Vars, nil, ie, false)
+	c.Envs, err = calcMapStringString(n.Parsed.Envs, c.Vars, nil, ie, false)
+	if err != nil {
+		return false, err
+	}
 
 	// argsprefix can be inherited from parent
 	if n.Parsed.ArgsPrefix != nil {
@@ -87,14 +107,20 @@ func (n *Node) calculate(idx *uint, level uint) bool {
 	if n.Parsed.CWD == "" && n.Parent != nil {
 		c.CWD = n.Parent.Parsed.CWD
 	} else {
-		c.CWD = varEval(n.Parsed.CWD, c.Vars)
+		c.CWD, err = varEval(n.Parsed.CWD, c.Vars)
+		if err != nil {
+			return false, err
+		}
 	}
 	cRunner := ""
 	if n.Parsed.Runner == "" && n.Parent != nil {
 		cRunner = n.Parent.Parsed.Runner
 	}
 	if cRunner == "" {
-		cRunner = varEval(n.Parsed.Runner, c.Vars)
+		cRunner, err = varEval(n.Parsed.Runner, c.Vars)
+		if err != nil {
+			return false, err
+		}
 	}
 	if cRunner == "" {
 		cRunner = config.DefaultRunnerAddress
@@ -131,7 +157,7 @@ func (n *Node) calculate(idx *uint, level uint) bool {
 
 	n.Calculated = *c
 
-	return true
+	return true, nil
 }
 
 func (n *Node) FillNodeList(list []*Node) {
@@ -141,7 +167,66 @@ func (n *Node) FillNodeList(list []*Node) {
 	}
 }
 
-func calcMap(raw map[string]string, vars map[string]string, defVars map[string]string, inheritFrom map[string]string, includeSources bool) map[string]string {
+func calcMap(raw map[string]interface{}, vars map[string]interface{}, defVars map[string]interface{},
+	inheritFrom map[string]interface{}, includeSources bool) (map[string]interface{}, error) {
+	s := make(map[string]interface{}) // this is the source
+	// first put inherited values into source
+	for k, v := range inheritFrom {
+		s[k] = v
+	}
+	vars2 := maps.Clone(vars)
+	if vars2 == nil {
+		vars2 = make(map[string]interface{})
+	}
+	var err error
+	// then put var values, substitute inherited values
+	for k, v := range vars2 {
+		sv, ok := v.(string)
+		if ok {
+			v, err = varEval(sv, inheritFrom)
+			if err != nil {
+				return nil, err
+			}
+		}
+		s[k] = v
+	}
+	for k, v := range defVars {
+		_, ok := s[k]
+		if !ok {
+			sv, ok := v.(string)
+			if ok {
+				v, err = varEval(sv, inheritFrom)
+				if err != nil {
+					return nil, err
+				}
+			}
+			s[k] = v
+		}
+	}
+	// this is the resulting map
+	var r map[string]interface{}
+	if includeSources {
+		// include all source values
+		r = maps.Clone(s)
+	} else {
+		// only include the values that have keys in raw
+		r = make(map[string]interface{})
+	}
+	for k, v := range raw {
+		sv, ok := v.(string)
+		if ok {
+			v, err = varEval(sv, s)
+			if err != nil {
+				return nil, err
+			}
+		}
+		s[k] = v
+	}
+	return r, nil
+}
+
+func calcMapStringString(raw map[string]string, vars map[string]interface{}, defVars map[string]string,
+	inheritFrom map[string]string, includeSources bool) (map[string]string, error) {
 	s := make(map[string]string) // this is the source
 	// first put inherited values into source
 	for k, v := range inheritFrom {
@@ -149,16 +234,30 @@ func calcMap(raw map[string]string, vars map[string]string, defVars map[string]s
 	}
 	vars2 := maps.Clone(vars)
 	if vars2 == nil {
-		vars2 = make(map[string]string)
+		vars2 = make(map[string]interface{})
 	}
+	var err error
 	// then put var values, substitute inherited values
 	for k, v := range vars2 {
-		s[k] = varEval(v, inheritFrom)
+		sv, ok := v.(string)
+		if ok {
+			sv, err = varEvalString(sv, inheritFrom)
+			if err != nil {
+				return nil, err
+			}
+			s[k] = sv
+		} else {
+			return nil, fmt.Errorf("variable '%s' is not a string", k)
+		}
 	}
 	for k, v := range defVars {
 		_, ok := s[k]
 		if !ok {
-			s[k] = varEval(v, inheritFrom)
+			v, err = varEvalString(v, inheritFrom)
+			if err != nil {
+				return nil, err
+			}
+			s[k] = v
 		}
 	}
 	// this is the resulting map
@@ -171,36 +270,65 @@ func calcMap(raw map[string]string, vars map[string]string, defVars map[string]s
 		r = make(map[string]string)
 	}
 	for k, v := range raw {
-		r[k] = varEval(v, s)
+		v, err = varEvalString(v, s)
+		if err != nil {
+			return nil, err
+		}
+		s[k] = v
 	}
-	return r
+	return r, nil
 }
 
 // varEval substitutes variables into a string
-func varEval(value string, values map[string]string) string {
+func varEval(value string, values map[string]interface{}) (string, error) {
 	if !strings.Contains(value, StartTag) {
-		return value
+		return value, nil
+	}
+	// TODO: handle escape sequences, prevent multi-replacement
+	// Create a state machine (splitting by StartTag, EndTag) ?
+	for k, v := range values {
+		sv, ok := v.(string)
+		if !ok {
+			return "", fmt.Errorf("cannot substitute {%s}: value is not a string", k)
+		}
+		value = strings.Replace(value, StartTag+k+EndTag, sv, -1)
+	}
+	return value, nil
+}
+
+// varEvalString substitutes string variables into a string
+func varEvalString(value string, values map[string]string) (string, error) {
+	if !strings.Contains(value, StartTag) {
+		return value, nil
 	}
 	// TODO: handle escape sequences, prevent multi-replacement
 	// Create a state machine (splitting by StartTag, EndTag) ?
 	for k, v := range values {
 		value = strings.Replace(value, StartTag+k+EndTag, v, -1)
 	}
-	return value
+	return value, nil
 }
 
 // varEvalArray substitutes variables into items of a string array
-func varEvalArray(items []string, values map[string]string) []string {
+func varEvalArray(items []string, values map[string]interface{}) ([]string, error) {
 	res := make([]string, len(items))
 	for i, v := range items {
-		res[i] = varEval(v, values)
+		sv, err := varEval(v, values)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = sv
 	}
-	return res
+	return res, nil
 }
 
 // varEvalSet substitutes variables into items of a string set
-func varEvalSet(items []string, values map[string]string) *set.Set[string] {
-	return set.FromArray(varEvalArray(items, values))
+func varEvalSet(items []string, values map[string]interface{}) (*set.Set[string], error) {
+	arr, err := varEvalArray(items, values)
+	if err != nil {
+		return nil, err
+	}
+	return set.FromArray(arr), nil
 }
 
 /*
