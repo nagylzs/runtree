@@ -8,6 +8,7 @@ import (
 	_ "net/http"
 	_ "net/http/pprof"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 
@@ -110,25 +111,10 @@ func main() {
 
 func runMain(args config.CLIArgs, posArgs []string) error {
 	inputFile := posArgs[1]
-	fi, err := os.Stat(inputFile)
+	allTrees := make(map[string]map[string]interface{})
+	runTree, err := addTree(inputFile, allTrees, args.MaxDepth)
 	if err != nil {
-		return fmt.Errorf("could not stat input file %v: %w", inputFile, err)
-	}
-	if fi.Size() > MaxYamlFileSize {
-		return fmt.Errorf("input file %v bigger than %v bytes", inputFile, MaxYamlFileSize)
-	}
-	data, err := os.ReadFile(inputFile)
-	if err != nil {
-		return fmt.Errorf("could not read input file %v: %w", inputFile, err)
-	}
-	var rawTrees map[string]interface{}
-	err = yaml.Unmarshal(data, &rawTrees)
-	if err != nil {
-		return fmt.Errorf("could not parse input file %v: %w", inputFile, err)
-	}
-	runTree, err := rt.ParseToDom(rawTrees, args.MaxDepth)
-	if err != nil {
-		return fmt.Errorf("could not parse input file %v: %w", inputFile, err)
+		return err
 	}
 
 	err = gtkui.InitApplication(runTree)
@@ -138,4 +124,30 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 
 	exitCode = gtkui.RunApplication()
 	return nil
+}
+
+func addTree(inputFile string, allTrees map[string]map[string]interface{}, maxDepth uint) (*rt.Tree, error) {
+	fi, err := os.Stat(inputFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not stat input file %v: %w", inputFile, err)
+	}
+	if fi.Size() > MaxYamlFileSize {
+		return nil, fmt.Errorf("input file %v bigger than %v bytes", inputFile, MaxYamlFileSize)
+	}
+	filename := filepath.Base(inputFile)
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not read input file %v: %w", inputFile, err)
+	}
+	var rawTrees map[string]interface{}
+	err = yaml.Unmarshal(data, &rawTrees)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse input file %v: %w", inputFile, err)
+	}
+	allTrees[filename] = rawTrees
+	runTree, err := rt.ParseToDom(allTrees, filename, maxDepth)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse input file %v: %w", inputFile, err)
+	}
+	return runTree, nil
 }

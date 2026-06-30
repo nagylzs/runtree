@@ -20,8 +20,8 @@ var ValidNodeConfigs = set.FromArray([]string{
 	"for_vars",
 })
 
-func ParseToDom(rawTrees map[string]interface{}, maxDepth uint) (*Tree, error) {
-	return LoadTree(rawTrees, "tree", maxDepth)
+func ParseToDom(allTrees map[string]map[string]interface{}, filename string, maxDepth uint) (*Tree, error) {
+	return LoadTree(allTrees, filename, "tree", maxDepth)
 }
 
 // LoadNode loads a node from an arbitrary map of values and adds it into a tree.

@@ -54,7 +54,11 @@ func (t *Tree) addNodeById(n *Node) error {
 	return nil
 }
 
-func LoadTree(rawTrees map[string]interface{}, id string, maxDepth uint) (*Tree, error) {
+func LoadTree(allTrees map[string]map[string]interface{}, filename string, id string, maxDepth uint) (*Tree, error) {
+	rawTrees, ok := allTrees[filename]
+	if !ok {
+		return nil, fmt.Errorf("file not found: %s", filename)
+	}
 	rn, ok := rawTrees[id]
 	if !ok {
 		return nil, fmt.Errorf("'%s' is missing", id)
