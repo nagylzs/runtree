@@ -1,0 +1,7 @@
+tree:
+  status: "frozen"
+  for_vars:
+    server: ["server01", "server02", "server03"]
+    target: ["dev", "uat"]
+  par:
+    - args: ["ssh", "root@{server}", "make", "build", "{target}"]

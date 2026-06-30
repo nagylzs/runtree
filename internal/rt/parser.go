@@ -17,6 +17,7 @@ var ValidNodeConfigs = set.FromArray([]string{
 	"on_error", "max_proc", "envs", "type", "rlocks", "xlocks", "nodes",
 	"par", "seq", "run", "include", "status",
 	"ifeq", "ifneq",
+	"for_vars",
 })
 
 func ParseToDom(rawTrees map[string]interface{}, maxDepth uint) (*Tree, error) {
@@ -259,42 +260,102 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		return n, fmt.Errorf("cannot specify both 'nodes' and 'include'")
 	}
 
-	if hasInclude {
-		err = includeSubNodes(n, inc, tree, rawTrees, maxDepth, idx, level+1)
-		if err != nil {
-			return n, fmt.Errorf("include %s: %w", inc, err)
+	forVarsRaw, hasForVars := raw["for_vars"]
+	var forVars map[string][]string = nil
+	if hasForVars {
+		if n.Type == TypeRun {
+			return n, fmt.Errorf("run type node cannot have for_vars")
 		}
+
+		err = mapstructure.Decode(forVarsRaw, &forVars)
+		if err != nil {
+			return n, fmt.Errorf("error parsing for_vars: %s", err)
+		}
+		hasForVars = forVars != nil && len(forVars) > 0
 	}
 
-	if hasNodes {
-		err = loadSubNodes(n, nodes, tree, rawTrees, maxDepth, idx, level)
-		if err != nil {
-			return n, err
-		}
+	// create a technical for_var to avoid code duplication
+	if !hasForVars {
+		forVars = make(map[string][]string)
+		forVars["_"] = []string{"_"}
 	}
 
-	rl, ok := raw["seq"]
-	if ok {
-		n.Type = TypeSeq
-		err = loadSubNodes(n, rl, tree, rawTrees, maxDepth, idx, level)
-		if err != nil {
-			return n, err
-		}
+	// iterate over the cartesian product of variable values found in for_vars
+	keys := make([]string, 0, len(forVars))
+	for k := range forVars {
+		keys = append(keys, k)
 	}
 
-	rl, ok = raw["par"]
-	if ok {
-		n.Type = TypePar
-		err = loadSubNodes(n, rl, tree, rawTrees, maxDepth, idx, level)
-		if err != nil {
-			return n, err
+	// e.g., if indices is [0, 1], it means the 0th element of keys[0] and 1st of keys[1]
+	indices := make([]int, len(keys))
+
+	for {
+		combination := make(map[string]string)
+		if hasForVars {
+			for i, key := range keys {
+				combination[key] = forVars[key][indices[i]]
+			}
+		}
+
+		// Processing combination starts here
+		if hasInclude {
+			err = includeSubNodes(n, inc, tree, rawTrees, maxDepth, idx, level+1, combination)
+			if err != nil {
+				return n, fmt.Errorf("include %s: %w", inc, err)
+			}
+		}
+
+		if hasNodes {
+			err = loadSubNodes(n, nodes, tree, rawTrees, maxDepth, idx, level, combination)
+			if err != nil {
+				return n, err
+			}
+		}
+
+		rl, ok := raw["seq"]
+		if ok {
+			n.Type = TypeSeq
+			err = loadSubNodes(n, rl, tree, rawTrees, maxDepth, idx, level, combination)
+			if err != nil {
+				return n, err
+			}
+		}
+
+		rl, ok = raw["par"]
+		if ok {
+			n.Type = TypePar
+			err = loadSubNodes(n, rl, tree, rawTrees, maxDepth, idx, level, combination)
+			if err != nil {
+				return n, err
+			}
+		}
+		// Processing combination ends here
+
+		// 4. Increment indices to move to the next combination (like odometer/counter)
+		next := len(keys) - 1
+		for next >= 0 {
+			indices[next]++
+
+			// If the index is within bounds of the current slice, we are good to go
+			if indices[next] < len(forVars[keys[next]]) {
+				break
+			}
+
+			// If it overflows, reset this index to 0 and carry over to the previous key
+			indices[next] = 0
+			next--
+		}
+
+		// If 'next' goes below 0, it means all combinations have been exhausted
+		if next < 0 {
+			break
 		}
 	}
 
 	for k, _ := range raw {
 		ks, ok := k.(string)
 		if !ok || !ValidNodeConfigs.Contains(ks) {
-			return n, fmt.Errorf("invalid config: %v", k)
+			return n, fmt.Errorf("invalid config: unknown property: %v", k)
 		}
 	}
 
@@ -398,7 +459,8 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 }
 
 // loadSubNodes loads sub-nodes when specified via "nodes" property
-func loadSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]interface{}, maxDepth uint, idx *uint, level uint) error {
+func loadSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]interface{},
+	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) error {
 	l, ok := rl.([]interface{})
 	if !ok {
 		// TODO: allow use "seq", "par", "run" instead of "nodes"
@@ -407,7 +469,7 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]
 	for _, rsub := range l {
 		switch sub := rsub.(type) {
 		case map[interface{}]interface{}:
-			node, err := LoadNode(TypeRun, sub, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, nil)
+			node, err := LoadNode(TypeRun, sub, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, overrideVars)
 			if err != nil {
 				return err
 			}
@@ -416,7 +478,7 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]
 				parent.Nodes = append(parent.Nodes, node)
 			}
 		case []interface{}:
-			node, err := LoadRunNodeFromArgs(sub, parent, tree, rawTrees, maxDepth, idx, level+1)
+			node, err := LoadRunNodeFromArgs(sub, parent, tree, rawTrees, maxDepth, idx, level+1, overrideVars)
 			if err != nil {
 				return err
 			}
@@ -431,93 +493,27 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]
 	return nil
 }
 
-type IncludeConfig struct {
-	Sources []string            `mapstructure:"sources"`
-	ForVars map[string][]string `mapstructure:"forvars"` // Dynamic key-value pairs
-}
-
 // loadSubNodes includes sub-nodes when specified via "include" property
-func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]interface{}, maxDepth uint, idx *uint, level uint) error {
-	var names []string
+func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[string]interface{},
+	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) error {
+
 	var ok bool
 
-	ic := IncludeConfig{}
+	var sources []string
+
 	source, ok := rl.(string)
 	if ok {
-		ic.Sources = make([]string, 1)
-		ic.Sources[0] = source
-		ic.ForVars = nil
-	} else {
-		err := mapstructure.Decode(rl, &ic)
+		sources = make([]string, 1)
+		sources[0] = source
+	}
+	if !ok {
+		err := mapstructure.Decode(rl, &sources)
 		if err != nil {
-			return fmt.Errorf("invalid include configuration: %v", err)
-		}
-		if ic.Sources == nil || len(ic.Sources) == 0 {
-			return fmt.Errorf("invalid include configuration: no sources")
+			return fmt.Errorf("invalid include argument: %v", err.Error())
 		}
 	}
 
-	// When forvars is present, then we must iterate over them
-	if ic.ForVars != nil && len(ic.ForVars) > 0 {
-		keys := make([]string, 0, len(ic.ForVars))
-		for k := range ic.ForVars {
-			keys = append(keys, k)
-		}
-
-		// Track the current index position for each key
-		// e.g., if indices is [0, 1], it means the 0th element of keys[0] and 1st of keys[1]
-		indices := make([]int, len(keys))
-
-		for {
-			combination := make(map[string]string)
-			for i, key := range keys {
-				combination[key] = ic.ForVars[key][indices[i]]
-			}
-
-			for _, name := range ic.Sources {
-				item, ok := rawTrees[name]
-				if !ok {
-					return fmt.Errorf("cannot include %s, not found", name)
-				}
-				raw, ok := item.(map[interface{}]interface{})
-				if !ok {
-					return fmt.Errorf("cannot include %s, should be an object, got %T", name, item)
-				}
-				node, err := LoadNode(TypeRun, raw, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, combination)
-				if err != nil {
-					return err
-				}
-				// ifeq, ifneq
-				if node == nil {
-					continue
-				}
-				parent.Nodes = append(parent.Nodes, node)
-			}
-
-			// 4. Increment indices to move to the next combination (like odometer/counter)
-			next := len(keys) - 1
-			for next >= 0 {
-				indices[next]++
-
-				// If the index is within bounds of the current slice, we are good to go
-				if indices[next] < len(ic.ForVars[keys[next]]) {
-					break
-				}
-
-				// If it overflows, reset this index to 0 and carry over to the previous key
-				indices[next] = 0
-				next--
-			}
-
-			// If 'next' goes below 0, it means all combinations have been exhausted
-			if next < 0 {
-				break
-			}
-		}
-		return nil
-	}
-
-	for _, name := range ic.Sources {
+	for _, name := range sources {
 		item, ok := rawTrees[name]
 		if !ok {
 			return fmt.Errorf("cannot include %s, not found", name)
@@ -531,7 +527,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[stri
 		// in this case we load the node into the parent, instead of adding it as a child
 		var loadInto *Node = nil
 		canReduce := true
-		if len(names) != 1 {
+		if len(sources) != 1 {
 			canReduce = false
 		}
 		if parent.Calculated.RLocks != nil && parent.Calculated.RLocks.Size() > 0 {
@@ -543,7 +539,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[stri
 		if canReduce {
 			loadInto = parent
 		}
-		node, err := LoadNode(TypeRun, raw, parent, tree, rawTrees, maxDepth-1, idx, level+1, loadInto, nil)
+		node, err := LoadNode(TypeRun, raw, parent, tree, rawTrees, maxDepth-1, idx, level+1, loadInto, overrideVars)
 		if err != nil {
 			return err
 		}
@@ -558,10 +554,11 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree, rawTrees map[stri
 	return nil
 }
 
-func LoadRunNodeFromArgs(args []interface{}, parent *Node, tree *Tree, rawTrees map[string]interface{}, maxDepth uint, idx *uint, level uint) (*Node, error) {
+func LoadRunNodeFromArgs(args []interface{}, parent *Node, tree *Tree, rawTrees map[string]interface{},
+	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) (*Node, error) {
 	rl := make(map[interface{}]interface{})
 	rl["args"] = args
-	return LoadNode(TypeRun, rl, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, nil)
+	return LoadNode(TypeRun, rl, parent, tree, rawTrees, maxDepth-1, idx, level+1, nil, overrideVars)
 }
 
 func getString(raw map[interface{}]interface{}, name string) (string, error) {

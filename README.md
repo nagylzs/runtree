@@ -936,22 +936,52 @@ show what part of the tree is failed, why and when.
 These operations are not defined and cannot be performed on par and seq nodes directly (but they can be performed
 recursively on their sub-nodes).
 
+## `for_vars`
+
+The `for_vars` construct can be used to repeat sub-nodes for a set of variable value combinations. The syntax is:
+
+```yaml
+tree:
+  for_vars:
+      server: ["server01", "server02", "server03"]
+      target: ["dev", "uat"]
+  par:
+    - args: ["ssh", "root@{server}", "make", "build", "{target}"]
+```
+
+This will iterate over the cartesian product of the possible variable values, and generate nodes for all of them.
+The above example is equivalent to:
+
+```yaml
+tree:
+  par:
+    - args: ["ssh", "root@server01", "make", "build", "dev"]
+    - args: ["ssh", "root@server01", "make", "build", "uat"]
+    - args: ["ssh", "root@server02", "make", "build", "dev"]
+    - args: ["ssh", "root@server02", "make", "build", "uat"]
+    - args: ["ssh", "root@server03", "make", "build", "dev"]
+    - args: ["ssh", "root@server03", "make", "build", "uat"]
+```
+It is important to understand that for_vars has na effect on the sub-nodes only. It is not possible to use it on a 
+run node, because it has no sub-nodes.
+
 ## `include`
 
 Instead of `nodes` it is possible to use `include`. This keyword loads another subtree from the same yaml file.
 
-There are two forms. The general form is to give `sources` - a list of references to other root nodes in the yaml file - and
-`forvars` which defines variable mappings.
+The argument of `include` can be a string or a list of strings. These strings will be interpreted as top level object 
+names, and those top level objects will be parsed into new sub-nodes.
+
+Example:
 
 ```yaml
 tree:
   status: "frozen"
   type: par
-  include:
-    sources: ["make_and_deploy", "health_check"]
-    forvars:
-      server: ["server01", "server02", "server03"]
-      target: ["dev", "uat"]
+  for_vars:
+    server: ["server01", "server02"]
+    target: ["dev", "uat"]
+  include: ["make_and_deploy", "health_check"]
 
 make_and_deploy:
   title: "build and deploy on {server}/{target}"
@@ -964,9 +994,6 @@ health_check:
   args: ["ssh", "root@{server}", "health_check", "{target}"]
 ```
 
-This will generate nodes for the cartesian product of server="server01", "server02", "server03" and target="dev", "uat",
-and build nodes where health_check runs in parallel with make_and_deploy (which itself runs sequentiallly).
-
 It is possible to define a `run tree` with circular references, but it results in a compilation error (`runtree` will
 throw an error and refuse to start the tree).
 
@@ -976,10 +1003,6 @@ The purpose of a `load` node is abstract code re-use. A `load` node can load tre
 file.
 
 **TODO**: design this!
-
-## `for` nodes
-
-**TODO**: design this! MAYBE the seq and par nodes should have a "for" property? But maybe for_envs and for_vars ?????
 
 ## TODO
 

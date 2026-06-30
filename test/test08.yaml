@@ -1,11 +1,10 @@
 tree:
   status: "frozen"
   type: par
-  include:
-    sources: ["make_and_deploy", "health_check"]
-    forvars:
-      server: ["server01", "server02"]
-      target: ["dev", "uat"]
+  for_vars:
+    server: ["server01", "server02"]
+    target: ["dev", "uat"]
+  include: ["make_and_deploy", "health_check"]
 
 make_and_deploy:
   title: "build and deploy on {server}/{target}"
