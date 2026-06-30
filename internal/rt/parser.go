@@ -294,24 +294,9 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		return n, fmt.Errorf("cannot specify both 'nodes' and 'include'")
 	}
 
-	forVarsRaw, hasForVars := raw["for_vars"]
-	var forVars map[string][]string = nil
-	if hasForVars {
-		if n.Type == TypeRun {
-			return n, fmt.Errorf("run type node cannot have for_vars")
-		}
-
-		err = mapstructure.Decode(forVarsRaw, &forVars)
-		if err != nil {
-			return n, fmt.Errorf("error parsing for_vars: %s", err)
-		}
-		hasForVars = forVars != nil && len(forVars) > 0
-	}
-
-	// create a technical for_var to avoid code duplication
-	if !hasForVars {
-		forVars = make(map[string][]string)
-		forVars["_"] = []string{"_"}
+	hasForVars, forVars, err := caclForVars(raw, n, err)
+	if err != nil {
+		return n, err
 	}
 
 	// iterate over the cartesian product of variable values found in for_vars
@@ -402,6 +387,56 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 	return n, nil
 
+}
+
+// calculate for_vars
+// when for_vars is not given, the it returns false with a fake map containing a single fake var with a single value
+func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map[string][]string, error) {
+	forVarsRaw, hasForVars := raw["for_vars"]
+
+	if !hasForVars {
+		forVars := make(map[string][]string)
+		forVars["_"] = []string{"_"}
+		return false, forVars, nil
+	}
+
+	var forVars map[string]interface{} = nil
+	if n.Type == TypeRun {
+		return false, nil, fmt.Errorf("run type node cannot have for_vars")
+	}
+
+	err = mapstructure.Decode(forVarsRaw, &forVars)
+	if err != nil {
+		return false, nil, fmt.Errorf("error parsing for_vars: %s", err)
+	}
+	hasForVars = forVars != nil && len(forVars) > 0
+
+	// Now, replace variable references to array values with the actual arrays.
+	forVarsFinal := make(map[string][]string)
+	for k, v := range forVars {
+		av, ok := v.([]string)
+		if ok {
+			forVarsFinal[k] = av
+			continue
+		}
+		return false, nil,
+			fmt.Errorf("for_vars: %v: value must be an array of strings", k)
+		/*
+			ref, ok := v.(string)
+			if !ok {
+				return false, nil,
+					fmt.Errorf("for_vars: %v: value must be an array of strings or a variable name", k)
+			}
+			av2, ok := n.Calculated.Vars[ref]
+			if !ok {
+				return false, nil,
+					fmt.Errorf("for_vars: %v: variable %s not found", k, ref)
+			}
+
+		*/
+	}
+
+	return hasForVars, forVarsFinal, nil
 }
 
 func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
