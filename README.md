@@ -997,6 +997,19 @@ health_check:
 It is possible to define a `run tree` with circular references, but it results in a compilation error (`runtree` will
 throw an error and refuse to start the tree).
 
+You can also load items from other YAML files, containing runtree objects. The file name is relative to the current
+file, and the file name and the top-level object name is separated by hashmark `#` character.
+
+```yaml
+tree:
+  status: "frozen"
+  type: par
+  for_vars:
+    server: ["server01", "server02"]
+    target: ["dev", "uat"]
+  include: "build_tools.yaml#make_and_deploy"
+```
+
 ## `load` nodes
 
 The purpose of a `load` node is abstract code re-use. A `load` node can load tree definitions from another yml config

@@ -8,6 +8,7 @@ import (
 	_ "net/http"
 	_ "net/http/pprof"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 
@@ -106,15 +107,19 @@ func main() {
 }
 
 func runMain(args config.CLIArgs, posArgs []string) error {
-	inputFile := posArgs[1]
+	fullFilePath, err := filepath.Abs(posArgs[1])
+	if err != nil {
+		return fmt.Errorf("could open input file %v: %w", fullFilePath, err)
+	}
+
 	allTrees := make(map[string]map[string]interface{})
-	_, filename, err := rt.AddTree(inputFile, allTrees)
+	_, filename, err := rt.AddTree(fullFilePath, allTrees)
 	if err != nil {
 		return err
 	}
 	runTree, err := rt.ParseToDom(allTrees, filename, args.MaxDepth)
 	if err != nil {
-		return fmt.Errorf("could not parse input file %v: %w", inputFile, err)
+		return fmt.Errorf("could not parse input file %v: %w", fullFilePath, err)
 	}
 
 	err = gtkui.InitApplication(runTree)

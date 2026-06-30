@@ -25,36 +25,42 @@ var ValidNodeConfigs = set.FromArray([]string{
 	"for_vars",
 })
 
-func AddTree(inputFile string, allTrees map[string]map[string]interface{}) (map[string]interface{}, string, error) {
-	fi, err := os.Stat(inputFile)
+func AddTree(absoluteFilePath string, allTrees map[string]map[string]interface{}) (map[string]interface{}, string, error) {
+	filename, err := filepath.Abs(absoluteFilePath)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not stat input file %v: %w", inputFile, err)
+		return nil, "", err
 	}
-	filename := filepath.Base(inputFile)
+	if filename != absoluteFilePath {
+		return nil, "", fmt.Errorf("AddTree: invalid argument: relative file path provided %v", absoluteFilePath)
+	}
+	fi, err := os.Stat(absoluteFilePath)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not stat input file %v: %w", absoluteFilePath, err)
+	}
 	if fi.Size() > MaxYamlFileSize {
-		return nil, filename, fmt.Errorf("input file %v bigger than %v bytes", inputFile, MaxYamlFileSize)
+		return nil, absoluteFilePath, fmt.Errorf("input file %v bigger than %v bytes", absoluteFilePath, MaxYamlFileSize)
 	}
-	data, err := os.ReadFile(inputFile)
+	data, err := os.ReadFile(absoluteFilePath)
 	if err != nil {
-		return nil, filename, fmt.Errorf("could not read input file %v: %w", inputFile, err)
+		return nil, absoluteFilePath, fmt.Errorf("could not read input file %v: %w", absoluteFilePath, err)
 	}
 	var rawTrees map[string]interface{}
 	err = yaml.Unmarshal(data, &rawTrees)
 	if err != nil {
-		return nil, filename, fmt.Errorf("could not parse input file %v: %w", inputFile, err)
+		return nil, absoluteFilePath, fmt.Errorf("could not parse input file %v: %w", absoluteFilePath, err)
 	}
-	allTrees[filename] = rawTrees
-	return rawTrees, filename, nil
+	allTrees[absoluteFilePath] = rawTrees
+	return rawTrees, absoluteFilePath, nil
 }
 
-func ParseToDom(allTrees map[string]map[string]interface{}, filename string, maxDepth uint) (*Tree, error) {
-	return LoadTree(allTrees, filename, "tree", maxDepth)
+func ParseToDom(allTrees map[string]map[string]interface{}, filePath string, maxDepth uint) (*Tree, error) {
+	return LoadTree(allTrees, filePath, "tree", maxDepth)
 }
 
 // LoadNode loads a node from an arbitrary map of values and adds it into a tree.
 // If the node should be excluded ("ifeq" and "ifneq") then it returns a nil node.
 func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree *Tree,
-	allTrees map[string]map[string]interface{}, filename string,
+	allTrees map[string]map[string]interface{}, filePath string,
 	maxDepth uint, idx *uint, level uint, loadInto *Node, overrideVars map[string]string) (*Node, error) {
 	if maxDepth == 0 {
 		return nil, fmt.Errorf("maximum depth exceeded")
@@ -327,14 +333,14 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 		// Processing combination starts here
 		if hasInclude {
-			err = includeSubNodes(n, inc, tree, allTrees, filename, maxDepth, idx, level+1, combination)
+			err = includeSubNodes(n, inc, tree, allTrees, filePath, maxDepth, idx, level+1, combination)
 			if err != nil {
 				return n, fmt.Errorf("include %s: %w", inc, err)
 			}
 		}
 
 		if hasNodes {
-			err = loadSubNodes(n, nodes, tree, allTrees, filename, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, nodes, tree, allTrees, filePath, maxDepth, idx, level, combination)
 			if err != nil {
 				return n, err
 			}
@@ -343,7 +349,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		rl, ok := raw["seq"]
 		if ok {
 			n.Type = TypeSeq
-			err = loadSubNodes(n, rl, tree, allTrees, filename, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, rl, tree, allTrees, filePath, maxDepth, idx, level, combination)
 			if err != nil {
 				return n, err
 			}
@@ -352,7 +358,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		rl, ok = raw["par"]
 		if ok {
 			n.Type = TypePar
-			err = loadSubNodes(n, rl, tree, allTrees, filename, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, rl, tree, allTrees, filePath, maxDepth, idx, level, combination)
 			if err != nil {
 				return n, err
 			}
@@ -488,7 +494,7 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 
 // loadSubNodes loads sub-nodes when specified via "nodes" property
 func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
-	allTrees map[string]map[string]interface{}, filename string,
+	allTrees map[string]map[string]interface{}, filePath string,
 	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) error {
 	l, ok := rl.([]interface{})
 	if !ok {
@@ -498,7 +504,7 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
 	for _, rsub := range l {
 		switch sub := rsub.(type) {
 		case map[interface{}]interface{}:
-			node, err := LoadNode(TypeRun, sub, parent, tree, allTrees, filename, maxDepth-1, idx, level+1, nil, overrideVars)
+			node, err := LoadNode(TypeRun, sub, parent, tree, allTrees, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
 			if err != nil {
 				return err
 			}
@@ -507,7 +513,7 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
 				parent.Nodes = append(parent.Nodes, node)
 			}
 		case []interface{}:
-			node, err := LoadRunNodeFromArgs(sub, parent, tree, allTrees, filename, maxDepth, idx, level+1, overrideVars)
+			node, err := LoadRunNodeFromArgs(sub, parent, tree, allTrees, filePath, maxDepth, idx, level+1, overrideVars)
 			if err != nil {
 				return err
 			}
@@ -524,7 +530,7 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
 
 // loadSubNodes includes sub-nodes when specified via "include" property
 func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
-	allTrees map[string]map[string]interface{}, filename string,
+	allTrees map[string]map[string]interface{}, filePath string,
 	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) error {
 
 	var ok bool
@@ -548,17 +554,20 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 		var localName string
 
 		// relative or absolute import?
-		iidx := strings.Index(name, ":")
+		iidx := strings.Index(name, "#")
 		if iidx < 0 {
-			rawTrees = allTrees[filename]
+			rawTrees = allTrees[filePath]
 			localName = name
 		} else {
-			filePath := name[:iidx]
+			fp := name[:iidx]
+			// convert to absolute filepath
+			dir := filepath.Dir(filePath)
+			includeFilePath := filepath.Join(dir, fp)
 			localName = name[iidx+1:]
-			rawTrees, ok = allTrees[filePath]
+			rawTrees, ok = allTrees[includeFilePath]
 			if !ok {
 				var err error
-				rawTrees, filename, err = AddTree(filePath, allTrees)
+				rawTrees, filePath, err = AddTree(includeFilePath, allTrees)
 				if err != nil {
 					return fmt.Errorf("cannot load %v: %v", name, err.Error())
 				}
@@ -589,7 +598,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 		if canReduce {
 			loadInto = parent
 		}
-		node, err := LoadNode(TypeRun, raw, parent, tree, allTrees, filename, maxDepth-1, idx, level+1, loadInto, overrideVars)
+		node, err := LoadNode(TypeRun, raw, parent, tree, allTrees, filePath, maxDepth-1, idx, level+1, loadInto, overrideVars)
 		if err != nil {
 			return err
 		}
@@ -605,11 +614,11 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 }
 
 func LoadRunNodeFromArgs(args []interface{}, parent *Node, tree *Tree,
-	allTrees map[string]map[string]interface{}, filename string,
+	allTrees map[string]map[string]interface{}, filePath string,
 	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) (*Node, error) {
 	rl := make(map[interface{}]interface{})
 	rl["args"] = args
-	return LoadNode(TypeRun, rl, parent, tree, allTrees, filename, maxDepth-1, idx, level+1, nil, overrideVars)
+	return LoadNode(TypeRun, rl, parent, tree, allTrees, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
 }
 
 func getString(raw map[interface{}]interface{}, name string) (string, error) {
