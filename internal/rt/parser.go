@@ -555,7 +555,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 		var localName string
 
 		// relative or absolute import?
-		iidx := strings.Index(name, "#")
+		iidx := strings.Index(name, "|")
 		if iidx < 0 {
 			rawTrees = allTrees[filePath]
 			localName = name
