@@ -394,7 +394,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 }
 
 // calculate for_vars
-// when for_vars is not given, the it returns false with a fake map containing a single fake var with a single value
+// when for_vars is not given, then it returns false with a fake map containing a single fake var with a single value
 func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map[string][]interface{}, error) {
 	forVarsRaw, hasForVars := raw["for_vars"]
 
@@ -435,11 +435,12 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 		}
 
 		if !avOk {
-			av, ok = v.([]interface{})
-			if !ok {
-				return false, nil,
-					fmt.Errorf("for_vars: %v: value must be an array of strings or the name of an array variable", k)
-			}
+			av, avOk = v.([]interface{})
+		}
+
+		if !avOk {
+			return false, nil,
+				fmt.Errorf("for_vars: %v: value must be an array of strings or the name of an array variable", k)
 		}
 
 		forVarsFinal[k] = av
