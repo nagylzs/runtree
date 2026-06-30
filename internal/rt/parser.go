@@ -61,7 +61,7 @@ func ParseToDom(allTrees map[string]map[string]interface{}, filePath string, max
 // If the node should be excluded ("ifeq" and "ifneq") then it returns a nil node.
 func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree *Tree,
 	allTrees map[string]map[string]interface{}, filePath string,
-	maxDepth uint, idx *uint, level uint, loadInto *Node, overrideVars map[string]string) (*Node, error) {
+	maxDepth uint, idx *uint, level uint, loadInto *Node, overrideVars map[string]interface{}) (*Node, error) {
 	if maxDepth == 0 {
 		return nil, fmt.Errorf("maximum depth exceeded")
 	}
@@ -135,12 +135,12 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		return n, err
 	}
 
-	n.Parsed.Vars, err = getStringStringMapDef(raw, "vars", overrideVars) /* getStringMapDef */
+	n.Parsed.Vars, err = getStringMapDef(raw, "vars", overrideVars) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
 
-	n.Parsed.DefVars, err = getStringStringMapDef(raw, "defvars", nil) /* getStringMapDef */
+	n.Parsed.DefVars, err = getStringMapDef(raw, "defvars", nil) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
@@ -154,12 +154,12 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		}
 	}
 
-	n.Parsed.IfEq, err = getStringStringMapDef(raw, "ifeq", nil) /* getStringMapDef */
+	n.Parsed.IfEq, err = getStringMapDef(raw, "ifeq", nil) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
 
-	n.Parsed.IfNEq, err = getStringStringMapDef(raw, "ifneq", nil) /* getStringMapDef */
+	n.Parsed.IfNEq, err = getStringMapDef(raw, "ifneq", nil) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
@@ -273,7 +273,11 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	// Calculate all variables **before** loading sub-nodes.
 	// It is crucial that you do not load/change additional node properties below this line,
 	// except for adding new sub-nodes.
-	if !n.calculate(idx, level) && loadInto == nil {
+	ok, err := n.calculate(idx, level)
+	if err != nil {
+		return n, err
+	}
+	if !ok && loadInto == nil {
 		return nil, nil
 	}
 
@@ -309,7 +313,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	indices := make([]int, len(keys))
 
 	for {
-		combination := make(map[string]string)
+		combination := make(map[string]interface{})
 		if hasForVars {
 			for i, key := range keys {
 				combination[key] = forVars[key][indices[i]]
@@ -390,13 +394,13 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 }
 
 // calculate for_vars
-// when for_vars is not given, the it returns false with a fake map containing a single fake var with a single value
-func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map[string][]string, error) {
+// when for_vars is not given, then it returns false with a fake map containing a single fake var with a single value
+func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map[string][]interface{}, error) {
 	forVarsRaw, hasForVars := raw["for_vars"]
 
 	if !hasForVars {
-		forVars := make(map[string][]string)
-		forVars["_"] = []string{"_"}
+		forVars := make(map[string][]interface{})
+		forVars["_"] = []interface{}{"_"}
 		return false, forVars, nil
 	}
 
@@ -412,28 +416,34 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 	hasForVars = forVars != nil && len(forVars) > 0
 
 	// Now, replace variable references to array values with the actual arrays.
-	forVarsFinal := make(map[string][]string)
+	forVarsFinal := make(map[string][]interface{})
 	for k, v := range forVars {
-		av, ok := v.([]string)
-		if ok {
-			forVarsFinal[k] = av
-			continue
-		}
-		return false, nil,
-			fmt.Errorf("for_vars: %v: value must be an array of strings", k)
-		/*
-			ref, ok := v.(string)
-			if !ok {
-				return false, nil,
-					fmt.Errorf("for_vars: %v: value must be an array of strings or a variable name", k)
-			}
-			av2, ok := n.Calculated.Vars[ref]
-			if !ok {
-				return false, nil,
-					fmt.Errorf("for_vars: %v: variable %s not found", k, ref)
-			}
+		var av []interface{}
+		avOk := false
 
-		*/
+		sv, ok := v.(string)
+		if ok {
+			v2, ok := n.Calculated.Vars[sv]
+			if !ok {
+				return false, nil, fmt.Errorf("for_vars: variable %s->%s not found", k, sv)
+			}
+			av, ok = v2.([]interface{})
+			if !ok {
+				return false, nil, fmt.Errorf("for_vars: variable %s->%s is not an array", k, sv)
+			}
+			avOk = true
+		}
+
+		if !avOk {
+			av, avOk = v.([]interface{})
+		}
+
+		if !avOk {
+			return false, nil,
+				fmt.Errorf("for_vars: %v: value must be an array of strings or the name of an array variable", k)
+		}
+
+		forVarsFinal[k] = av
 	}
 
 	return hasForVars, forVarsFinal, nil
@@ -530,7 +540,7 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 // loadSubNodes loads sub-nodes when specified via "nodes" property
 func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
 	allTrees map[string]map[string]interface{}, filePath string,
-	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) error {
+	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{}) error {
 	l, ok := rl.([]interface{})
 	if !ok {
 		// TODO: allow use "seq", "par", "run" instead of "nodes"
@@ -566,7 +576,7 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
 // loadSubNodes includes sub-nodes when specified via "include" property
 func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 	allTrees map[string]map[string]interface{}, filePath string,
-	maxDepth uint, idx *uint, level uint, overrideVars map[string]string,
+	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{},
 	preventReduce bool) error {
 
 	var ok bool
@@ -651,7 +661,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 
 func LoadRunNodeFromArgs(args []interface{}, parent *Node, tree *Tree,
 	allTrees map[string]map[string]interface{}, filePath string,
-	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) (*Node, error) {
+	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{}) (*Node, error) {
 	rl := make(map[interface{}]interface{})
 	rl["args"] = args
 	return LoadNode(TypeRun, rl, parent, tree, allTrees, filePath, maxDepth-1, idx, level+1, nil, overrideVars)

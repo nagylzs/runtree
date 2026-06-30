@@ -56,10 +56,10 @@ type Node struct {
 
 // Parsed contains all values that are parsed from YAML file, and subject to variable substitution
 type Parsed struct {
-	Vars        map[string]string
-	DefVars     map[string]string
-	IfEq        map[string]string
-	IfNEq       map[string]string
+	Vars        map[string]interface{}
+	DefVars     map[string]interface{}
+	IfEq        map[string]interface{}
+	IfNEq       map[string]interface{}
 	Title       string
 	Description string
 	Envs        map[string]string
@@ -77,9 +77,9 @@ type Parsed struct {
 type Calculated struct {
 	Idx         uint
 	Level       uint
-	Vars        map[string]string
-	IfEq        map[string]string
-	IfNEq       map[string]string
+	Vars        map[string]interface{}
+	IfEq        map[string]interface{}
+	IfNEq       map[string]interface{}
 	Title       string
 	Description string
 	Envs        map[string]string

@@ -941,10 +941,21 @@ recursively on their sub-nodes).
 The `for_vars` construct can be used to repeat sub-nodes for a set of variable value combinations. The syntax is:
 
 ```yaml
+for_vars:
+  variable1: [string1, string2, string3]
+  variable2: [string1, string2]
+  variable3: reference1
+```
+
+For example:
+
+```yaml
 tree:
+  vars:
+    targets: ["dev", "uat"]
   for_vars:
       server: ["server01", "server02", "server03"]
-      target: ["dev", "uat"]
+      target: targets
   par:
     - args: ["ssh", "root@{server}", "make", "build", "{target}"]
 ```
@@ -962,6 +973,9 @@ tree:
     - args: ["ssh", "root@server03", "make", "build", "dev"]
     - args: ["ssh", "root@server03", "make", "build", "uat"]
 ```
+
+For variable value lists, you can only use a list of strings, or the name of a variable that is a list of strings.
+
 It is important to understand that for_vars has na effect on the sub-nodes only. It is not possible to use it on a 
 run node, because it has no sub-nodes.
 
