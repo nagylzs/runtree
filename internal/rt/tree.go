@@ -87,7 +87,7 @@ func LoadTree(allTrees map[string]map[string]interface{}, filename string, id st
 	tree.unblocker = events.NewDebouncer(tree.debouncedUnblock, false)
 
 	var ord uint = 0
-	_, err := LoadNode(TypeRun, root, nil, tree, rawTrees, maxDepth, &ord, 0, nil, nil)
+	_, err := LoadNode(TypeRun, root, nil, tree, allTrees, filename, maxDepth, &ord, 0, nil, nil)
 	if err != nil {
 		return nil, err
 	}
