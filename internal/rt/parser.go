@@ -333,7 +333,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 		// Processing combination starts here
 		if hasInclude {
-			err = includeSubNodes(n, inc, tree, allTrees, filePath, maxDepth, idx, level+1, combination)
+			err = includeSubNodes(n, inc, tree, allTrees, filePath, maxDepth, idx, level+1, combination, hasForVars)
 			if err != nil {
 				return n, fmt.Errorf("include %s: %w", inc, err)
 			}
@@ -531,7 +531,8 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
 // loadSubNodes includes sub-nodes when specified via "include" property
 func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 	allTrees map[string]map[string]interface{}, filePath string,
-	maxDepth uint, idx *uint, level uint, overrideVars map[string]string) error {
+	maxDepth uint, idx *uint, level uint, overrideVars map[string]string,
+	preventReduce bool) error {
 
 	var ok bool
 
@@ -585,7 +586,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 		// canReduce=true means that the parent only had a single "include" given with a single name,
 		// in this case we load the node into the parent, instead of adding it as a child
 		var loadInto *Node = nil
-		canReduce := true
+		canReduce := !preventReduce
 		if len(sources) != 1 {
 			canReduce = false
 		}
