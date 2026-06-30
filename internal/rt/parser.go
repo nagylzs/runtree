@@ -418,26 +418,31 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 	// Now, replace variable references to array values with the actual arrays.
 	forVarsFinal := make(map[string][]interface{})
 	for k, v := range forVars {
-		av, ok := v.([]interface{})
-		if ok {
-			forVarsFinal[k] = av
-			continue
-		}
-		return false, nil,
-			fmt.Errorf("for_vars: %v: value must be an array of strings", k)
-		/*
-			ref, ok := v.(string)
-			if !ok {
-				return false, nil,
-					fmt.Errorf("for_vars: %v: value must be an array of strings or a variable name", k)
-			}
-			av2, ok := n.Calculated.Vars[ref]
-			if !ok {
-				return false, nil,
-					fmt.Errorf("for_vars: %v: variable %s not found", k, ref)
-			}
+		var av []interface{}
+		avOk := false
 
-		*/
+		sv, ok := v.(string)
+		if ok {
+			v2, ok := n.Calculated.Vars[sv]
+			if !ok {
+				return false, nil, fmt.Errorf("for_vars: variable %s->%s not found", k, sv)
+			}
+			av, ok = v2.([]interface{})
+			if !ok {
+				return false, nil, fmt.Errorf("for_vars: variable %s->%s is not an array", k, sv)
+			}
+			avOk = true
+		}
+
+		if !avOk {
+			av, ok = v.([]interface{})
+			if !ok {
+				return false, nil,
+					fmt.Errorf("for_vars: %v: value must be an array of strings or the name of an array variable", k)
+			}
+		}
+
+		forVarsFinal[k] = av
 	}
 
 	return hasForVars, forVarsFinal, nil

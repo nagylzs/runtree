@@ -309,11 +309,15 @@ func varEval(value string, values map[string]interface{}) (string, error) {
 	// TODO: handle escape sequences, prevent multi-replacement
 	// Create a state machine (splitting by StartTag, EndTag) ?
 	for k, v := range values {
-		sv, ok := v.(string)
-		if !ok {
-			return "", fmt.Errorf("cannot substitute {%s}: value is not a string", k)
+		pat := StartTag + k + EndTag
+		hasVar := strings.Contains(value, pat)
+		if hasVar {
+			sv, ok := v.(string)
+			if !ok {
+				return "", fmt.Errorf("cannot substitute {%s}: value is not a string", k)
+			}
+			value = strings.Replace(value, pat, sv, -1)
 		}
-		value = strings.Replace(value, StartTag+k+EndTag, sv, -1)
 	}
 	return value, nil
 }
