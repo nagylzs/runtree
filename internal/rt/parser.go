@@ -154,12 +154,12 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		}
 	}
 
-	n.Parsed.IfEq, err = getStringStringMapDef(raw, "ifeq", nil) /* getStringMapDef */
+	n.Parsed.IfEq, err = getStringMapDef(raw, "ifeq", nil) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
 
-	n.Parsed.IfNEq, err = getStringStringMapDef(raw, "ifneq", nil) /* getStringMapDef */
+	n.Parsed.IfNEq, err = getStringMapDef(raw, "ifneq", nil) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
@@ -273,7 +273,11 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	// Calculate all variables **before** loading sub-nodes.
 	// It is crucial that you do not load/change additional node properties below this line,
 	// except for adding new sub-nodes.
-	if !n.calculate(idx, level) && loadInto == nil {
+	ok, err := n.calculate(idx, level)
+	if err != nil {
+		return n, err
+	}
+	if !ok && loadInto == nil {
 		return nil, nil
 	}
 

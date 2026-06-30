@@ -89,7 +89,11 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 
 	// argsprefix can be inherited from parent
 	if n.Parsed.ArgsPrefix != nil {
-		c.ArgsPrefix = varEvalArray(n.Parsed.ArgsPrefix, c.Vars)
+		arr, err := varEvalArray(n.Parsed.ArgsPrefix, c.Vars)
+		if err != nil {
+			return false, err
+		}
+		c.ArgsPrefix = arr
 	} else if n.Parent != nil && n.Parent.Calculated.ArgsPrefix != nil {
 		c.ArgsPrefix = n.Parent.Calculated.ArgsPrefix
 	} else {
@@ -101,7 +105,11 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 		if c.ArgsPrefix != nil {
 			args = append(args, c.ArgsPrefix...)
 		}
-		c.Args = append(args, varEvalArray(n.Parsed.Args, c.Vars)...)
+		arr, err := varEvalArray(n.Parsed.Args, c.Vars)
+		if err != nil {
+			return false, err
+		}
+		c.Args = append(args, arr...)
 	}
 
 	if n.Parsed.CWD == "" && n.Parent != nil {
@@ -131,19 +139,28 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 		// c.XLocks = n.Parent.Calculated.XLocks
 		c.XLocks = set.NewSet[string]()
 	} else {
-		c.XLocks = varEvalSet(n.Parsed.XLocks, c.Vars)
+		c.XLocks, err = varEvalSet(n.Parsed.XLocks, c.Vars)
+		if err != nil {
+			return false, err
+		}
 	}
 	if n.Parsed.RLocks == nil && n.Parent != nil {
 		// TODO: is it a problem that it references to the same object?
 		c.RLocks = n.Parent.Calculated.RLocks
 	} else {
-		c.RLocks = varEvalSet(n.Parsed.RLocks, c.Vars)
+		c.RLocks, err = varEvalSet(n.Parsed.RLocks, c.Vars)
+		if err != nil {
+			return false, err
+		}
 	}
 	if n.Parsed.Provides == nil && n.Parent != nil {
 		// TODO: is it a problem that it references to the same object?
 		c.Provides = n.Parent.Calculated.Provides
 	} else {
-		c.Provides = varEvalSet(n.Parsed.Provides, c.Vars)
+		c.Provides, err = varEvalSet(n.Parsed.Provides, c.Vars)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	req := set.NewSet[string]()
@@ -151,7 +168,11 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 		req.UnionInPlace(n.Parent.Calculated.Requires)
 	}
 	if n.Parsed.Requires != nil {
-		req.UnionInPlace(varEvalSet(n.Parsed.Requires, c.Vars))
+		st, err := varEvalSet(n.Parsed.Requires, c.Vars)
+		if err != nil {
+			return false, err
+		}
+		req.UnionInPlace(st)
 	}
 	c.Requires = req
 

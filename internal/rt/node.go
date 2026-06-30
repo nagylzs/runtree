@@ -58,8 +58,8 @@ type Node struct {
 type Parsed struct {
 	Vars        map[string]interface{}
 	DefVars     map[string]interface{}
-	IfEq        map[string]string
-	IfNEq       map[string]string
+	IfEq        map[string]interface{}
+	IfNEq       map[string]interface{}
 	Title       string
 	Description string
 	Envs        map[string]string
@@ -78,8 +78,8 @@ type Calculated struct {
 	Idx         uint
 	Level       uint
 	Vars        map[string]interface{}
-	IfEq        map[string]string
-	IfNEq       map[string]string
+	IfEq        map[string]interface{}
+	IfNEq       map[string]interface{}
 	Title       string
 	Description string
 	Envs        map[string]string
