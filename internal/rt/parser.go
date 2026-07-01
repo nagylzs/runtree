@@ -79,6 +79,8 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 	_, hasType := raw["type"]
 	_, hasInclude := raw["include"]
+	_, hasSeq := raw["seq"]
+	_, hasPar := raw["par"]
 	if hasType {
 		typ, err := getString(raw, "type")
 		if err != nil {
@@ -95,6 +97,10 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		default:
 			return n, fmt.Errorf("invalid type: %s", typ)
 		}
+	} else if hasSeq {
+		n.Type = TypeSeq
+	} else if hasPar {
+		n.Type = TypePar
 	} else {
 		n.Type = defType
 	}
@@ -394,7 +400,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 }
 
 // calculate for_vars
-// when for_vars is not given, then it returns false with a fake map containing a single fake var with a single value
+// when for_vars is not given; then it returns false with a fake map containing a single fake var with a single value
 func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map[string][]interface{}, error) {
 	forVarsRaw, hasForVars := raw["for_vars"]
 
@@ -597,18 +603,20 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 
 	for _, name := range sources {
 		var rawTrees map[string]interface{}
+		var includeFilePath string
 		var localName string
 
 		// relative or absolute import?
 		iidx := strings.Index(name, "|")
 		if iidx < 0 {
 			rawTrees = allTrees[filePath]
+			includeFilePath = filePath
 			localName = name
 		} else {
 			fp := name[:iidx]
 			// convert to absolute filepath
 			dir := filepath.Dir(filePath)
-			includeFilePath := filepath.Join(dir, fp)
+			includeFilePath = filepath.Join(dir, fp)
 			localName = name[iidx+1:]
 			rawTrees, ok = allTrees[includeFilePath]
 			if !ok {
@@ -644,7 +652,7 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 		if canReduce {
 			loadInto = parent
 		}
-		node, err := LoadNode(TypeRun, raw, parent, tree, allTrees, filePath, maxDepth-1, idx, level+1, loadInto, overrideVars)
+		node, err := LoadNode(TypeRun, raw, parent, tree, allTrees, includeFilePath, maxDepth-1, idx, level+1, loadInto, overrideVars)
 		if err != nil {
 			return err
 		}
