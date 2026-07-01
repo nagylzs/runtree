@@ -125,6 +125,7 @@ There are certain operations that can be performed on nodes, some of them change
 * Start
 * Cancel
 * Signal
+* Reset to Waiting
 
 # Documentation
 
@@ -156,10 +157,10 @@ Every node can have the following general read-write properties. They can be spe
 - `envs` - it can be a simple object containing name-value pairs. Values must be strings. This object will be used for
   starting new processes, in particular for setting environment variables.
 - `system_envs`:
-    - `true`:  Use system environment variables (e.g., inherited from the `rtrunner` process) as a base
+    - `true`: Use system environment variables (e.g., inherited from the `rtrunner` process) as a base
       environment for all subprocesses. Default value is `true`.
     - `false`: use an empty environment as a base for all subprocesses. Please note that in this case, you will have to
-      define `PATH`, or specify every command with full file path.
+      define `PATH`, or specify every command with absolute filepath.
 - `inherit_envs`:
     - `true`: the node inherits all environment variables from its parent node, recursively. Inherited values can be
       overwritten with locally defined values. Default value is `true`.
@@ -172,8 +173,8 @@ Every node can have the following general read-write properties. They can be spe
 - `requires` - it is a list of strings, containing the names of resources that the node requires (see below)
 - `max_proc` - maximum number of processes, for this subtree. -1 is the default, and it means infinite. (see below)
 - `status` - the initial status of the node. This property can be inherited from the parent node (when the tree is 
-  loadded). The default status is `waiting`. Possible values are `waiting` and `frozen` (there are other statuses, 
-  but they cannot be specified as  initial statuses).
+  loaded). The default status is `waiting`. Possible values are `waiting` and `frozen` (there are other statuses, 
+  but they cannot be specified as initial statuses).
 - `expanded` - boolean, defaults to `false`. When set to false, the GUI will not show children of the node.
 - `expand_on_active` - boolean, defaults to `true`. When the node becomes active, it is expanded in the GUI.
 - `collapse_on_finished` - boolean, defaults to `true`. When the node becomes finished, it is collapsed in the GUI.
@@ -190,7 +191,7 @@ Every node can have the following general read-write properties. They can be spe
       -  `none`,`cancel`, `freeze`: what operation should perform on the not-yet-started siblings. When not specified,
         then it defaults to `none` (which means do nothing with the siblings)
    You can only specify one status and one operation at most.
-- `ifeq` - conditionally includes or excludes the node from the tree. The node will only be included in the tree, if
+- `ifeq` - conditionally includes or excludes the node from the tree. The node will only be included in the tree if
   all given variables have the given values
 - `ifneq` - similar to `ifeq` but it works in reverse: it includes the node if all given variables are different from
   the given value
@@ -201,7 +202,7 @@ Nodes also have the following read-only properties. They cannot be configured:
 - `finished`
 - `has_error`
 
-These are not separate properties, but a function of the state. For details, see the list of states below.
+These are not stored properties, but a function of the state. For details, see the list of states below.
 
 ## Syntax
 
@@ -221,14 +222,15 @@ tree:
   args: [ "make", "-j", "3" ]
 ```
 
-Order of properties is not important, but usually you will want to put general properties at the top, and type-specific
-properties at the bottom.
+The order of properties is not important, but usually you will want to put general properties at the top, and 
+type-specific properties at the bottom.
 
 ## Maximum number of processes
 
-If the root node has no `max_proc` specified, then it defaults to -1. The value of -1 means infinite. If the number of 
-already running processes reaches or exceeds `max_proc` for a given subtree, then scheduler won't start new processes 
-in that subtree. It will wait until the number of running processes goes under the maximum.
+If the root node has no `max_proc` specified, then it defaults to -1. The value of -1 means that the number of processes
+is not restricted. If the number of already running processes reaches or exceeds `max_proc` for a given subtree, then 
+the scheduler won't start new processes in that subtree. It will wait until the number of running processes goes under 
+the maximum.
 
 Please note that you can still manually start new processes, `max_proc` only affects the scheduler.
 
@@ -249,8 +251,9 @@ Variables for a node are calculated as follows:
 2. For each node, an empty map is initialized as the base.
 3. If `builtin_vars` is `true`, then builtin vars are added to the base.
 4. If `inherit_vars` is `true`, then parent vars are added to the base.
-5. Finally, locally defined variable values are calculated using the base (substitution), and the result key-value pairs
-   are added to the base. It first happes with `vars`, and then with `defvars` (with the not already defined variables).
+5. Finally, locally defined string variable values are calculated using the base (substitution), and the result
+   key-value pairs are added to the base. It first happes with `vars`, and then with `defvars` (with the not already 
+   defined variables).
 6. The result is then used as the calculated variables map for the node.
 
 Variable values can be substituted for various properties:
@@ -301,7 +304,7 @@ my_parent_node:
   nodes:
     - type: "run"
       inherit_vars: false
-      # "target" variable is undefined (not inherited) here, will be replaced with an empty string.
+      # "target" variable is undefined (not inherited) here
       args: ["make", "{target}"]
 ```
 
@@ -342,7 +345,7 @@ Environment variables for new processes are calculated this way:
 2. `inherit_envs` is `false`, then the base environment updated with the locally defined `envs`, and the resulting env
    is used to start a new process.
 3. Otherwise, if `inherit_envs` is `true`, then the environment is first calculated for the parent, then it is updated
-   with the locally defined `envs`, and the resulting env is used to start a new process.
+   with the locally defined `envs`, and the resulting envs are used to start a new process.
 
 For example, if you want to start with a clean empty environment and define every value locally in the run node:
 
@@ -395,7 +398,7 @@ are always evaluated BEFORE `envs`, even if `envs` appear sooner in the file.
 ## Locking resources
 
 There can be certain resources that can only be used by one process (or group of processes) at a time. A good example
-would be a software build service, that can only build a single project at a time. You can name these resources, and 
+would be a software build service that can only build a single project at a time. You can name these resources, and 
 list them in the `xlocks` and `rlocks` properties of the node. When the node is started by the
 scheduler (goes from an inactive state into an `active` state), then it acquires these locks. When it becomes 
 `inactive`, then it releases them. The difference between exclusive and re-entrant locks is that exclusive locks can 
