@@ -87,7 +87,7 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 		return false, err
 	}
 
-	// argsprefix can be inherited from parent
+	// args_prefix can be inherited from parent
 	if n.Parsed.ArgsPrefix != nil {
 		arr, err := varEvalArray(n.Parsed.ArgsPrefix, c.Vars)
 		if err != nil {

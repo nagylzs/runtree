@@ -144,8 +144,8 @@ Every node can have the following general read-write properties. They can be spe
   empty, then it will be set to the current directory of the `rtrunner` process that is used to start the process. 
 - `vars` - it can be a simple object containing name-value pairs. This object will be used in the subtree of the node
   for starting new processes, in particular for generating commands from the command templates (see below).
-- `defvars` - similar to `vars`, it defines variable values only if they are not already defined and inherited from the
-  parent node. It is an error to put the same variable name in both vars and defvars
+- `def_vars` - similar to `vars`, it defines variable values only if they are not already defined and inherited from the
+  parent node. It is an error to put the same variable name in both vars and def_vars (in the same node)
 - `builtin_vars`
     - `true`:  Use builtin variables as a base. Default value is `true`.
     - `false`: use an empty object as a base for variables.
@@ -153,7 +153,7 @@ Every node can have the following general read-write properties. They can be spe
     - `true`: the node inherits all variables from its parent node. Inherited values can be overwritten with locally
       defined values. Default value is `true`. 
     - `false`: only locally defined values will be used. Please note, that if you set `inherit_vars` to `false`, then
-      you cannot use `defvars` (because that relies on inheritance) 
+      you cannot use `def_vars` (because that relies on inheritance) 
 - `envs` - it can be a simple object containing name-value pairs. Values must be strings. This object will be used for
   starting new processes, in particular for setting environment variables.
 - `system_envs`:
@@ -180,7 +180,7 @@ Every node can have the following general read-write properties. They can be spe
 - `collapse_on_finished` - boolean, defaults to `true`. When the node becomes finished, it is collapsed in the GUI.
 - `args` - a list of strings, this provides arguments for executing the node. For `run` nodes, this is used
   to calculate the command line arguments that will be executed with `os.Exec`. The value of `args` cannot be inherited.
-- `argsprefix` - a list of strings, this will be prepended to `args` to form the command line arguments. This can be 
+- `args_prefix` - a list of strings, this will be prepended to `args` to form the command line arguments. This can be 
   inherited from the parent, and it is useful when there are lots of sub-nodes with the same argument prefixes.
 - `runner` - the name of the runner that should be used to execute this node. When not specified, then it is inherited
   from the parent node, or `127.0.0.1:5000` (for the root node).
@@ -241,9 +241,9 @@ variable values are evaluated first. Variable assignment takes place AFTER the w
 evaluated. This makes it possible to overwrite variable values using expressions containing other (or the same) variable 
 values.
 
-Default variables can be given after `defvars`. You cannot set the value of the same variable in `vars` and `defvars`
-in the same node. The variables defined `defvars` will only be used if they are not already defined in the parent node. 
-Using `defvars` with `inherit_vars=false` is an error.
+Default variables can be given after `def_vars`. You cannot set the value of the same variable in `vars` and `def_vars`
+in the same node. The variables defined `def_vars` will only be used if they are not already defined in the parent node. 
+Using `def_vars` with `inherit_vars=false` is an error.
 
 Variables for a node are calculated as follows:
 
@@ -252,18 +252,18 @@ Variables for a node are calculated as follows:
 3. If `builtin_vars` is `true`, then builtin vars are added to the base.
 4. If `inherit_vars` is `true`, then parent vars are added to the base.
 5. Finally, locally defined string variable values are calculated using the base (substitution), and the result
-   key-value pairs are added to the base. It first happes with `vars`, and then with `defvars` (with the not already 
+   key-value pairs are added to the base. It first happes with `vars`, and then with `def_vars` (with the not already 
    defined variables).
 6. The result is then used as the calculated variables map for the node.
 
 Variable values can be substituted for various properties:
 
 - `vars` (create variable VALUES from other variables, see the fifth point above)
-- `defvars` (create default variable VALUES from other variables, see the fifth point above)
+- `def_vars` (create default variable VALUES from other variables, see the fifth point above)
 - `title`
 - `description`
 - `args`
-- `argsprefix`
+- `args_prefix`
 - `cwd`
 - `envs`
 - `runner`
@@ -272,7 +272,7 @@ Variable values can be substituted for various properties:
 - `provides`
 - `requires`
 
-Inside a given node (YAML object), the evaluation of `vars` and `defvars` always happen BEFORE the evaluation of other
+Inside a given node (YAML object), the evaluation of `vars` and `def_vars` always happen BEFORE the evaluation of other
 properties.
 
 Variable substitution is noted with `{VARIABLE_NAME}` syntax inside strings. The `{` and `}` curly braces can be escaped

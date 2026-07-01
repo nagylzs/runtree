@@ -16,8 +16,8 @@ const MaxYamlFileSize = 1024 * 1024
 
 var ValidNodeConfigs = set.FromArray([]string{
 	"id", "title", "description",
-	"args", "argsprefix",
-	"cwd", "vars", "defvars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
+	"args", "args_prefix",
+	"cwd", "vars", "def_vars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
 	"provides", "requires",
 	"on_error", "max_proc", "envs", "type", "rlocks", "xlocks", "nodes",
 	"par", "seq", "run", "include", "status",
@@ -140,7 +140,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		return n, err
 	}
 
-	n.Parsed.DefVars, err = getStringMapDef(raw, "defvars", nil) /* getStringMapDef */
+	n.Parsed.DefVars, err = getStringMapDef(raw, "def_vars", nil) /* getStringMapDef */
 	if err != nil {
 		return n, err
 	}
@@ -149,7 +149,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		for k := range n.Parsed.DefVars {
 			_, has := n.Parsed.Vars[k]
 			if !has {
-				return n, fmt.Errorf("variable found both in vars and defvars: %s", k)
+				return n, fmt.Errorf("variable found both in vars and def_vars: %s", k)
 			}
 		}
 	}
@@ -265,7 +265,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		return n, err
 	}
 
-	n.Parsed.ArgsPrefix, err = getStringArrayDef(raw, "argsprefix", nil)
+	n.Parsed.ArgsPrefix, err = getStringArrayDef(raw, "args_prefix", nil)
 	if err != nil {
 		return n, err
 	}
@@ -817,7 +817,7 @@ func randomId() string {
 func (n *Node) SelfCheck() error {
 	if n.Type == TypeRun {
 		if n.Parsed.Args == nil || len(n.Parsed.Args) == 0 {
-			// TODO: maybe, if args is empty but argsprefix is not empty, then we could allow it?
+			// TODO: maybe, if args is empty but args_prefix is not empty, then we could allow it?
 			return errors.New("selfcheck run node: no arguments")
 		}
 	}
