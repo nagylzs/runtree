@@ -148,7 +148,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	if n.Parsed.Vars != nil && n.Parsed.DefVars != nil {
 		for k := range n.Parsed.DefVars {
 			_, has := n.Parsed.Vars[k]
-			if !has {
+			if has {
 				return n, fmt.Errorf("variable found both in vars and def_vars: %s", k)
 			}
 		}
