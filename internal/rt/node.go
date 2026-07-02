@@ -240,3 +240,18 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.Calculated.Level, n.Calculated.Idx = lvl, idx
 	n.Status = n2.Status
 }
+
+func (n *Node) DebugPath() string {
+	res := ""
+	if n.Calculated.Title != "" {
+		res = n.Calculated.Title
+	} else if n.Parsed.Title != "" {
+		res = n.Parsed.Title
+	} else {
+		res = n.Id
+	}
+	if n.Parent != nil {
+		return n.Parent.DebugPath() + "/" + res
+	}
+	return res
+}

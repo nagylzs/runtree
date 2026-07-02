@@ -1,7 +1,6 @@
 package rt
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -826,7 +825,7 @@ func (n *Node) SelfCheck() error {
 	if n.Type == TypeRun {
 		if n.Parsed.Args == nil || len(n.Parsed.Args) == 0 {
 			// TODO: maybe, if args is empty but args_prefix is not empty, then we could allow it?
-			return errors.New("selfcheck run node: no arguments")
+			return fmt.Errorf("%s: selfcheck run node: no arguments", n.DebugPath())
 		}
 	}
 	st := n.OnError.Status
