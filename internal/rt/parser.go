@@ -18,7 +18,7 @@ var ValidNodeConfigs = set.FromArray([]string{
 	"args", "args_prefix",
 	"cwd", "runner", "vars", "def_vars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
 	"provides", "requires",
-	"on_error", "max_proc", "envs", "type", "rlocks", "xlocks", "nodes",
+	"on_error", "max_proc", "success_exit_codes", "envs", "type", "rlocks", "xlocks", "nodes",
 	"par", "seq", "run", "include", "status",
 	"ifeq", "ifneq",
 	"for_vars",
@@ -229,6 +229,16 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		dmp = parent.MaxProc
 	}
 	n.MaxProc, err = getIntDef(raw, "max_proc", dmp)
+	if err != nil {
+		return n, err
+	}
+
+	// success_exit_codes defaults to the parent's value, for the root node it is [0]
+	dsc := []int{0}
+	if parent != nil {
+		dsc = parent.SuccessExitCodes
+	}
+	n.SuccessExitCodes, err = getExitCodesDef(raw, "success_exit_codes", dsc)
 	if err != nil {
 		return n, err
 	}
@@ -808,6 +818,27 @@ func getIntDef(raw map[interface{}]interface{}, name string, defval int) (int, e
 		return 0, fmt.Errorf("invalid value in %s (expected int)", name)
 	}
 	return v2, nil
+}
+
+// getExitCodesDef returns a non-empty list of process exit codes (0-255)
+func getExitCodesDef(raw map[interface{}]interface{}, name string, defval []int) ([]int, error) {
+	v, ok := raw[name]
+	if !ok {
+		return defval, nil
+	}
+	v2, ok := v.([]interface{})
+	if !ok || len(v2) == 0 {
+		return nil, fmt.Errorf("invalid value in %s (expected a list of exit codes)", name)
+	}
+	res := make([]int, 0, len(v2))
+	for _, v := range v2 {
+		code, ok := v.(int)
+		if !ok || code < 0 || code > 255 {
+			return nil, fmt.Errorf("invalid value in %s: %v (exit codes are integers between 0 and 255)", name, v)
+		}
+		res = append(res, code)
+	}
+	return res, nil
 }
 
 var nid int64

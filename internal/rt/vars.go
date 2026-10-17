@@ -113,7 +113,8 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 	}
 
 	if n.Parsed.CWD == "" && n.Parent != nil {
-		c.CWD = n.Parent.Parsed.CWD
+		// like args_prefix: the calculated value of the parent (with its variables), through any number of levels
+		c.CWD = n.Parent.Calculated.CWD
 	} else {
 		c.CWD, err = varEval(n.Parsed.CWD, c.Vars)
 		if err != nil {

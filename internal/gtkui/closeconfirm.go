@@ -37,18 +37,29 @@ func handleExitSignals() {
 
 // onCloseRequest is called from the main gtk loop when the user tries to close the main window.
 // It returns true to stop the window from closing.
-func (ra *RunTreeApp) onCloseRequest() bool {
+func (ra *RunTreeApp) onCloseRequest() (stop bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			reportPanic("close request", r)
+			stop = true // never close without confirmation
+		}
+	}()
 	if ra.closeConfirmed {
 		return false
 	}
-	RunTree.RLock("onCloseRequest")
-	counts := RunTree.UnfinishedRunCounts(true)
-	RunTree.RUnlock()
+	counts := unfinishedRunCounts()
 	if len(counts) == 0 {
 		return false
 	}
 	ra.showCloseConfirmDialog(counts)
 	return true
+}
+
+// unfinishedRunCounts locks the tree and returns rt.Tree.UnfinishedRunCounts
+func unfinishedRunCounts() map[rt.Status]int {
+	RunTree.RLock("unfinishedRunCounts")
+	defer RunTree.RUnlock()
+	return RunTree.UnfinishedRunCounts(true)
 }
 
 // showCloseConfirmDialog asks the user to confirm closing the main window, and closes it when confirmed.
@@ -153,10 +164,7 @@ func (ra *RunTreeApp) showCloseConfirmDialog(counts map[rt.Status]int) {
 		if ra.closeDialog != dialog {
 			return false // the dialog was closed
 		}
-		RunTree.RLock("showCloseConfirmDialog")
-		counts := RunTree.UnfinishedRunCounts(true)
-		RunTree.RUnlock()
-		update(counts)
+		update(unfinishedRunCounts())
 		return true
 	})
 

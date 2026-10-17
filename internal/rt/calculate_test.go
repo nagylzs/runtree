@@ -71,3 +71,42 @@ tree:
 		}
 	}
 }
+
+func TestCWD(t *testing.T) {
+	tree := loadTestTree(t, `
+tree:
+  id: root
+  seq:
+    - type: run
+      id: nocwd
+      args: ["true"]
+    - type: seq
+      id: project
+      vars:
+        app: "billing"
+      cwd: "/srv/{app}"
+      nodes:
+        - type: seq
+          id: middle
+          nodes:
+            - type: run
+              id: deep
+              args: ["true"]
+        - type: run
+          id: own
+          cwd: "/tmp/{app}"
+          args: ["true"]
+`)
+	for id, want := range map[string]string{
+		"root":    "", // the current directory of the runner
+		"nocwd":   "",
+		"project": "/srv/billing",
+		"middle":  "/srv/billing",
+		"deep":    "/srv/billing",
+		"own":     "/tmp/billing",
+	} {
+		if got := tree.NodeById[id].Calculated.CWD; got != want {
+			t.Errorf("%s cwd is %q, want %q", id, got, want)
+		}
+	}
+}

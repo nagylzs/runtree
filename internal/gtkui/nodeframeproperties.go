@@ -2,6 +2,7 @@ package gtkui
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,9 @@ func (p *NodeFrameProperites) buildGui() {
 	p.addStringProp("OnError.Siblings", "OnError.Siblings",
 		"What operation to perform on siblings when the node fails", 9, 1)
 	p.nextRow()
+	p.addStringProp("SuccessExitCodes", "SuccessExitCodes",
+		"Exit codes that mean success, only displayed when it is not the default (0)", 0, 12)
+	p.nextRow()
 
 }
 
@@ -83,6 +87,7 @@ func (p *NodeFrameProperites) updateGUI() {
 		}
 	}
 
+	exitSuccess := false
 	c := node.Client
 	if c != nil {
 		ls := c.LastState()
@@ -91,6 +96,7 @@ func (p *NodeFrameProperites) updateGUI() {
 		}
 		if ls.Exited {
 			exitcode = strconv.Itoa(ls.ExitCode)
+			exitSuccess = node.ExitedSuccessfully(ls)
 		}
 	}
 
@@ -119,7 +125,7 @@ func (p *NodeFrameProperites) updateGUI() {
 	setStringProp("ExitCode", exitcode)
 	if exitcode == "" {
 		p.setPropState("ExitCode", "", hasStates)
-	} else if exitcode == "0" {
+	} else if exitSuccess {
 		p.setPropState("ExitCode", "success", hasStates)
 	} else {
 		p.setPropState("ExitCode", "failed", hasStates)
@@ -139,6 +145,15 @@ func (p *NodeFrameProperites) updateGUI() {
 	setStringProp("NProc", strconv.Itoa(node.NProc))
 	setStringProp("OnError.Status", rt.StatusName(node.OnError.Status))
 	setStringProp("OnError.Siblings", rt.OpName(node.OnError.Siblings))
+	successCodes := ""
+	if !slices.Equal(node.SuccessExitCodes, []int{0}) {
+		codes := make([]string, len(node.SuccessExitCodes))
+		for i, code := range node.SuccessExitCodes {
+			codes[i] = strconv.Itoa(code)
+		}
+		successCodes = strings.Join(codes, ", ")
+	}
+	setStringProp("SuccessExitCodes", successCodes)
 
 	// We only display rows that are needed, but if a row is needed then all of its props are displayed.
 	cnt := 0

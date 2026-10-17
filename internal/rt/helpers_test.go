@@ -43,9 +43,20 @@ func parseTestTree(t *testing.T, source string) (*Tree, error) {
 }
 
 // setStatus sets the status of a node, and registers its provided resources like updateStatus does.
+// The tests have no runner clients, so a status recalculation would make every run node waiting. To survive it,
+// Success is set as a manual status, and Failed as a start error (it becomes on_error status) for run nodes.
 func setStatus(tree *Tree, id string, st Status) {
 	n := tree.NodeById[id]
 	n.Status = st
+	if n.Type == TypeRun {
+		n.WantManualStatus, n.StartError = false, ""
+		switch st {
+		case StatusSuccess:
+			n.WantManualStatus, n.ManualStatus = true, StatusSuccess
+		case StatusFailed:
+			n.StartError = "failed in a test"
+		}
+	}
 	if providerStatus(st) {
 		for _, name := range n.Calculated.Provides.List() {
 			if !tree.provided.Contains(name) {

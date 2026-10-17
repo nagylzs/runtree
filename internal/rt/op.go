@@ -37,7 +37,7 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 		if n.Status == StatusSkipped {
 			addOps(OpResetToWaiting)
 		}
-		if !StatusFinished(n.Status) {
+		if n.Status == StatusPaused {
 			addOps(OpFail, OpSuccess)
 		}
 		return ops
@@ -83,19 +83,30 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, ar
 	if !locked {
 		panic("must be called in locked state")
 	}
-	if op != OpResetToWaiting {
-		return n.performOp(op, locked, recursive, manual)
+	if _, allowed := n.AllowedManualOps(locked, recursive)[op]; !allowed {
+		return false, fmt.Errorf("this operation is not allowed in %s state", StatusName(n.Status))
 	}
-	before := n.Tree.providerNodes()
+	// An operation on a node ends the manual status of the seq/par nodes above it (see calcParSeqStatus), so their
+	// statuses are calculated from their sub-nodes again.
+	for p := n.Parent; p != nil; p = p.Parent {
+		p.WantManualStatus = false
+	}
+	var before map[*Node]bool
+	if op == OpResetToWaiting {
+		before = n.Tree.providerNodes()
+	}
 	changed, err := n.performOp(op, locked, recursive, manual)
 	if err != nil {
 		return changed, err
 	}
-	var names []string = nil
-	if args != nil {
-		names = args.Unprovide
+	if op == OpResetToWaiting {
+		var names []string = nil
+		if args != nil {
+			names = args.Unprovide
+		}
+		n.Tree.unprovideLost(before, names)
 	}
-	n.Tree.unprovideLost(before, names)
+	n.updateStatusesUp(true)
 	return changed, nil
 }
 
@@ -156,8 +167,18 @@ func (n *Node) performOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 	}
 	// set status manually on seq/par node
 	if n.Type == TypeSeq || n.Type == TypePar {
-		// Manually fail/success on paused seq/par node
+		// An operation on the node ends its manual status (fail/success below sets it again).
+		if n.WantManualStatus {
+			n.WantManualStatus = false
+			changed = true
+		}
+		// Manually fail/success on paused seq/par node. It lasts until an operation is performed on this node, or on
+		// a node below it.
 		if n.Status == StatusPaused && (op == OpFail || op == OpSuccess) {
+			ms = StatusFailed
+			if op == OpSuccess {
+				ms = StatusSuccess
+			}
 			n.WantManualStatus = true
 			n.ManualStatus = ms
 			n.SchedulerMessage = ""

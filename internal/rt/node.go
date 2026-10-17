@@ -24,6 +24,7 @@ type Node struct {
 	MaxProc            int
 	NProc              int
 	OnError            OnError
+	SuccessExitCodes   []int // exit codes that mean success, inherited from the parent, the default is [0]
 	Expanded           bool
 	ExpandOnActive     bool
 	CollapseOnFinished bool
@@ -229,6 +230,7 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.InheritEnvs = n2.InheritEnvs
 	n.InheritRequires = n2.InheritRequires
 	n.MaxProc = n2.MaxProc
+	n.SuccessExitCodes = n2.SuccessExitCodes
 	n.NProc = n2.NProc
 	n.OnError = n2.OnError
 	n.Expanded = n2.Expanded

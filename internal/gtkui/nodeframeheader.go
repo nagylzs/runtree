@@ -248,6 +248,7 @@ func (w *NodeFrameHeader) breadCrumbs(path []string) string {
 }
 
 func (w *NodeFrameHeader) onOp(op rt.NodeOp, recursive bool) {
+	defer recoverPanic("operation " + rt.OpName(op))
 	node := w.frame.Node()
 	if node == nil {
 		return
@@ -266,6 +267,7 @@ func (w *NodeFrameHeader) onOp(op rt.NodeOp, recursive bool) {
 // performOp performs a manual operation on the node, and shows the error, if any.
 // It must be called from the main gtk loop.
 func performOp(node *rt.Node, op rt.NodeOp, recursive bool, args *rt.OpArgs) {
+	defer recoverPanic("operation " + rt.OpName(op))
 	node.LockTree("performOp")
 	defer node.UnLockTree()
 
@@ -284,6 +286,7 @@ func performOp(node *rt.Node, op rt.NodeOp, recursive bool, args *rt.OpArgs) {
 }
 
 func (w *NodeFrameHeader) sendSignal(name string, recursive bool) {
+	defer recoverPanic("sending signal " + name)
 	node := w.frame.Node()
 	if node == nil {
 		return

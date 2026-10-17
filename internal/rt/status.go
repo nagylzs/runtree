@@ -1,7 +1,7 @@
 package rt
 
 import (
-	"fmt"
+	"slices"
 	"time"
 
 	"github.com/nagylzs/runtree/internal/runner"
@@ -70,8 +70,9 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 	statusChanged = prevStatus != s
 	n.Status = s
 
-	// After a manual node restart, we return to auto status updates.
-	if n.WantManualStatus && n.Status != StatusSuccess && n.Status != StatusWaiting {
+	// After a manual node restart, we return to auto status updates. Manual success and failed are final decisions,
+	// and waiting lasts until the node is started.
+	if n.WantManualStatus && n.Status != StatusSuccess && n.Status != StatusFailed && n.Status != StatusWaiting {
 		n.WantManualStatus = false
 	}
 
@@ -157,41 +158,50 @@ func (n *Node) calcRunStatus() (Status, bool) {
 
 	// special case: there is no client, because the client could not be started
 	// this results in failed status without a client "last state" being present
-	// warning: if you change this, then you may need to change Node.hasError()
-	var hasError bool
-	var ls runner.ProcState
 	if n.StartError != "" {
-		hasError = true
-	} else {
-		c := n.Client
-		if c == nil {
-			return StatusWaiting, false
-		}
-		ls = c.LastState()
-		hasError = !ls.Alive() && (ls.Error != "" || ls.ExitCode != 0)
+		return n.errorStatus()
 	}
+	c := n.Client
+	if c == nil {
+		return StatusWaiting, false
+	}
+	return n.procStatus(c.LastState())
+}
 
+// procStatus calculates the status of a started run node from the last state of its process, and it tells if it
+// comes from OnError
+func (n *Node) procStatus(ls runner.ProcState) (Status, bool) {
+	if ls.Alive() {
+		return StatusRunning, false
+	}
+	if n.ExitedSuccessfully(ls) {
+		return StatusSuccess, false
+	}
+	return n.errorStatus()
+}
+
+// errorStatus is the status of a run node that failed (or could not be started), and it tells if it comes from
+// OnError
+func (n *Node) errorStatus() (Status, bool) {
 	// when the user manually restarts the Run node in Paused state, then it calls
-	// updateStatus, and it calls calcRunStatus. But in that case, hasError is false (because
+	// updateStatus, and it calls calcRunStatus. But in that case, there is no error (because
 	// restarting the node clears the error)...
-	if n.Status == StatusPaused && hasError {
+	if n.Status == StatusPaused {
 		// ...so here we already know that the node was not restarted, but the process was
 		// finished with error, this is why it is paused, and it should remain so until it is
 		// manually restarted
 		return n.Status, false
 	}
+	return n.OnError.Status, true
+}
 
-	if hasError {
-		return n.OnError.Status, true
+// ExitedSuccessfully tells if the process exited normally (not by a signal), with one of the success exit codes.
+// For a non-zero success exit code, the error message ("exit status N") is ignored.
+func (n *Node) ExitedSuccessfully(ls runner.ProcState) bool {
+	if !ls.Exited || !slices.Contains(n.SuccessExitCodes, ls.ExitCode) {
+		return false
 	}
-
-	if !ls.Alive() && ls.ExitCode == 0 {
-		return StatusSuccess, false
-	}
-	if !ls.Alive() {
-		panic("internal error in Node.calcRunStatus")
-	}
-	return StatusRunning, false
+	return ls.ExitCode != 0 || ls.Error == ""
 }
 
 // calcParStatus calculates current status of a TypePar or TypeSeq node, and it tells if it is coming from OnError
@@ -201,10 +211,9 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 		panic("internal error in Node.calcParSeqStatus: par and seq nodes cannot be paused, yet it is?")
 	}
 	*/
+	// Set by fail/success on a paused node, it lasts until an operation is performed on this node or below it.
 	if n.WantManualStatus {
-		panic(fmt.Sprintf(
-			"internal error in Node.calcParSeqStatus: par and seq nodes must not WantManualStatus, but got %s",
-			StatusName(n.ManualStatus)))
+		return n.ManualStatus, false
 	}
 
 	if n.Status == StatusSkipped || n.Status == StatusFrozen {

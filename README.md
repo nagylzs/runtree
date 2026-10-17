@@ -172,6 +172,11 @@ Every node can have the following general read-write properties. They can be spe
 - `provides` - it is a list of strings, containing the names of resources that the node provides (see below)
 - `requires` - it is a list of strings, containing the names of resources that the node requires (see below)
 - `max_proc` - maximum number of processes, for this subtree. -1 is the default, and it means infinite. (see below)
+- `success_exit_codes` - a list of process exit codes (0-255) that mean success. When not specified, it is inherited
+  from the parent node, and the default is `[0]`. The listed codes replace the default, so list 0 too if it should
+  also mean success. It is useful for commands that are expected to fail, for example `ssh host reboot` exits with
+  255 when the connection is closed by the rebooting host: `success_exit_codes: [0, 255]`. A process killed by a
+  signal is always a failure.
 - `status` - the initial status of the node. This property can be inherited from the parent node (when the tree is 
   loaded). The default status is `waiting`. Possible values are `waiting` and `frozen` (there are other statuses, 
   but they cannot be specified as initial statuses).
@@ -527,6 +532,12 @@ There are certain operations defined **on single nodes**:
    in inactive states on run-type nodes.
 * `fail` - the scheduler can perform this in `running` state, when the node fails (e.g., the corresponding process fails,
    or one of its sub-nodes fails). It can also be set manually in `paused` state.
+* `success` - the user can perform it manually in `paused` state, to treat the node as successful (it provides its
+   resources, and the scheduler continues).
+
+  When `fail` or `success` is performed on a paused `seq`/`par` node, then it sets the status of that node, but it does
+  not change its sub-nodes (their not yet started sub-nodes will not be started). This manual status lasts until an
+  operation is performed on the node, or on any node below it; then its status is calculated from its sub-nodes again.
 * `signal` - can only be performed in `running` state, it sends a signal (selected by the user) to the process
 * `reset to waiting` - set `waiting` status, so that the scheduler starts the node again (when its requirements are
    met). The user can perform it on run-type nodes in `frozen`, `paused` and finished (`success`, `failed`,

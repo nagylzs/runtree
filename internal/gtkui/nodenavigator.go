@@ -292,19 +292,22 @@ func (t *NodeNavigator) fullUpdate() {
 
 // afterNodeClicked is called from a gtk signal
 func (t *NodeNavigator) afterNodeClicked(nw *TreeNodeView, press int, x float64, y float64) {
-	RunTree.Lock("afterNodeClicked")
+	defer recoverPanic("node selection")
 	oldSel, changed := t.selected, false
-	if oldSel != nw {
-		changed = true
-		t.selected = nw
-		if oldSel != nil {
-			oldSel.Selected = false
+	func() {
+		RunTree.Lock("afterNodeClicked")
+		defer RunTree.UnLock()
+		if oldSel != nw {
+			changed = true
+			t.selected = nw
+			if oldSel != nil {
+				oldSel.Selected = false
+			}
+			if t.selected != nil {
+				t.selected.Selected = true
+			}
 		}
-		if t.selected != nil {
-			t.selected.Selected = true
-		}
-	}
-	RunTree.UnLock()
+	}()
 
 	if changed {
 		if oldSel != nil {
