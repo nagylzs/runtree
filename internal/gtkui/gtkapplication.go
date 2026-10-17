@@ -24,6 +24,7 @@ func InitApplication(runTree *rt.Tree) error {
 func RunApplication() int {
 	GtkApplication = gtk.NewApplication(ApplicationId, gio.ApplicationFlagsNone)
 	GtkApplication.ConnectActivate(activateApplication)
+	go handleExitSignals()
 	cssutil.WriteCSS(mainCss)
 	// TODO: how to pass gtk4 command line parameters here?
 	return GtkApplication.Run([]string{})

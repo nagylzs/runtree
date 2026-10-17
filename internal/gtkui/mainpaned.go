@@ -83,8 +83,13 @@ func NewMainPaned() *MainPaned {
 	// the right side is a vertical pane, toolbox on the top
 	rightSide := gtk.NewPaned(gtk.OrientationVertical)
 	tools := NewToolsWidget()
+	// Without scrolling, the minimum width of the tools would push the right side (and the terminal) out of the
+	// window when the window is narrow.
+	toolsScroll := gtk.NewScrolledWindow()
+	toolsScroll.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyAutomatic)
+	toolsScroll.SetChild(tools)
 	termOverlay := gtk.NewOverlay()
-	rightSide.SetStartChild(tools)
+	rightSide.SetStartChild(toolsScroll)
 	rightSide.SetEndChild(termOverlay)
 	rightSide.SetPosition(600)
 

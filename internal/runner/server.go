@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"sync"
 	"sync/atomic"
+	"syscall"
+	"time"
 
 	"github.com/inhies/go-bytesize"
 	"github.com/nagylzs/runtree/internal/signal"
@@ -18,6 +20,13 @@ import (
 
 const BufSize = 32768 // L3 cache size...
 
+// When the server stops serving a running process (e.g. the client disconnected), the process is terminated with
+// SIGINT, then SIGTERM after TerminateGraceInt, then SIGKILL after TerminateGraceTerm.
+const (
+	TerminateGraceInt  = 10 * time.Second
+	TerminateGraceTerm = 10 * time.Second
+)
+
 type PtyRunner interface {
 	StdIn() io.WriteCloser
 	StdOut() io.Reader
@@ -25,6 +34,8 @@ type PtyRunner interface {
 	Pid() int
 	Cmd() *exec.Cmd
 	Resize(ws WinSize) error
+	SignalGroup(sig os.Signal) error // send a signal to the process group of the command
+	GroupAlive() bool                // tells if any process is left in the process group of the command
 	Close() error
 }
 
@@ -38,6 +49,9 @@ type Server struct {
 	logger    *slog.Logger
 	stop      *atomic.Bool
 	wg        *sync.WaitGroup
+
+	exited    chan struct{} // closed when the process has exited
+	terminate sync.Once
 }
 
 // RunNewServer creates a new server for the given connection, and runs it until the client disconnects.
@@ -57,6 +71,7 @@ func RunNewServer(ctx context.Context, conn io.ReadWriteCloser, logger *slog.Log
 		logger:    logger,
 		wg:        &sync.WaitGroup{},
 		stop:      &atomic.Bool{},
+		exited:    make(chan struct{}),
 	}
 	err = srv.Serve(ctx)
 	if err != nil {
@@ -150,6 +165,7 @@ func (s *Server) ServePty(ctx context.Context) error {
 	go s.recvCommands()
 
 	err = s.ptyRunner.Cmd().Wait()
+	close(s.exited)
 	s.logger.Warn("exited", "pid", s.ptyRunner.Pid(),
 		"exitcode", s.ptyRunner.Cmd().ProcessState.ExitCode(), "error", err)
 	s.logError(s.sendProcState(err))
@@ -174,8 +190,50 @@ func (s *Server) logError(err error) {
 func (s *Server) requestStop(err error) {
 	s.stop.Store(true)
 	if err != nil {
-		_ = s.ptyRunner.Cmd().Process.Signal(os.Interrupt)
 		s.logError(err)
+		s.terminate.Do(func() {
+			go s.terminateProcess()
+		})
+	}
+}
+
+// terminateProcess is called when nobody is served anymore (e.g. the client disconnected).
+// It sends SIGINT to the process group, then SIGTERM and finally SIGKILL if the process group is not empty after
+// the grace periods. Without this, a process that ignores SIGINT (e.g. an interactive shell) would keep running,
+// and it would block as soon as its output buffer is full.
+func (s *Server) terminateProcess() {
+	steps := []struct {
+		sig   os.Signal
+		grace time.Duration
+	}{
+		{os.Interrupt, TerminateGraceInt},
+		{syscall.SIGTERM, TerminateGraceTerm},
+		{os.Kill, 0},
+	}
+	// Other processes of the group (e.g. background jobs of a script) may outlive the command itself.
+	alive := func() bool {
+		select {
+		case <-s.exited:
+			return s.ptyRunner.GroupAlive()
+		default:
+			return true
+		}
+	}
+	for _, step := range steps {
+		if !alive() {
+			return
+		}
+		s.logger.Warn("terminating", "pid", s.ptyRunner.Pid(), "signal", step.sig)
+		err := s.ptyRunner.SignalGroup(step.sig)
+		if err != nil {
+			s.logger.Error("could not send signal", "signal", step.sig, "error", err)
+		}
+		for deadline := time.Now().Add(step.grace); time.Now().Before(deadline); {
+			if !alive() {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 }
 

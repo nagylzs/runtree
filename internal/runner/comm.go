@@ -11,12 +11,12 @@ import (
 func ReadInt(ctx context.Context, stream io.Reader) (uint32, error) {
 	const size = 4 // uint32
 	buf := make([]byte, size)
-	n, err := stream.Read(buf)
-	if err != nil {
+	n, err := io.ReadFull(stream, buf)
+	if err == io.EOF {
 		return 0, err
 	}
-	if n != size {
-		return 0, fmt.Errorf("expected %s bytes, got %d", size, n)
+	if err != nil {
+		return 0, fmt.Errorf("expected %d bytes, got %d: %w", size, n, err)
 	}
 	return binary.LittleEndian.Uint32(buf), nil
 }

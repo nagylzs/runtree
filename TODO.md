@@ -17,7 +17,11 @@ run.go start
   very low priority, you can do it on its parent...
 * command line switch to exit app when the root node succeeds or fails
 * display CWD in properties
-* confirm GUI close when not all nodes are finished, and stop scheduler when GUI is closed
+* stop scheduler when GUI is closed
+* runner sessions that survive the GUI: when the client disconnects (GUI closed or crashed, network error), keep
+  the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
+  runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol
+  change (bump `runner.Version`), a session registry on the runner, and restoring node statuses in the GUI.
 
 # Adoptability (from a review, 2026-09-16)
 

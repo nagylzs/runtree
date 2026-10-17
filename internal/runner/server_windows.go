@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"fmt"
 	"github.com/ActiveState/termtest/conpty"
 	"io"
 	"os"
@@ -38,6 +39,19 @@ func (w windowsPtyRunner) Resize(ws WinSize) error {
 		return nil
 	}
 	return w.cpty.Resize(ws.Cols, ws.Rows)
+}
+
+// SignalGroup only supports os.Kill on Windows, and it only kills the process itself.
+func (w windowsPtyRunner) SignalGroup(sig os.Signal) error {
+	if sig == os.Kill {
+		return w.cmd.Process.Kill()
+	}
+	return fmt.Errorf("signal %v is not supported on windows", sig)
+}
+
+// GroupAlive always returns false on Windows: there are no process groups, only the process itself is tracked.
+func (w windowsPtyRunner) GroupAlive() bool {
+	return false
 }
 
 func (w windowsPtyRunner) Close() error {

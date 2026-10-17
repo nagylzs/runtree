@@ -182,7 +182,7 @@ func (n *Node) performOnErrorSiblings(locked bool) {
 		println(sib.Id+" "+StatusName(sib.Status), "->", OpName(n.OnError.Siblings))
 		_, err := sib.PerformOp(n.OnError.Siblings, true, sib.HasChild(), false)
 		if err != nil {
-			sib.Tree.logger.Error("performOnErrorSiblings: %v", err)
+			sib.Tree.logger.Error("performOnErrorSiblings", "error", err)
 		}
 	}
 }

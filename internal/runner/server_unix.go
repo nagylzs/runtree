@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/creack/pty"
 )
@@ -43,6 +44,22 @@ func (u unixPtyRunner) Resize(ws WinSize) error {
 	return pty.Setsize(u.tty, &pws)
 }
 
+// SignalGroup sends a signal to the process group of the command. pty.Start runs the command in a new session,
+// so its process group id is the same as its pid.
+func (u unixPtyRunner) SignalGroup(sig os.Signal) error {
+	s, ok := sig.(syscall.Signal)
+	if !ok {
+		return fmt.Errorf("unsupported signal: %v", sig)
+	}
+	return syscall.Kill(-u.cmd.Process.Pid, s)
+}
+
+// GroupAlive tells if there is any process left in the process group of the command.
+func (u unixPtyRunner) GroupAlive() bool {
+	err := syscall.Kill(-u.cmd.Process.Pid, 0)
+	return err == nil || err == syscall.EPERM
+}
+
 func (u unixPtyRunner) Close() error {
 	if u.tty == nil {
 		return nil
@@ -66,7 +83,7 @@ func (s *Server) startPty(ca CmdArgs) (PtyRunner, error) {
 			if err2 != nil {
 				s.logger.Error("Could not read tty", "error", err2.Error())
 			}
-			s.logger.Error("tty", string(buf.Bytes()))
+			s.logger.Error("tty", "output", buf.String())
 		}
 		s.logError(s.sendProcState(err))
 		return nil, err

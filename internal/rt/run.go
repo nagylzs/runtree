@@ -45,14 +45,23 @@ func (n *Node) Start(locked bool) error {
 	}
 
 	n.Client = c
-	err = n.Tree.terminalHelper.AfterPtyStarted(n)
-	if err != nil {
-		logger.Error("failed to start", "error", n.StartError)
-		c.Close()
-		return fmt.Errorf("failed to start: %w", err)
-	}
+	n.Tree.terminalHelper.AfterPtyStarted(n)
 	n.IncProc(true)
 	return nil
+}
+
+// TerminalFailed must be called by the TerminalHelper, in unlocked state, when it could not connect the pty of a
+// started node to a terminal. It makes the node fail, and closes the client, so the runner terminates the process.
+func (n *Node) TerminalFailed(err error) {
+	n.LockTree("Node.TerminalFailed")
+	n.StartError = fmt.Sprintf("could not connect terminal: %s", err.Error())
+	n.Tree.logger.Error("failed to start", "node", n.Id, "error", n.StartError)
+	c := n.Client
+	n.UnLockTree()
+	// Closing the client calls procStateChanged, that locks the tree and updates the status.
+	if c != nil {
+		c.Close()
+	}
 }
 
 func (n *Node) procStateChanged(state runner.ProcState) {
@@ -112,8 +121,6 @@ func (n *Node) onError(e runner.Error) {
 	defer n.RUnlockTree()
 	th := n.Tree.terminalHelper
 	if th != nil {
-		if th.OnClientError != nil {
-			th.OnClientError(true, n, e)
-		}
+		th.OnClientError(true, n, e)
 	}
 }

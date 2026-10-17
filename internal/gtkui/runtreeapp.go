@@ -1,17 +1,14 @@
 package gtkui
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	vte "github.com/nagylzs/gotk4-vte"
 	"github.com/nagylzs/runtree/internal/rt"
 	"github.com/nagylzs/runtree/internal/runner"
 )
@@ -22,9 +19,9 @@ type RunTreeApp struct {
 
 	bash           string
 	socat          string
-	terminals      map[string]*vte.Terminal
-	currentTerm    *vte.Terminal  // current terminal displayed on the rightSide side of the main pane
-	lastWinSize    runner.WinSize // last known terminal window size
+	terminals      map[string]*nodeTerminal // by node id
+	currentTerm    *nodeTerminal            // current terminal displayed on the rightSide side of the main pane
+	lastWinSize    runner.WinSize           // last known terminal window size
 	pane           *MainPaned
 	lblSelectANode *gtk.Label
 	selected       *rt.Node    // this stores the official currently selected node
@@ -40,14 +37,14 @@ func NewRunTreeApp(runTree *rt.Tree) (*RunTreeApp, error) {
 
 	bash, err = exec.LookPath("bash")
 	if err != nil {
-		return nil, fmt.Errorf("could not find bash, please install bash: %w", err.Error())
+		return nil, fmt.Errorf("could not find bash, please install bash: %w", err)
 	}
 	socat, err = exec.LookPath("socat")
 	if err != nil {
-		return nil, fmt.Errorf("could not find socat, please install socat: %w", err.Error())
+		return nil, fmt.Errorf("could not find socat, please install socat: %w", err)
 	}
 
-	terminals := make(map[string]*vte.Terminal)
+	terminals := make(map[string]*nodeTerminal)
 
 	app := &RunTreeApp{
 		bash:      bash,
@@ -71,6 +68,7 @@ func (ra *RunTreeApp) Start() {
 	go RunTree.Run()
 	// Update the GUI periodically
 	go ra.runGuiUpdater()
+	glib.TimeoutAdd(terminalSizeCheckMs, ra.checkTerminalSize)
 
 	go func() {
 		for {
@@ -106,64 +104,17 @@ func (ra *RunTreeApp) GetWinSize() runner.WinSize {
 	return ra.lastWinSize
 }
 
-func (ra *RunTreeApp) AfterPtyStarted(n *rt.Node) error {
-	term, err := vte.TerminalNew()
-	if err != nil {
-		return err
-	}
-
-	setupTerminalClipboard(term)
-
-	// Send size changes to pty master.
-	term.ConnectStateFlagsChanged(func(state gtk.StateFlags) {
-		// if the terminal is not mapped (displayed) then we won't send terminal size changes.
-		if !term.Mapped() {
-			return
+// AfterPtyStarted is called with the tree locked, from the scheduler goroutine or from the main gtk loop.
+// The terminal is created later, in the main gtk loop: gtk must not be called from other goroutines, and the main
+// gtk loop cannot be waited for here, because it may be waiting for the tree lock.
+func (ra *RunTreeApp) AfterPtyStarted(n *rt.Node) {
+	client, size := n.Client, n.ClientArgs.InitialPtySize
+	glib.IdleAdd(func() {
+		err := ra.createTerminal(n, client, size)
+		if err != nil {
+			n.TerminalFailed(err)
 		}
-		cols, rows := term.GetColumnCount(), term.GetRowCount()
-		width, height := uint16(term.Width()), uint16(term.Height())
-		size := runner.WinSize{
-			Cols:   cols,
-			Rows:   rows,
-			Width:  width,
-			Height: height,
-		}
-		// slog.Info("TermSizeChange", "size", size)
-
-		// Save the last known size so that new terminals can start with this size.
-		ra.lock.Lock()
-		ra.lastWinSize = size
-		ra.lock.Unlock()
-
-		c := n.Client
-		go func() {
-			// TODO: use some kind of timeout here?
-			// If we cannot send the size then it is maybe because the process already exited, but the pty
-			// was closed on the server before the "process state changed" message arrived to the client
-			// Since these happen on different computers in parallel, it is not clear how could we distinguish
-			// between a real write error and a "write error after remote process exited". We just hope that
-			// if there is a write error, then the process exits (soon), and the server will send the correct
-			// exit code.
-
-			ls := c.LastState()
-			if ls.Alive() {
-				err := c.SendSize(context.TODO(), size, true)
-				if err != nil {
-					slog.Error(fmt.Sprintf("could not send terminal resize: %s", err.Error()))
-				}
-			}
-		}()
 	})
-
-	ra.lock.Lock()
-	ra.terminals[n.Id] = term
-	ra.lock.Unlock()
-
-	wd, _ := os.Getwd()
-	cmd := []string{ra.bash, "-c", ra.socat + " -,raw,echo=0 UNIX-CONNECT:" + n.Client.PtyPath}
-	err = term.SpawnAsyncSimple(wd, cmd, os.Environ())
-
-	return err
 }
 
 //// getNodeTerm returns the terminal emulator for the given node. It is thread safe.
@@ -227,12 +178,14 @@ func (ra *RunTreeApp) displaySelectedNode(grabFocus bool) {
 	ra.lock.Unlock()
 
 	// Display terminal for the selected node
-	var term *vte.Terminal = nil
+	var nt *nodeTerminal = nil
 	if node != nil {
-		term = ra.terminals[node.Id]
+		ra.lock.Lock()
+		nt = ra.terminals[node.Id]
+		ra.lock.Unlock()
 	}
-	if term != nil {
-		ra.pane.SetTerminalWidget(term)
+	if nt != nil {
+		ra.pane.SetTerminalWidget(nt.term)
 	} else {
 		if node == nil {
 			ra.lblSelectANode.SetText("Please select a node")
@@ -241,10 +194,10 @@ func (ra *RunTreeApp) displaySelectedNode(grabFocus bool) {
 		}
 		ra.pane.SetTerminalWidget(ra.lblSelectANode)
 	}
-	ra.currentTerm = term
-	if term != nil && grabFocus {
+	ra.currentTerm = nt
+	if nt != nil && grabFocus {
 		glib.IdleAdd(func() {
-			term.GrabFocus()
+			nt.term.GrabFocus()
 		})
 	}
 

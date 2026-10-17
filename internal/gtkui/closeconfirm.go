@@ -2,13 +2,38 @@ package gtkui
 
 import (
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/nagylzs/runtree/internal/rt"
 )
+
+// handleExitSignals handles SIGINT (Ctrl+C in the terminal that started runtree) and SIGHUP (that terminal was
+// closed) the same way as closing the main window: when there are unfinished nodes, the user must confirm it.
+// SIGTERM is not handled, it still terminates runtree immediately.
+func handleExitSignals() {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGHUP)
+	for sig := range ch {
+		slog.Warn("received signal, closing the main window", "signal", sig)
+		glib.IdleAdd(func() {
+			if Application.window == nil {
+				// not activated yet, nothing was started
+				GtkApplication.Quit()
+				return
+			}
+			Application.window.Present()
+			Application.window.Close()
+		})
+	}
+}
 
 // onCloseRequest is called from the main gtk loop when the user tries to close the main window.
 // It returns true to stop the window from closing.
