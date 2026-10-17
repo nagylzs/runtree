@@ -14,8 +14,8 @@ tree:
         - type: run
           id: "n1-1"
           args: [ "/bin/bash" ]
-          on_error: ["success", "cancel"]
-          description: "type exit 1. Node should succeed, its sibling cancelled and its parent succeeded"
+          on_error: ["success", "skip"]
+          description: "type exit 1. Node should succeed, its sibling skipped and its parent succeeded"
         - type: run
           id: "n1-2"
           args: [ "/bin/bash" ]

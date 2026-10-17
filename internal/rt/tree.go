@@ -54,18 +54,19 @@ func (t *Tree) addNodeById(n *Node) error {
 	return nil
 }
 
-func LoadTree(allTrees map[string]map[string]interface{}, filename string, id string, maxDepth uint) (*Tree, error) {
-	rawTrees, ok := allTrees[filename]
+// LoadTree loads the tree from the top level object called id. The returned errors are ParseErrors.
+func LoadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tree, error) {
+	rawTrees, ok := sources.Files[filename]
 	if !ok {
-		return nil, fmt.Errorf("file not found: %s", filename)
+		return nil, newParseError(Pos{File: filename}, "the file was not loaded")
 	}
 	rn, ok := rawTrees[id]
 	if !ok {
-		return nil, fmt.Errorf("'%s' is missing", id)
+		return nil, newParseError(Pos{File: filename}, "the top level object %q is missing", id)
 	}
 	root, ok := rn.(map[interface{}]interface{})
 	if !ok {
-		return nil, fmt.Errorf("'%s' should be an object", id)
+		return nil, newParseError(sources.TopPos(filename, id), "%q should be an object", id)
 	}
 
 	tree := &Tree{
@@ -87,7 +88,7 @@ func LoadTree(allTrees map[string]map[string]interface{}, filename string, id st
 	tree.unblocker = events.NewDebouncer(tree.debouncedUnblock, false)
 
 	var ord uint = 0
-	_, err := LoadNode(TypeRun, root, nil, tree, allTrees, filename, maxDepth, &ord, 0, nil, nil)
+	_, err := LoadNode(TypeRun, root, nil, tree, sources, filename, maxDepth, &ord, 0, nil, nil)
 	if err != nil {
 		return nil, err
 	}

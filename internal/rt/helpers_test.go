@@ -33,12 +33,12 @@ func parseTestTree(t *testing.T, source string) (*Tree, error) {
 	if err := os.WriteFile(fn, []byte(source), 0600); err != nil {
 		t.Fatal(err)
 	}
-	allTrees := make(map[string]map[string]interface{})
-	_, filename, err := AddTree(fn, allTrees)
+	sources := NewSources()
+	_, filename, err := AddTree(fn, sources)
 	if err != nil {
 		return nil, err
 	}
-	tree, err := ParseToDom(allTrees, filename, 30)
+	tree, err := ParseToDom(sources, filename, 30)
 	if err != nil {
 		return nil, err
 	}

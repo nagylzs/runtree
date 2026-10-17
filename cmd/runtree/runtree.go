@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -83,6 +84,12 @@ func main() {
 	}
 
 	err = runMain(args, posArgs)
+	var parseErr *rt.ParseError
+	if errors.As(err, &parseErr) {
+		// file:line:col: message, and its details on separate lines
+		_, _ = fmt.Fprintln(os.Stderr, parseErr.Error())
+		os.Exit(1)
+	}
 
 	if args.MemProfile != "" {
 		f, err := os.Create(args.MemProfile)
@@ -112,14 +119,18 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		return fmt.Errorf("could open input file %v: %w", fullFilePath, err)
 	}
 
-	allTrees := make(map[string]map[string]interface{})
-	_, filename, err := rt.AddTree(fullFilePath, allTrees)
+	sources := rt.NewSources()
+	_, filename, err := rt.AddTree(fullFilePath, sources)
 	if err != nil {
 		return err
 	}
-	runTree, err := rt.ParseToDom(allTrees, filename, args.MaxDepth)
+	runTree, err := rt.ParseToDom(sources, filename, args.MaxDepth)
 	if err != nil {
-		return fmt.Errorf("could not parse input file %v: %w", fullFilePath, err)
+		return err
+	}
+	if args.Check {
+		_, _ = fmt.Fprintf(os.Stderr, "%s: OK, %d nodes\n", posArgs[1], len(runTree.Nodes))
+		return nil
 	}
 
 	err = gtkui.InitApplication(runTree)

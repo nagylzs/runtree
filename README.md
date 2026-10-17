@@ -56,6 +56,20 @@ go build cmd/rtrunner.go -o rtrunner
 
 but in that case, version information will not be included in the binary.
 
+## Checking a tree file
+
+`runtree --check tree.yaml` loads the tree file and the files that it includes, and exits without starting the GUI
+or any process. When there is an error, it prints it with its position, and the exit code is 1:
+
+```
+servers.yaml:7:7: unknown property "on_eror" (did you mean "on_error"?)
+  in node: upgrade all › upgrade servers › deploy
+  included from main.yaml:5:17 (include "servers.yaml|upgrade")
+```
+
+The first line uses the usual `file:line:column: message` format, so editors (e.g. a VS Code task) can jump to it.
+Only the first error is reported.
+
 
 # Building on Windows
 
@@ -242,6 +256,10 @@ tree:
 
 The order of properties is not important, but usually you will want to put general properties at the top, and 
 type-specific properties at the bottom.
+
+Tree files are read as YAML 1.2: `yes`, `no`, `on` and `off` are strings (e.g. in `args`), but boolean properties
+accept them too. Anchors, aliases and merge keys (`<<: *anchor`) can be used, and a key must not be repeated in an
+object.
 
 ## Maximum number of processes
 
@@ -786,12 +804,12 @@ tree:
       args: [ "make", "deploy" ]
 ```
 
-The shortest form is:
+The shortest form gives the run nodes as lists of arguments:
 
 ```yaml
 tree:
   on_error: "freeze"
-  seq: [ "make build", [ "make", "deploy" ] ]
+  seq: [ [ "make", "build" ], [ "make", "deploy" ] ]
 ```
 
 ### Activating and inactivating seq/par nodes, and their effect on locks

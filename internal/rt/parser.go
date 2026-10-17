@@ -1,14 +1,13 @@
 package rt
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/nagylzs/set"
-	"gopkg.in/yaml.v2"
 )
 
 const MaxYamlFileSize = 1024 * 1024
@@ -19,12 +18,14 @@ var ValidNodeConfigs = set.FromArray([]string{
 	"cwd", "runner", "vars", "def_vars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
 	"provides", "requires",
 	"on_error", "children_on_error", "max_proc", "success_exit_codes", "envs", "type", "rlocks", "xlocks", "nodes",
-	"par", "seq", "run", "include", "status",
+	"par", "seq", "include", "status",
 	"ifeq", "ifneq",
 	"for_vars",
+	"expanded", "expand_on_active", "collapse_on_finished",
 })
 
-func AddTree(absoluteFilePath string, allTrees map[string]map[string]interface{}) (map[string]interface{}, string, error) {
+// AddTree reads and parses a tree source file into sources, and returns its top level objects.
+func AddTree(absoluteFilePath string, sources *Sources) (map[string]interface{}, string, error) {
 	filename, err := filepath.Abs(absoluteFilePath)
 	if err != nil {
 		return nil, "", err
@@ -32,40 +33,43 @@ func AddTree(absoluteFilePath string, allTrees map[string]map[string]interface{}
 	if filename != absoluteFilePath {
 		return nil, "", fmt.Errorf("AddTree: invalid argument: relative file path provided %v", absoluteFilePath)
 	}
-	fi, err := os.Stat(absoluteFilePath)
+	rawTrees, err := sources.AddFile(absoluteFilePath)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not stat input file %v: %w", absoluteFilePath, err)
+		return nil, absoluteFilePath, err
 	}
-	if fi.Size() > MaxYamlFileSize {
-		return nil, absoluteFilePath, fmt.Errorf("input file %v bigger than %v bytes", absoluteFilePath, MaxYamlFileSize)
-	}
-	data, err := os.ReadFile(absoluteFilePath)
-	if err != nil {
-		return nil, absoluteFilePath, fmt.Errorf("could not read input file %v: %w", absoluteFilePath, err)
-	}
-	var rawTrees map[string]interface{}
-	err = yaml.Unmarshal(data, &rawTrees)
-	if err != nil {
-		return nil, absoluteFilePath, fmt.Errorf("could not parse input file %v: %w", absoluteFilePath, err)
-	}
-	allTrees[absoluteFilePath] = rawTrees
 	return rawTrees, absoluteFilePath, nil
 }
 
-func ParseToDom(allTrees map[string]map[string]interface{}, filePath string, maxDepth uint) (*Tree, error) {
-	return LoadTree(allTrees, filePath, "tree", maxDepth)
+func ParseToDom(sources *Sources, filePath string, maxDepth uint) (*Tree, error) {
+	return LoadTree(sources, filePath, "tree", maxDepth)
 }
 
 // LoadNode loads a node from an arbitrary map of values and adds it into a tree.
 // If the node should be excluded ("ifeq" and "ifneq") then it returns a nil node.
+// The returned errors are ParseErrors, with the position of the problem in the source file.
 func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree *Tree,
-	allTrees map[string]map[string]interface{}, filePath string,
-	maxDepth uint, idx *uint, level uint, loadInto *Node, overrideVars map[string]interface{}) (*Node, error) {
+	sources *Sources, filePath string,
+	maxDepth uint, idx *uint, level uint, loadInto *Node, overrideVars map[string]interface{}) (n *Node, err error) {
+	defer func() {
+		if err != nil {
+			err = locateError(err, sources, raw, n, parent)
+		}
+	}()
 	if maxDepth == 0 {
-		return nil, fmt.Errorf("maximum depth exceeded")
+		return nil, fmt.Errorf("maximum depth exceeded (are the includes circular?)")
 	}
 
-	n := &Node{
+	for _, k := range sources.Keys(raw) {
+		ks, ok := k.(string)
+		if !ok {
+			return nil, &keyError{name: fmt.Sprint(k), msg: fmt.Sprintf("property names must be strings, got %v", k)}
+		}
+		if !ValidNodeConfigs.Contains(ks) {
+			return nil, unknownPropertyError(ks)
+		}
+	}
+
+	n = &Node{
 		Parent:          parent,
 		Tree:            tree,
 		MissingRequired: set.NewSet[string](),
@@ -94,7 +98,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		case "par":
 			n.Type = TypePar
 		default:
-			return n, fmt.Errorf("invalid type: %s", typ)
+			return n, propErrorf("type", "invalid type: %s (it must be run, seq or par)", typ)
 		}
 	} else if hasSeq {
 		n.Type = TypeSeq
@@ -109,10 +113,9 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		n.Type = TypeSeq
 	}
 	if hasInclude && n.Type == TypeRun {
-		return n, fmt.Errorf("invalid type: run type nodes cannot include other nodes")
+		return n, &keyError{name: "include", msg: "run type nodes cannot include other nodes"}
 	}
 
-	var err error
 	n.Id, err = getStringDef(raw, "id", "")
 	if err != nil {
 		return n, err
@@ -122,7 +125,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	}
 	err = tree.addNodeById(n)
 	if err != nil {
-		return n, err
+		return n, propErrorf("id", "%v", err)
 	}
 
 	n.Parsed.Title, err = getStringDef(raw, "title", "")
@@ -159,7 +162,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		for k := range n.Parsed.DefVars {
 			_, has := n.Parsed.Vars[k]
 			if has {
-				return n, fmt.Errorf("variable found both in vars and def_vars: %s", k)
+				return n, propErrorf("def_vars", "variable found both in vars and def_vars: %s", k)
 			}
 		}
 	}
@@ -185,7 +188,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	}
 
 	if !n.InheritVars && len(n.Parsed.DefVars) > 0 {
-		return n, fmt.Errorf("cannot use defvars when inherit_vars=false")
+		return n, propErrorf("def_vars", "cannot use def_vars when inherit_vars=false")
 	}
 
 	n.Parsed.Envs, err = getStringStringMapDef(raw, "envs", nil)
@@ -257,7 +260,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	} else if st == "frozen" {
 		n.Status = StatusFrozen
 	} else {
-		return n, fmt.Errorf("invalid status: %s can only be waiting or frozen", st)
+		return n, propErrorf("status", "invalid status: %s can only be waiting or frozen", st)
 	}
 
 	n.OnError, err = loadOnError(n, raw)
@@ -319,7 +322,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	nodes, hasNodes := raw["nodes"]
 
 	if hasInclude && hasNodes {
-		return n, fmt.Errorf("cannot specify both 'nodes' and 'include'")
+		return n, &keyError{name: "include", msg: "cannot specify both 'nodes' and 'include'"}
 	}
 
 	hasForVars, forVars, err := caclForVars(raw, n, err)
@@ -346,14 +349,14 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 		// Processing combination starts here
 		if hasInclude {
-			err = includeSubNodes(n, inc, tree, allTrees, filePath, maxDepth, idx, level+1, combination, hasForVars)
+			err = includeSubNodes(n, inc, raw, tree, sources, filePath, maxDepth, idx, level+1, combination, hasForVars)
 			if err != nil {
-				return n, fmt.Errorf("include %s: %w", inc, err)
+				return n, err
 			}
 		}
 
 		if hasNodes {
-			err = loadSubNodes(n, nodes, tree, allTrees, filePath, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, "nodes", nodes, tree, sources, filePath, maxDepth, idx, level, combination)
 			if err != nil {
 				return n, err
 			}
@@ -362,7 +365,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		rl, ok := raw["seq"]
 		if ok {
 			n.Type = TypeSeq
-			err = loadSubNodes(n, rl, tree, allTrees, filePath, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, "seq", rl, tree, sources, filePath, maxDepth, idx, level, combination)
 			if err != nil {
 				return n, err
 			}
@@ -371,7 +374,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		rl, ok = raw["par"]
 		if ok {
 			n.Type = TypePar
-			err = loadSubNodes(n, rl, tree, allTrees, filePath, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, "par", rl, tree, sources, filePath, maxDepth, idx, level, combination)
 			if err != nil {
 				return n, err
 			}
@@ -399,13 +402,6 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		}
 	}
 
-	for k, _ := range raw {
-		ks, ok := k.(string)
-		if !ok || !ValidNodeConfigs.Contains(ks) {
-			return n, fmt.Errorf("invalid config: unknown property: %v", k)
-		}
-	}
-
 	err = n.SelfCheck()
 	if err != nil {
 		return n, err
@@ -428,12 +424,12 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 
 	var forVars map[string]interface{} = nil
 	if n.Type == TypeRun {
-		return false, nil, fmt.Errorf("run type node cannot have for_vars")
+		return false, nil, &keyError{name: "for_vars", msg: "run type node cannot have for_vars"}
 	}
 
 	err = mapstructure.Decode(forVarsRaw, &forVars)
 	if err != nil {
-		return false, nil, fmt.Errorf("error parsing for_vars: %s", err)
+		return false, nil, propErrorf("for_vars", "error parsing for_vars: %s", err)
 	}
 	hasForVars = forVars != nil && len(forVars) > 0
 
@@ -447,11 +443,11 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 		if ok {
 			v2, ok := n.Calculated.Vars[sv]
 			if !ok {
-				return false, nil, fmt.Errorf("for_vars: variable %s->%s not found", k, sv)
+				return false, nil, propErrorf("for_vars", "for_vars: variable %s->%s not found", k, sv)
 			}
 			av, ok = v2.([]interface{})
 			if !ok {
-				return false, nil, fmt.Errorf("for_vars: variable %s->%s is not an array", k, sv)
+				return false, nil, propErrorf("for_vars", "for_vars: variable %s->%s is not an array", k, sv)
 			}
 			avOk = true
 		}
@@ -462,7 +458,7 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 
 		if !avOk {
 			return false, nil,
-				fmt.Errorf("for_vars: %v: value must be an array of strings or the name of an array variable", k)
+				propErrorf("for_vars", "for_vars: %v: value must be an array of strings or the name of an array variable", k)
 		}
 
 		forVarsFinal[k] = av
@@ -541,14 +537,14 @@ func parseOnError(raw map[interface{}]interface{}, key string) (OnError, bool, e
 			freeze = true
 			sbc++
 		default:
-			return DefaultOnError, true, fmt.Errorf("invalid value for %s: %s", key, v)
+			return DefaultOnError, true, propErrorf(key, "invalid value for %s: %s", key, v)
 		}
 	}
 	if stc > 1 {
-		return DefaultOnError, true, fmt.Errorf("invalid value for %s, cannot specify multiple statuses", key)
+		return DefaultOnError, true, propErrorf(key, "invalid value for %s, cannot specify multiple statuses", key)
 	}
 	if sbc > 1 {
-		return DefaultOnError, true, fmt.Errorf("invalid value for %s, cannot specify multiple operations", key)
+		return DefaultOnError, true, propErrorf(key, "invalid value for %s, cannot specify multiple operations", key)
 	}
 	res := DefaultOnError
 	if stc > 0 {
@@ -576,103 +572,103 @@ func parseOnError(raw map[interface{}]interface{}, key string) (OnError, bool, e
 	return res, true, nil
 }
 
-// loadSubNodes loads sub-nodes when specified via "nodes" property
-func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
-	allTrees map[string]map[string]interface{}, filePath string,
+// loadSubNodes loads sub-nodes from a list (the value of the key property: nodes, seq or par)
+func loadSubNodes(parent *Node, key string, rl interface{}, tree *Tree,
+	sources *Sources, filePath string,
 	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{}) error {
 	l, ok := rl.([]interface{})
 	if !ok {
-		return fmt.Errorf("invalid node type: %T", l)
+		return propErrorf(key, "the value of %s must be a list of nodes, got %T", key, rl)
 	}
-	for _, rsub := range l {
+	for i, rsub := range l {
+		var node *Node
+		var err error
 		switch sub := rsub.(type) {
 		case map[interface{}]interface{}:
-			node, err := LoadNode(TypeRun, sub, parent, tree, allTrees, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
-			if err != nil {
-				return err
-			}
-			// ifeq, ifneq
-			if node != nil {
-				parent.Nodes = append(parent.Nodes, node)
-			}
+			node, err = LoadNode(TypeRun, sub, parent, tree, sources, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
 		case []interface{}:
-			node, err := LoadRunNodeFromArgs(sub, parent, tree, allTrees, filePath, maxDepth, idx, level+1, overrideVars)
-			if err != nil {
-				return err
-			}
-			// ifeq, ifneq
-			if node != nil {
-				parent.Nodes = append(parent.Nodes, node)
-			}
+			node, err = LoadRunNodeFromArgs(sub, sources.ItemPos(l, i), parent, tree, sources, filePath, maxDepth, idx,
+				level+1, overrideVars)
 		default:
-			return fmt.Errorf("invalid node type: %T", rsub)
+			return &ParseError{Pos: sources.ItemPos(l, i), Node: nodePath(parent),
+				Message: fmt.Sprintf("a node must be an object, or a list of arguments, got %T", rsub)}
+		}
+		if err != nil {
+			return err
+		}
+		// ifeq, ifneq
+		if node != nil {
+			parent.Nodes = append(parent.Nodes, node)
 		}
 	}
 	return nil
 }
 
-// loadSubNodes includes sub-nodes when specified via "include" property
-func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
-	allTrees map[string]map[string]interface{}, filePath string,
+// includeSubNodes includes sub-nodes when specified via "include" property (rl is its value in raw)
+func includeSubNodes(parent *Node, rl interface{}, raw map[interface{}]interface{}, tree *Tree,
+	sources *Sources, filePath string,
 	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{},
 	preventReduce bool) error {
 
-	var ok bool
-
-	var sources []string
-
-	source, ok := rl.(string)
-	if ok {
-		sources = make([]string, 1)
-		sources[0] = source
-	}
-	if !ok {
-		err := mapstructure.Decode(rl, &sources)
+	var names []string
+	var itemPos func(i int) Pos
+	if name, ok := rl.(string); ok {
+		names = []string{name}
+		itemPos = func(int) Pos { return sources.ValuePos(raw, "include") }
+	} else {
+		err := mapstructure.Decode(rl, &names)
 		if err != nil {
-			return fmt.Errorf("invalid include argument: %v", err.Error())
+			return propErrorf("include", "invalid include argument (expected a string or a list of strings): %v", err)
 		}
+		l, _ := rl.([]interface{})
+		itemPos = func(i int) Pos { return sources.ItemPos(l, i) }
 	}
 
-	for _, name := range sources {
+	for i, name := range names {
 		var rawTrees map[string]interface{}
 		var includeFilePath string
 		var localName string
+		incPos := itemPos(i)
+		includeError := func(format string, args ...any) error {
+			return &ParseError{Pos: incPos, Message: fmt.Sprintf(format, args...), Node: nodePath(parent)}
+		}
 
 		// relative or absolute import?
 		iidx := strings.Index(name, "|")
 		if iidx < 0 {
-			rawTrees = allTrees[filePath]
+			rawTrees = sources.Files[filePath]
 			includeFilePath = filePath
 			localName = name
 		} else {
-			fp := name[:iidx]
-			// convert to absolute filepath
-			dir := filepath.Dir(filePath)
-			includeFilePath = filepath.Join(dir, fp)
+			// relative to the file that contains the include
+			includeFilePath = filepath.Join(filepath.Dir(filePath), name[:iidx])
 			localName = name[iidx+1:]
-			rawTrees, ok = allTrees[includeFilePath]
-			if !ok {
-				var err error
-				rawTrees, filePath, err = AddTree(includeFilePath, allTrees)
-				if err != nil {
-					return fmt.Errorf("cannot load %v: %v", name, err.Error())
+			var err error
+			rawTrees, err = sources.AddFile(includeFilePath)
+			if err != nil {
+				var pe *ParseError
+				if errors.As(err, &pe) && pe.Pos.Line > 0 {
+					// an error inside the included file
+					pe.Included = append(pe.Included, IncludePos{Pos: incPos, Name: name})
+					return pe
 				}
+				return includeError("cannot include %s: %s: %s", name, displayPath(includeFilePath), errorMessage(err))
 			}
 		}
 		item, ok := rawTrees[localName]
 		if !ok {
-			return fmt.Errorf("cannot include %s, not found", name)
+			return includeError("cannot include %s: %q is not found in %s", name, localName, displayPath(includeFilePath))
 		}
-		raw, ok := item.(map[interface{}]interface{})
+		itemRaw, ok := item.(map[interface{}]interface{})
 		if !ok {
-			return fmt.Errorf("cannot include %s, should be an object, got %T", name, item)
+			return includeError("cannot include %s: it should be an object, got %T", name, item)
 		}
 
 		// canReduce=true means that the parent only had a single "include" given with a single name,
 		// in this case we load the node into the parent, instead of adding it as a child
 		var loadInto *Node = nil
 		canReduce := !preventReduce
-		if len(sources) != 1 {
+		if len(names) != 1 {
 			canReduce = false
 		}
 		if parent.Calculated.RLocks != nil && parent.Calculated.RLocks.Size() > 0 {
@@ -684,8 +680,13 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 		if canReduce {
 			loadInto = parent
 		}
-		node, err := LoadNode(TypeRun, raw, parent, tree, allTrees, includeFilePath, maxDepth-1, idx, level+1, loadInto, overrideVars)
+		node, err := LoadNode(TypeRun, itemRaw, parent, tree, sources, includeFilePath, maxDepth-1, idx, level+1, loadInto,
+			overrideVars)
 		if err != nil {
+			var pe *ParseError
+			if errors.As(err, &pe) {
+				pe.Included = append(pe.Included, IncludePos{Pos: incPos, Name: name})
+			}
 			return err
 		}
 		// ifeq, ifneq
@@ -699,22 +700,33 @@ func includeSubNodes(parent *Node, rl interface{}, tree *Tree,
 	return nil
 }
 
-func LoadRunNodeFromArgs(args []interface{}, parent *Node, tree *Tree,
-	allTrees map[string]map[string]interface{}, filePath string,
+// errorMessage returns the message of a ParseError (without its position), or the error string
+func errorMessage(err error) string {
+	var pe *ParseError
+	if errors.As(err, &pe) {
+		return pe.Message
+	}
+	return err.Error()
+}
+
+// LoadRunNodeFromArgs loads a run node that is given as a list of arguments (at pos)
+func LoadRunNodeFromArgs(args []interface{}, pos Pos, parent *Node, tree *Tree,
+	sources *Sources, filePath string,
 	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{}) (*Node, error) {
 	rl := make(map[interface{}]interface{})
 	rl["args"] = args
-	return LoadNode(TypeRun, rl, parent, tree, allTrees, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
+	sources.setMapPos(rl, pos, "args")
+	return LoadNode(TypeRun, rl, parent, tree, sources, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
 }
 
 func getString(raw map[interface{}]interface{}, name string) (string, error) {
 	v, ok := raw[name]
 	if !ok {
-		return "", fmt.Errorf("missing %s", name)
+		return "", fmt.Errorf("missing property %s", name)
 	}
 	v2, ok := v.(string)
 	if !ok {
-		return "", fmt.Errorf("invalid %s (expected string)", name)
+		return "", propErrorf(name, "invalid %s (expected string)", name)
 	}
 	return v2, nil
 }
@@ -726,7 +738,7 @@ func getStringDef(raw map[interface{}]interface{}, name string, defval string) (
 	}
 	v2, ok := v.(string)
 	if !ok {
-		return "", fmt.Errorf("invalid %s (expected string)", name)
+		return "", propErrorf(name, "invalid %s (expected string)", name)
 	}
 	return v2, nil
 }
@@ -739,13 +751,13 @@ func getStringMapDef(raw map[interface{}]interface{}, name string, defval map[st
 	}
 	v2, ok := v.(map[interface{}]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid %s (expected map of strings)", name)
+		return nil, propErrorf(name, "invalid %s (expected map of strings)", name)
 	}
 	res := make(map[string]interface{})
 	for k, v := range v2 {
 		k2, ok2 := k.(string)
 		if !ok2 {
-			return nil, fmt.Errorf("invalid key type in %s (expected string)", name)
+			return nil, propErrorf(name, "invalid key type in %s (expected string)", name)
 		}
 		res[k2] = v
 	}
@@ -759,17 +771,17 @@ func getStringStringMapDef(raw map[interface{}]interface{}, name string, defval 
 	}
 	v2, ok := v.(map[interface{}]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid %s (expected map of strings)", name)
+		return nil, propErrorf(name, "invalid %s (expected map of strings)", name)
 	}
 	res := make(map[string]string)
 	for k, v := range v2 {
 		k2, ok2 := k.(string)
 		if !ok2 {
-			return nil, fmt.Errorf("invalid key type in %s (expected string)", name)
+			return nil, propErrorf(name, "invalid key type in %s (expected string)", name)
 		}
 		v2, ok2 := v.(string)
 		if !ok2 {
-			return nil, fmt.Errorf("invalid value type in %s (expected string)", name)
+			return nil, propErrorf(name, "invalid value type in %s (expected string)", name)
 		}
 		res[k2] = v2
 	}
@@ -787,24 +799,19 @@ func getBoolDef(raw map[interface{}]interface{}, name string, defval bool) (bool
 	}
 	v3, ok := v.(string)
 	if ok {
+		// YAML 1.2 (yaml.v3) gives these as strings, YAML 1.1 used them as booleans
 		switch strings.TrimSpace(strings.ToLower(v3)) {
-		case "true":
-		case "yes":
-		case "1":
-		case "on":
+		case "true", "yes", "y", "1", "on":
 			return true, nil
-		case "false":
-		case "no":
-		case "0":
-		case "off":
+		case "false", "no", "n", "0", "off":
 			return false, nil
 		default:
-			return false, fmt.Errorf("invalid boolean value in %s (expected bool)", name)
+			return false, propErrorf(name, "invalid boolean value in %s (expected bool)", name)
 		}
 	}
 	v4, ok := v.(int)
 	if !ok {
-		return false, fmt.Errorf("invalid boolean value in %s (expected bool)", name)
+		return false, propErrorf(name, "invalid boolean value in %s (expected bool)", name)
 	}
 	return v4 != 0, nil
 }
@@ -816,13 +823,13 @@ func getStringArrayDef(raw map[interface{}]interface{}, name string, defval []st
 	}
 	v2, ok := v.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid value in %s (expected string array)", name)
+		return nil, propErrorf(name, "invalid value in %s (expected string array)", name)
 	}
 	res := make([]string, 0, len(v2))
 	for _, v := range v2 {
 		v2, ok := v.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid value in %s (expected string array)", name)
+			return nil, propErrorf(name, "invalid value in %s (expected string array)", name)
 		}
 		res = append(res, v2)
 	}
@@ -836,7 +843,7 @@ func getIntDef(raw map[interface{}]interface{}, name string, defval int) (int, e
 	}
 	v2, ok := v.(int)
 	if !ok {
-		return 0, fmt.Errorf("invalid value in %s (expected int)", name)
+		return 0, propErrorf(name, "invalid value in %s (expected int)", name)
 	}
 	return v2, nil
 }
@@ -849,13 +856,13 @@ func getExitCodesDef(raw map[interface{}]interface{}, name string, defval []int)
 	}
 	v2, ok := v.([]interface{})
 	if !ok || len(v2) == 0 {
-		return nil, fmt.Errorf("invalid value in %s (expected a list of exit codes)", name)
+		return nil, propErrorf(name, "invalid value in %s (expected a list of exit codes)", name)
 	}
 	res := make([]int, 0, len(v2))
 	for _, v := range v2 {
 		code, ok := v.(int)
 		if !ok || code < 0 || code > 255 {
-			return nil, fmt.Errorf("invalid value in %s: %v (exit codes are integers between 0 and 255)", name, v)
+			return nil, propErrorf(name, "invalid value in %s: %v (exit codes are integers between 0 and 255)", name, v)
 		}
 		res = append(res, code)
 	}
@@ -879,7 +886,7 @@ func (n *Node) SelfCheck() error {
 	if n.Type == TypeRun {
 		if n.Parsed.Args == nil || len(n.Parsed.Args) == 0 {
 			// TODO: maybe, if args is empty but args_prefix is not empty, then we could allow it?
-			return fmt.Errorf("%s: selfcheck run node: no arguments", n.DebugPath())
+			return &keyError{name: "args", msg: "a run node needs args"}
 		}
 	}
 	st := n.OnError.Status

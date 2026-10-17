@@ -33,6 +33,21 @@
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
 
+# Tree files: error positions and VS Code support (roadmap, 2026-10-17)
+
+Keep YAML. A VS Code extension gets completion, hover and validation from a JSON Schema for free (Red Hat YAML
+extension / yaml-language-server); the semantic checks need runtree's own parser, with positions.
+
+1. Parser with positions: yaml.v3 (line and column of every key and value), structured errors (file, position,
+   node path, include chain), "did you mean" for unknown properties, `runtree --check tree.yaml` that validates
+   without starting the GUI (`file:line:col: message`, clickable in a VS Code task). Later: report all errors, not
+   only the first one.
+2. One table that describes every node property (name, type, inherited or not, description). The parser validates
+   from it, and a JSON Schema is generated from it. A minimal VS Code extension that ships the schema: completion
+   and validation of property names, value types and allowed values.
+3. Language server in Go (e.g. `runtree lsp`, reusing `internal/rt`): semantic checks (include targets, undefined
+   variables, include cycles), go to definition for includes, hover documentation.
+
 # From TODO comments in the source (2026-10-17)
 
 * template substitution (`vars.go` `varEval*`): `{` and `}` cannot be escaped, and replaced values are substituted
