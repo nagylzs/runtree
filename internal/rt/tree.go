@@ -135,3 +135,26 @@ func (t *Tree) PrintWho() {
 func (t *Tree) SetTerminalHelper(helper TerminalHelper) {
 	t.terminalHelper = helper
 }
+
+// UnfinishedRunCounts counts the run nodes that are not in Success or Skipped status, grouped by status.
+// Sub-nodes of a skipped node are not counted, because the scheduler will never start them.
+func (t *Tree) UnfinishedRunCounts(locked bool) map[Status]int {
+	if !locked {
+		panic("must be called in locked state")
+	}
+	counts := make(map[Status]int)
+	var count func(n *Node)
+	count = func(n *Node) {
+		if n.Status == StatusSkipped {
+			return
+		}
+		if n.Type == TypeRun && n.Status != StatusSuccess {
+			counts[n.Status]++
+		}
+		for _, c := range n.Nodes {
+			count(c)
+		}
+	}
+	count(t.Root)
+	return counts
+}

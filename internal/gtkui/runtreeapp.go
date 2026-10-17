@@ -30,6 +30,8 @@ type RunTreeApp struct {
 	selected       *rt.Node    // this stores the official currently selected node
 	lock           *sync.Mutex // guards all internals, used internally only
 	window         *gtk.ApplicationWindow
+	closeDialog    *gtk.Window // close confirmation dialog, when shown; main gtk loop only
+	closeConfirmed bool        // the user confirmed closing the main window; main gtk loop only
 }
 
 func NewRunTreeApp(runTree *rt.Tree) (*RunTreeApp, error) {

@@ -39,6 +39,7 @@ func activateApplication() {
 	window.SetVisible(true)
 	// Nasty!
 	Application.window = window
+	window.ConnectCloseRequest(Application.onCloseRequest)
 
 	overlay := gtk.NewOverlay()
 	pane := NewMainPaned()
