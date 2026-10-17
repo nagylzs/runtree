@@ -815,19 +815,16 @@ TODO: an algorithmic description would be better! What happens to waiting sub-no
 - It will only run the next contained `waiting` sub-node after the preceding sub-node became `finished`.
 - State of the seq node changes to `running` when the first sub-node is successfully started. Locks are acquired in the
   same atomic step.
-- The seq node becomes `finished` (reaches final state) when all of its sub-nodes are `finished`. Locks are released in
-  the same atomic step.
-- When a sub-node fails ( becomes `inactive` with `has_error=true`), then processing of further sub-nodes (if there is
-  one) depends on the value of the `on_error` property:
-    - `cancel` will recursively cancel all remaining (not yet started) sub-nodes. This is the default. It will make the
-      whole subtree `finished`
-      immediately.
-    - `run` will continue processing subsequent nodes normally
-    - `pause` will set the `paused` property of the seq node to `true` right after a sub-node is `finished` with error.
-      This will pause the scheduler, and user interaction may be required to finish the node. (e.g. this interaction can
-      set `on_error` to `run` or `cancel` and then unpause it.)
-    - If there is no next node to process (because there is no next node, or all nodes are already `finished`) then the
-      seq node will not pause, but goes into its final state immediately.
+- The seq node becomes `finished` (reaches final state) when all of its sub-nodes are `finished`, or when one of them
+  fails (see below). Locks are released in the same atomic step.
+- When a sub-node fails (becomes `finished` with error), then the seq node does not start its next sub-nodes. It gets
+  the status given by its `on_error` property right away:
+    - `failed` (the default): the seq node fails.
+    - `paused`: the user decides what to do. For example, fix the problem and reset the failed sub-node to waiting,
+      or set the seq node to `success` or `failed` manually.
+    - `success`: the seq node succeeds (without running its next sub-nodes).
+- A sub-node that is allowed to fail should have `on_error: success`, then it counts as successful, and the seq node
+  continues with the next sub-node.
 
 ### Run operation of par node
 

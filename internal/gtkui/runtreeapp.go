@@ -166,6 +166,12 @@ func (ra *RunTreeApp) OnClientError(locked bool, node *rt.Node, e runner.Error) 
 	})
 }
 
+func (ra *RunTreeApp) OnInternalError(message string) {
+	glib.IdleAdd(func() {
+		ShowToast(message)
+	})
+}
+
 func (ra *RunTreeApp) Selected() *rt.Node {
 	ra.lock.Lock()
 	defer ra.lock.Unlock()

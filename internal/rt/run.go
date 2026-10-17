@@ -65,6 +65,7 @@ func (n *Node) TerminalFailed(err error) {
 }
 
 func (n *Node) procStateChanged(state runner.ProcState) {
+	defer n.Tree.recoverPanic("process state change of " + n.Id)
 	n.LockTree("Node.procStateChanged")
 	defer n.UnLockTree()
 	// process exited, node's old state is alive -> will decrease the number of processes
@@ -117,6 +118,7 @@ func (n *Node) DecProc(locked bool) {
 }
 
 func (n *Node) onError(e runner.Error) {
+	defer n.Tree.recoverPanic("runner error of " + n.Id)
 	n.RLockTree("Node.onError")
 	defer n.RUnlockTree()
 	th := n.Tree.terminalHelper

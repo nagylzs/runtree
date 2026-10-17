@@ -232,6 +232,11 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 			hasNotFinished = true
 		}
 	}
+	// A seq node stops at a failed sub-node: it gets its on_error status right away, so the scheduler does not start
+	// the next sub-node. (A sub-node that is allowed to fail should have "on_error: success".)
+	if n.Type == TypeSeq && hasError && !hasActive {
+		return n.OnError.Status, true
+	}
 	// If the par node is already running, then it will stay that way until all sub-nodes are finished.
 	// This ensures that the par node holds its acquired locks until its sub-nodes are all finished.
 	if n.Status == StatusRunning {

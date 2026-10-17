@@ -16,9 +16,12 @@ func (t *Tree) debouncedUnblock(_ int) {
 // unblock will recalculate required, provided, locked and unlocked resources for all nodes,
 // update Node.Blocked and finally awake the scheduler if something was unblocked
 func (t *Tree) unblock() {
-	t.Lock("Tree.unblock")
-	unblocked := t.Root.updateBlockedAll(true)
-	t.UnLock()
+	defer t.recoverPanic("unblock")
+	unblocked := func() bool {
+		t.Lock("Tree.unblock")
+		defer t.UnLock()
+		return t.Root.updateBlockedAll(true)
+	}()
 
 	// If something was unblocked, then we awake the scheduler
 	if unblocked {

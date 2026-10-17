@@ -14,4 +14,5 @@ type TerminalHelper interface {
 	ProcStateChanged(n *Node, state runner.ProcState)          // Called after process state changed, should update GUI here
 	OnNodeChanged(n *Node, oldStatus Status, oldExpanded bool) // Node status or expanded changed
 	OnClientError(locked bool, node *Node, e runner.Error)
+	OnInternalError(message string) // A recovered panic, called from any goroutine, in unlocked state
 }

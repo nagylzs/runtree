@@ -1,11 +1,16 @@
 package rt
 
 import (
+	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/nagylzs/runtree/internal/events"
+	"github.com/nagylzs/runtree/internal/runner"
 )
 
 // Helpers for the rt test suite. Run all tests with: go test ./...
@@ -39,6 +44,7 @@ func parseTestTree(t *testing.T, source string) (*Tree, error) {
 	}
 	tree.awaker = events.NewDebouncer(func(int) {}, true)
 	tree.unblocker = events.NewDebouncer(func(int) {}, false)
+	tree.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	return tree, nil
 }
 
@@ -73,4 +79,39 @@ func ids(nodes []*Node) []string {
 		result[i] = n.Id
 	}
 	return result
+}
+
+// fakeTerminalHelper records internal errors, everything else does nothing.
+type fakeTerminalHelper struct {
+	internalErrors []string
+}
+
+func (f *fakeTerminalHelper) GetWinSize() runner.WinSize               { return runner.WinSize{} }
+func (f *fakeTerminalHelper) AfterPtyStarted(*Node)                    {}
+func (f *fakeTerminalHelper) ProcStateChanged(*Node, runner.ProcState) {}
+func (f *fakeTerminalHelper) OnNodeChanged(*Node, Status, bool)        {}
+func (f *fakeTerminalHelper) OnClientError(bool, *Node, runner.Error)  {}
+func (f *fakeTerminalHelper) OnInternalError(message string) {
+	f.internalErrors = append(f.internalErrors, message)
+}
+
+// checkUnlocked fails the test if the tree lock cannot be acquired within a second.
+func checkUnlocked(t *testing.T, tree *Tree) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		tree.Lock("checkUnlocked")
+		tree.UnLock()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("the tree is still locked")
+	}
+}
+
+// sprintf is fmt.Sprintf, for YAML templates
+func sprintf(format string, args ...any) string {
+	return fmt.Sprintf(format, args...)
 }

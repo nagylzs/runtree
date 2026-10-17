@@ -35,6 +35,7 @@ func (t *Tree) debouncedSchedule(_ int) {
 
 // schedule must be called in unlocked state
 func (t *Tree) schedule() {
+	defer t.recoverPanic("scheduler")
 	started := time.Now()
 	defer func() {
 		elapsed := time.Since(started)
