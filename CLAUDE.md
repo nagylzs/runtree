@@ -31,10 +31,10 @@ Running locally requires a runner listening first; the default runner address is
 
 ```bash
 ./rtrunner -v                     # listens on :5000 (-l to change); -d for debug logs
-./runtree -v test/test01.yaml     # GUI; --max-depth, --cpu-profile, --mem-profile, --net-profile-port also available
+./runtree -v test/test01.rt.yaml  # GUI; --max-depth, --cpu-profile, --mem-profile, --net-profile-port also available
 ```
 
-`test/*.yaml` are hand-run example trees, not automated tests. Unit tests are `internal/rt/*_test.go`; shared helpers
+`test/*.rt.yaml` are hand-run example trees, not automated tests. Unit tests are `internal/rt/*_test.go`; shared helpers
 are in `internal/rt/helpers_test.go` (`loadTestTree` builds a tree from YAML with the scheduler disabled, `setStatus`
 sets a node status). Run them with `go test ./...`. CI (`.github/workflows/build.yml`) runs the tests and then
 `scripts/build.py` on `main`. Coverage is still small: add tests for new and changed code.
@@ -98,6 +98,9 @@ Styling is in the embedded `main.css`. All GTK calls must happen on the GTK main
 
 - Logging is `log/slog` with `tint`; `-v` → Info, `-d` → Debug. Stray `println` debugging calls exist in the
   scheduler; don't add more.
-- New YAML node properties need: parsing in `parser.go` (add the key to `ValidNodeConfigs` or loading fails with "unknown property"), a `Parsed`/`Calculated` field
+- New YAML node properties need: an entry in `NodeProperties` (`properties.go`: name, value kind, inherited, default,
+  description; the accepted property names and the JSON Schema come from it), then regenerate the schema with
+  `go test ./internal/rt/ -run TestSchemaFileIsUpToDate -update-schema` (a test fails if it is stale), parsing in
+  `parser.go`, a `Parsed`/`Calculated` field
   in `node.go`, substitution/inheritance in `vars.go`, GUI display in the relevant `nodeframe*.go`, and a README entry.
 - Windows/Unix split uses `//go:build` files in `internal/runner` and `internal/signal`.

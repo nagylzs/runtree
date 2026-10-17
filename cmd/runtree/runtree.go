@@ -38,6 +38,16 @@ func main() {
 		os.Exit(0)
 	}
 
+	if args.Schema {
+		schema, err := rt.JSONSchema()
+		if err != nil {
+			println(err.Error())
+			os.Exit(1)
+		}
+		_, _ = os.Stdout.Write(schema)
+		os.Exit(0)
+	}
+
 	if len(posArgs) < 2 {
 		_, _ = fmt.Fprintf(os.Stderr, "Usage: runtree [options] <runtree_yaml_file>\n")
 		os.Exit(1)

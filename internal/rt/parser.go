@@ -13,18 +13,6 @@ import (
 
 const MaxYamlFileSize = 1024 * 1024
 
-var ValidNodeConfigs = set.FromArray([]string{
-	"id", "title", "description",
-	"args", "args_prefix",
-	"cwd", "runner", "vars", "def_vars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
-	"provides", "requires",
-	"on_error", "children_on_error", "max_proc", "success_exit_codes", "envs", "type", "rlocks", "xlocks", "nodes",
-	"par", "seq", "include", "status",
-	"ifeq", "ifneq",
-	"for_vars",
-	"expanded", "expand_on_active", "collapse_on_finished",
-})
-
 // AddTree reads and parses a tree source file into sources, and returns its top level objects.
 func AddTree(absoluteFilePath string, sources *Sources) (map[string]interface{}, string, error) {
 	filename, err := filepath.Abs(absoluteFilePath)

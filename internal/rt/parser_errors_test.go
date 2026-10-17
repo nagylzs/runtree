@@ -230,12 +230,12 @@ func TestShorthandRunNodeError(t *testing.T) {
 
 // The example trees in test/ (hand-run examples) must load.
 func TestExampleTrees(t *testing.T) {
-	files, err := filepath.Glob("../../test/*.yaml")
+	files, err := filepath.Glob("../../test/*.rt.yaml")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no example trees found: %v", err)
 	}
-	nodes := map[string]int{"test01.yaml": 12, "test04.yaml": 7, "test05.yaml": 7, "test06.yaml": 8,
-		"test07.yaml": 13, "test08.yaml": 17, "test09.yaml": 7}
+	nodes := map[string]int{"test01.rt.yaml": 12, "test04.rt.yaml": 7, "test05.rt.yaml": 7, "test06.rt.yaml": 8,
+		"test07.rt.yaml": 13, "test08.rt.yaml": 17, "test09.rt.yaml": 7}
 	for _, f := range files {
 		abs, _ := filepath.Abs(f)
 		name := filepath.Base(f)

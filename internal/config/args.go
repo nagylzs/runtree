@@ -13,6 +13,7 @@ type CLIArgs struct {
 	BaseArgs
 	MaxDepth uint `long:"max-depth" description:"Maximum tree depth"`
 	Check    bool `long:"check" description:"Only check the tree file (and the included files), then exit"`
+	Schema   bool `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
 }
 
 const DefaultListenAddress = ":5000"

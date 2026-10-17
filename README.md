@@ -70,6 +70,29 @@ servers.yaml:7:7: unknown property "on_eror" (did you mean "on_error"?)
 The first line uses the usual `file:line:column: message` format, so editors (e.g. a VS Code task) can jump to it.
 Only the first error is reported.
 
+## Editor support
+
+Name tree files `*.rt.yaml` (e.g. `upgrade_servers.rt.yaml`), so that editors can recognize them. runtree itself
+accepts any file name, and includes refer to the files by their names.
+
+`schema/runtree.schema.json` is a JSON Schema of tree files (`runtree --schema` prints the same). With the YAML
+extension of VS Code (Red Hat), it gives completion, documentation on hover, and validation of property names and
+values. Associate it with your tree files in the VS Code settings:
+
+```json
+"yaml.schemas": {
+  "https://raw.githubusercontent.com/nagylzs/runtree/main/schema/runtree.schema.json": ["*.rt.yaml"]
+}
+```
+
+or put this comment at the top of a tree file:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nagylzs/runtree/main/schema/runtree.schema.json
+```
+
+The schema only checks the structure; `runtree --check` also checks includes, variables and the other semantics.
+
 
 # Building on Windows
 
