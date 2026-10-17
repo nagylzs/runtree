@@ -112,7 +112,7 @@ func (ra *RunTreeApp) AfterPtyStarted(n *rt.Node) error {
 		return err
 	}
 
-	// TODO: set shortcuts, at least Ctrl+Shift+C and Ctrl+Shift+V to copy/paste
+	setupTerminalClipboard(term)
 
 	// Send size changes to pty master.
 	term.ConnectStateFlagsChanged(func(state gtk.StateFlags) {

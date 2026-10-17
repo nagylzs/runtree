@@ -14,7 +14,7 @@ require (
 	github.com/lmittmann/tint v1.1.3
 	github.com/mattn/go-isatty v0.0.22
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/nagylzs/gotk4-vte v0.0.0-20250713080014-ccf6bcafce26
+	github.com/nagylzs/gotk4-vte v0.1.0
 	github.com/nagylzs/set v0.0.0-20250912150903-ab46110d11ed
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1
