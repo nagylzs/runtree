@@ -94,9 +94,16 @@ func main() {
 	}
 
 	err = runMain(args, posArgs)
+	var parseErrs rt.ParseErrors
 	var parseErr *rt.ParseError
-	if errors.As(err, &parseErr) {
-		// file:line:col: message, and its details on separate lines
+	if errors.As(err, &parseErrs) {
+		// file:line:col: message lines, and their details on separate lines
+		_, _ = fmt.Fprintln(os.Stderr, parseErrs.Error())
+		if len(parseErrs) > 1 {
+			_, _ = fmt.Fprintf(os.Stderr, "%d errors\n", len(parseErrs))
+		}
+		os.Exit(1)
+	} else if errors.As(err, &parseErr) {
 		_, _ = fmt.Fprintln(os.Stderr, parseErr.Error())
 		os.Exit(1)
 	}
@@ -135,11 +142,17 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		return err
 	}
 	runTree, err := rt.ParseToDom(sources, filename, args.MaxDepth)
+	// the warnings are printed before the errors (that are printed by main)
+	warnings := sources.Warnings()
+	if len(warnings) > 0 {
+		_, _ = fmt.Fprintln(os.Stderr, warnings.Error())
+	}
 	if err != nil {
 		return err
 	}
 	if args.Check {
-		_, _ = fmt.Fprintf(os.Stderr, "%s: OK, %d nodes\n", posArgs[1], len(runTree.Nodes))
+		_, _ = fmt.Fprintf(os.Stderr, "%s: OK, %d nodes%s\n", posArgs[1], len(runTree.Nodes),
+			plural(", %d warning", len(warnings)))
 		return nil
 	}
 
@@ -150,4 +163,16 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 
 	exitCode = gtkui.RunApplication()
 	return nil
+}
+
+// plural formats a count with format (e.g. ", %d warning"), with an "s" if count > 1. It is empty when count is 0.
+func plural(format string, count int) string {
+	if count == 0 {
+		return ""
+	}
+	res := fmt.Sprintf(format, count)
+	if count > 1 {
+		res += "s"
+	}
+	return res
 }

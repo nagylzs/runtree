@@ -38,17 +38,30 @@ type Tree struct {
 	terminalHelper TerminalHelper
 }
 
+var idRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
+
+// newId returns a generated node id that is not used yet
+func (t *Tree) newId() string {
+	for {
+		id := nextId()
+		if _, ok := t.NodeById[id]; !ok {
+			return id
+		}
+	}
+}
+
+// addNodeById registers the node by its id. A node with a generated id gives up its id when another node has it
+// explicitly (generated ids look like "n12", so they can be given explicitly too).
 func (t *Tree) addNodeById(n *Node) error {
-	ok, err := regexp.Match("[a-zA-Z][a-zA-Z0-9_\\-]*", []byte(n.Id))
-	if err != nil {
-		return err
+	if !n.generatedId && !idRe.MatchString(n.Id) {
+		return fmt.Errorf("invalid id: %q must match [a-zA-Z][a-zA-Z0-9_-]*", n.Id)
 	}
-	if !ok {
-		return fmt.Errorf("invalid id: %s must match [a-zA-Z][a-zA-Z0-9_\\-]*", n.Id)
-	}
-	_, ok = t.NodeById[n.Id]
-	if ok {
-		return fmt.Errorf("duplicate node id: %s", n.Id)
+	if prev, ok := t.NodeById[n.Id]; ok {
+		if !prev.generatedId || n.generatedId {
+			return fmt.Errorf("duplicate node id: %s", n.Id)
+		}
+		prev.Id = t.newId()
+		t.NodeById[prev.Id] = prev
 	}
 	t.NodeById[n.Id] = n
 	return nil
@@ -90,12 +103,16 @@ func LoadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tre
 	var ord uint = 0
 	_, err := LoadNode(TypeRun, root, nil, tree, sources, filename, maxDepth, &ord, 0, nil, nil)
 	if err != nil {
+		sources.report(err)
+	}
+	// all errors of the tree
+	if err := sources.Errors(); err != nil {
 		return nil, err
 	}
 	nodes := make([]*Node, ord)
 	tree.Root.FillNodeList(nodes)
 	tree.Nodes = nodes
-	return tree, err
+	return tree, nil
 }
 
 func (t *Tree) setWho(who string) {

@@ -64,7 +64,10 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
   property value and `keyError` for a key, `locateError` adds the position. `runtree --check` only loads the tree.
 - `parser.go` — YAML → `Node` tree. Handles `include` (subtrees from same/other files, "reduce" when a single include
   is loaded into the parent), `for_vars` (cartesian product expansion), `ifeq`/`ifneq`, type inference from
-  `seq:`/`par:`/`run:` shorthand keys, `on_error` parsing, and `Node.SelfCheck`. `AddTree` loads a file into the
+  `seq:`/`par:`/`run:` shorthand keys, `on_error` parsing, and `Node.SelfCheck`. Errors are not returned from
+  `LoadNode`: they are reported to `Sources` (`report`, positioned via `propErrorf`/`itemErrorf`/`keyError`) and
+  loading continues with a default value, so that all errors are found; `LoadTree` returns them as `ParseErrors`.
+  Warnings (e.g. undefined variables, collected by `calculate`) go to `Sources.warn` / `Sources.Warnings()`. `AddTree` loads a file into the
   `allTrees` map keyed by absolute path; `ParseToDom` builds the tree from the top-level `tree` object.
 - `vars.go` — `Node.calculate` performs variable substitution (`{name}` templates) producing `Node.Calculated` from
   `Node.Parsed`. Inheritance rules for `vars`/`def_vars`/`envs`/`args_prefix`/`cwd`/`runner` live here.

@@ -105,17 +105,18 @@ func TestNestedIncludeChain(t *testing.T) {
 func TestPropertyValueErrors(t *testing.T) {
 	for _, tc := range []struct {
 		property, value, message string
+		offset                   int // of the wrong item in the value
 	}{
-		{"max_proc", `"many"`, "invalid value in max_proc (expected int)"},
-		{"status", "running", "invalid status: running"},
-		{"on_error", "pausd", "invalid value for on_error: pausd"},
-		{"success_exit_codes", "[0, 300]", "exit codes are integers between 0 and 255"},
-		{"type", "loop", "invalid type: loop"},
+		{"max_proc", `"many"`, "invalid max_proc: it is a string, expected an integer", 0},
+		{"status", "running", `invalid status: "running"`, 0},
+		{"on_error", "pausd", `invalid on_error: "pausd" (expected a status`, 0},
+		{"success_exit_codes", "[0, 300]", "exit codes are integers between 0 and 255", 4},
+		{"type", "loop", `invalid type: "loop"`, 0},
 	} {
 		dir := writeFiles(t, map[string]string{"tree.yaml": "tree:\n  seq:\n    - title: job\n      " +
 			tc.property + ": " + tc.value + "\n      args: [\"true\"]\n"})
 		pe := parseError(t, filepath.Join(dir, "tree.yaml"))
-		checkPos(t, pe.Pos, "tree.yaml", 4, 9+len(tc.property))
+		checkPos(t, pe.Pos, "tree.yaml", 4, 9+len(tc.property)+tc.offset)
 		checkContains(t, pe.Message, tc.message)
 		checkContains(t, pe.Node, "job")
 	}
@@ -224,8 +225,9 @@ func TestYAML11Booleans(t *testing.T) {
 func TestShorthandRunNodeError(t *testing.T) {
 	dir := writeFiles(t, map[string]string{"tree.yaml": "tree:\n  seq:\n    - [\"true\"]\n    - [\"echo\", {a: b}]\n"})
 	pe := parseError(t, filepath.Join(dir, "tree.yaml"))
-	checkPos(t, pe.Pos, "tree.yaml", 4, 7)
-	checkContains(t, pe.Message, "args")
+	// at the wrong item
+	checkPos(t, pe.Pos, "tree.yaml", 4, 16)
+	checkContains(t, pe.Message, "item 2 is an object")
 }
 
 // The example trees in test/ (hand-run examples) must load.
@@ -312,5 +314,200 @@ func TestForVarsOrder(t *testing.T) {
 		if strings.Join(got, " ") != want {
 			t.Fatalf("parse %d: %s, want %s", i, strings.Join(got, " "), want)
 		}
+	}
+}
+
+// parseErrors loads the tree file, and returns all of its errors (the test fails if there are none).
+func parseErrors(t *testing.T, path string) ParseErrors {
+	t.Helper()
+	_, err := loadFile(path)
+	var pes ParseErrors
+	if !errors.As(err, &pes) {
+		t.Fatalf("ParseErrors were expected, got %v", err)
+	}
+	return pes
+}
+
+// All errors are reported, sorted by their positions, and the consequences of an error are not reported.
+func TestAllErrorsReported(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"tree.yaml": `tree:
+  title: root
+  seq:
+    - title: first
+      args: [echo, hi]
+      max_proc: many
+      expandd: true
+    - title: second
+      type: bogus
+      args: [echo]
+    - title: third
+      args: echo
+    - title: fourth
+    - title: dup
+      id: same
+      args: ["true"]
+    - title: dup2
+      id: same
+      args: ["true"]
+`})
+	pes := parseErrors(t, filepath.Join(dir, "tree.yaml"))
+	want := []struct {
+		line, col int
+		msg       string
+	}{
+		{6, 17, "max_proc"},
+		{7, 7, `unknown property "expandd"`},
+		{9, 13, `invalid type: "bogus"`},
+		{12, 13, "it is a string, expected a list of strings"}, // and not "a run node needs args"
+		{13, 7, "a run node needs args"},
+		{18, 11, "duplicate node id: same"},
+	}
+	if len(pes) != len(want) {
+		t.Fatalf("%d errors, want %d:\n%v", len(pes), len(want), pes)
+	}
+	for i, w := range want {
+		checkPos(t, pes[i].Pos, "tree.yaml", w.line, w.col)
+		checkContains(t, pes[i].Message, w.msg)
+	}
+	// the node is shown by its title
+	if pes[5].Node != "root › dup2" {
+		t.Errorf("node is %q, want %q", pes[5].Node, "root › dup2")
+	}
+}
+
+// The same error is reported once, with the number of times it was found, and with the first include chain.
+func TestRepeatedErrorReportedOnce(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		"main.yaml": `tree:
+  seq:
+    - for_vars:
+        x: [a, b, c]
+      include: other.yaml|part
+    - include: other.yaml|part
+`,
+		"other.yaml": `part:
+  title: part {x}
+  def_vars:
+    x: z
+  seq:
+    - args: [echo, "{x}"]
+      success_exit_codes: [300]
+`})
+	// the def_vars of an included node do not conflict with the for_vars variables
+	pes := parseErrors(t, filepath.Join(dir, "main.yaml"))
+	if len(pes) != 1 {
+		t.Fatalf("%d errors, want 1:\n%v", len(pes), pes)
+	}
+	pe := pes[0]
+	checkPos(t, pe.Pos, "other.yaml", 7, 28)
+	if pe.Count != 4 {
+		t.Errorf("found %d times, want 4", pe.Count)
+	}
+	checkContains(t, pe.Error(), "(found 4 times)")
+	if len(pe.Included) != 1 {
+		t.Fatalf("include chain is %v, want 1 include", pe.Included)
+	}
+	checkPos(t, pe.Included[0].Pos, "main.yaml", 5, 16)
+	checkContains(t, pe.Node, "part a")
+}
+
+// Errors are reported from all included files, each with its own include chain.
+func TestErrorsInSeveralIncludedFiles(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		"main.yaml": `tree:
+  seq:
+    - include: [a.yaml|a, b.yaml|b, missing]
+    - title: bad
+      xlocks: [1]
+`,
+		"a.yaml": `a:
+  include: b.yaml|b
+`,
+		"b.yaml": `b:
+  args: [true]
+  bogus: 1
+`})
+	pes := parseErrors(t, filepath.Join(dir, "main.yaml"))
+	if len(pes) != 4 {
+		t.Fatalf("%d errors, want 4:\n%v", len(pes), pes)
+	}
+	// main.yaml first (it has the first error), then b.yaml
+	checkPos(t, pes[0].Pos, "main.yaml", 3, 37)
+	checkContains(t, pes[0].Message, `"missing" is not found`)
+	checkPos(t, pes[1].Pos, "main.yaml", 5, 16)
+	checkContains(t, pes[1].Message, "item 1 is a number, expected a string (put it in quotes)")
+	checkPos(t, pes[2].Pos, "b.yaml", 2, 10)
+	checkContains(t, pes[2].Message, "item 1 is a boolean")
+	if pes[2].Count != 2 {
+		t.Errorf("found %d times, want 2", pes[2].Count)
+	}
+	// included from a.yaml, that is included from main.yaml (the first time it was found)
+	if len(pes[2].Included) != 2 {
+		t.Fatalf("include chain is %v, want 2 includes", pes[2].Included)
+	}
+	checkPos(t, pes[2].Included[0].Pos, "a.yaml", 2, 12)
+	checkPos(t, pes[2].Included[1].Pos, "main.yaml", 3, 17)
+	checkPos(t, pes[3].Pos, "b.yaml", 3, 3)
+	checkContains(t, pes[3].Message, `unknown property "bogus"`)
+}
+
+// Generated ids look like "n12", and they must not conflict with the ids given in the tree.
+func TestGeneratedIdDoesNotConflict(t *testing.T) {
+	for _, id := range []string{"n1", "n2", "n3", "n10"} {
+		nid = 0 // like in a new runtree process
+		tree := loadTestTree(t, "tree:\n  seq:\n    - args: [\"true\"]\n    - id: "+id+"\n      args: [\"true\"]\n")
+		if n := tree.NodeById[id]; n == nil || n != tree.Root.Nodes[1] {
+			t.Errorf("id %s is not the node that has it", id)
+		}
+		if len(tree.NodeById) != 3 {
+			t.Errorf("%d nodes by id, want 3", len(tree.NodeById))
+		}
+	}
+}
+
+func TestInvalidId(t *testing.T) {
+	_, err := parseTestTree(t, "tree:\n  seq:\n    - id: \"1 x\"\n      args: [\"true\"]\n")
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Fatalf("a ParseError was expected, got %v", err)
+	}
+	checkPos(t, pe.Pos, "tree.yaml", 3, 11)
+	checkContains(t, pe.Message, `invalid id: "1 x" must match`)
+}
+
+// An empty for_vars list means that there are no combinations, so no sub-nodes.
+func TestForVarsEmptyList(t *testing.T) {
+	tree, warnings := loadWithWarnings(t, map[string]string{"tree.yaml": `tree:
+  vars:
+    servers: []
+  for_vars:
+    server: servers
+  par:
+    - args: [ssh, "{server}"]
+`})
+	if len(tree.Root.Nodes) != 0 {
+		t.Errorf("%d sub-nodes, want 0", len(tree.Root.Nodes))
+	}
+	checkWarnings(t, warnings, []wantWarning{{"tree.yaml", 5, 13, "for_vars: server is an empty list"}})
+}
+
+// Substitution errors are at the value that has the variable.
+func TestSubstitutionErrorPosition(t *testing.T) {
+	for _, tc := range []struct {
+		source    string
+		line, col int
+	}{
+		{"tree:\n  vars:\n    l: [a]\n  args: [echo, \"{l}\"]\n", 4, 16},
+		{"tree:\n  vars:\n    l: [a]\n  envs:\n    A: \"{l}\"\n  args: [echo]\n", 5, 8},
+		{"tree:\n  vars:\n    l: [a]\n  title: \"{l}\"\n  args: [echo]\n", 4, 10},
+		{"tree:\n  vars:\n    l: [a]\n  seq:\n    - vars:\n        x: \"{l}\"\n      args: [echo]\n", 6, 12},
+	} {
+		_, err := parseTestTree(t, tc.source)
+		var pe *ParseError
+		if !errors.As(err, &pe) {
+			t.Fatalf("a ParseError was expected, got %v", err)
+		}
+		checkPos(t, pe.Pos, "tree.yaml", tc.line, tc.col)
+		checkContains(t, pe.Message, "cannot substitute {l}: it is a list, not a string")
 	}
 }

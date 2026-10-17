@@ -1,11 +1,14 @@
 package rt
 
 import (
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -54,6 +57,122 @@ type Sources struct {
 	maps  map[uintptr]*mapPositions              // by map identity
 	lists map[uintptr][]Pos                      // item positions by list identity
 	top   map[string]map[interface{}]interface{} // the top level mapping of each file
+
+	errs     ParseErrors            // the errors found while loading the tree
+	warnings ParseErrors            // the warnings found while loading the tree
+	errIdx   map[string]*ParseError // by position and message
+	includes []IncludePos           // the includes that are being loaded, the outermost first
+	reported int                    // the number of reported errors, including the repeated ones
+	order    map[string]int         // the order of the files, by when they were first loaded
+}
+
+func (s *Sources) pushInclude(inc IncludePos) {
+	s.includes = append(s.includes, inc)
+}
+
+func (s *Sources) popInclude() {
+	s.includes = s.includes[:len(s.includes)-1]
+}
+
+// report records an error that was found while loading the tree (loading continues after it). The same error is
+// recorded only once (e.g. when an object is included several times), with its first include chain.
+func (s *Sources) report(err error) {
+	var list ParseErrors
+	if errors.As(err, &list) {
+		for _, pe := range list {
+			s.report(pe)
+		}
+		return
+	}
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		pe = &ParseError{Message: err.Error()}
+	}
+	s.reported++
+	s.record(pe, &s.errs)
+}
+
+// warn records a warning, like report
+func (s *Sources) warn(pe *ParseError) {
+	pe.Warning = true
+	s.record(pe, &s.warnings)
+}
+
+func (s *Sources) record(pe *ParseError, list *ParseErrors) {
+	key := fmt.Sprintf("%v\x00%s\x00%s", pe.Warning, pe.Pos.String(), pe.Message)
+	if prev, ok := s.errIdx[key]; ok {
+		prev.Count++
+		return
+	}
+	if pe.Count == 0 {
+		pe.Count = 1
+	}
+	if len(pe.Included) == 0 {
+		// where it was included from, the innermost first
+		for i := len(s.includes) - 1; i >= 0; i-- {
+			pe.Included = append(pe.Included, s.includes[i])
+		}
+	}
+	s.errIdx[key] = pe
+	*list = append(*list, pe)
+}
+
+// isIncluded tells if an included object is being loaded
+func (s *Sources) isIncluded() bool {
+	return len(s.includes) > 0
+}
+
+// Errors returns the errors found while loading the tree (ParseErrors), or nil. They are sorted by their position
+// in each file, the files are in the order they were loaded.
+func (s *Sources) Errors() error {
+	if len(s.errs) == 0 {
+		return nil
+	}
+	return s.sorted(s.errs)
+}
+
+// Warnings returns the warnings found while loading the tree, sorted like the errors
+func (s *Sources) Warnings() ParseErrors {
+	return s.sorted(s.warnings)
+}
+
+func (s *Sources) sorted(list ParseErrors) ParseErrors {
+	fileOrder := maps.Clone(s.order)
+	for _, pe := range list {
+		if _, ok := fileOrder[pe.Pos.File]; !ok {
+			fileOrder[pe.Pos.File] = len(fileOrder)
+		}
+	}
+	res := append(ParseErrors(nil), list...)
+	sort.SliceStable(res, func(i, j int) bool {
+		a, b := res[i].Pos, res[j].Pos
+		if a.File != b.File {
+			return fileOrder[a.File] < fileOrder[b.File]
+		}
+		if a.Line != b.Line {
+			return a.Line < b.Line
+		}
+		return a.Column < b.Column
+	})
+	return res
+}
+
+// refPos returns the position of an undefined variable reference in the node source raw
+func (s *Sources) refPos(raw map[interface{}]interface{}, r undefinedRef) Pos {
+	pos := s.ValuePos(raw, r.prop)
+	v := raw[r.prop]
+	if r.key != "" {
+		m, ok := v.(map[interface{}]interface{})
+		if !ok {
+			return pos
+		}
+		pos = s.ValuePos(m, r.key)
+		v = m[r.key]
+	}
+	if l, ok := v.([]interface{}); ok && r.item >= 0 && r.item < len(l) {
+		pos = s.ItemPos(l, r.item)
+	}
+	return pos
 }
 
 type mapPositions struct {
@@ -69,6 +188,9 @@ func NewSources() *Sources {
 		maps:  make(map[uintptr]*mapPositions),
 		lists: make(map[uintptr][]Pos),
 		top:   make(map[string]map[interface{}]interface{}),
+
+		errIdx: make(map[string]*ParseError),
+		order:  make(map[string]int),
 	}
 }
 
@@ -179,6 +301,9 @@ var yamlParserProblems = map[string]bool{
 func (s *Sources) AddFile(absoluteFilePath string) (map[string]interface{}, error) {
 	if rawTrees, ok := s.Files[absoluteFilePath]; ok {
 		return rawTrees, nil
+	}
+	if _, ok := s.order[absoluteFilePath]; !ok {
+		s.order[absoluteFilePath] = len(s.order)
 	}
 	filePos := Pos{File: absoluteFilePath}
 	fi, err := os.Stat(absoluteFilePath)

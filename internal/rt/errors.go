@@ -13,6 +13,8 @@ type ParseError struct {
 	Message  string
 	Node     string       // path of the node, if known
 	Included []IncludePos // where the object with the error was included from, the innermost first
+	Count    int          // how many times it was found (e.g. in for_vars combinations, or included several times)
+	Warning  bool         // it is only a warning, the tree can be used
 }
 
 // IncludePos is the position of an include property value
@@ -25,7 +27,13 @@ func (e *ParseError) Error() string {
 	var b strings.Builder
 	b.WriteString(e.Pos.String())
 	b.WriteString(": ")
+	if e.Warning {
+		b.WriteString("warning: ")
+	}
 	b.WriteString(e.Message)
+	if e.Count > 1 {
+		fmt.Fprintf(&b, " (found %d times)", e.Count)
+	}
 	if e.Node != "" {
 		b.WriteString("\n  in node: ")
 		b.WriteString(e.Node)
@@ -36,6 +44,26 @@ func (e *ParseError) Error() string {
 	return b.String()
 }
 
+// ParseErrors is the list of the errors in a tree, in the order they were found. The same error (the same position
+// and message) is listed only once.
+type ParseErrors []*ParseError
+
+func (e ParseErrors) Error() string {
+	msgs := make([]string, len(e))
+	for i, pe := range e {
+		msgs[i] = pe.Error()
+	}
+	return strings.Join(msgs, "\n")
+}
+
+func (e ParseErrors) Unwrap() []error {
+	errs := make([]error, len(e))
+	for i, pe := range e {
+		errs[i] = pe
+	}
+	return errs
+}
+
 func newParseError(pos Pos, format string, args ...any) *ParseError {
 	return &ParseError{Pos: pos, Message: fmt.Sprintf(format, args...)}
 }
@@ -44,6 +72,8 @@ func newParseError(pos Pos, format string, args ...any) *ParseError {
 // position of the value.
 type propertyError struct {
 	name string
+	key  string // the key of the wrong value in an object value, or ""
+	item int    // the index of the wrong item in a list value (of the key), or -1
 	msg  string
 }
 
@@ -52,7 +82,31 @@ func (e *propertyError) Error() string {
 }
 
 func propErrorf(name string, format string, args ...any) error {
-	return &propertyError{name: name, msg: fmt.Sprintf(format, args...)}
+	return &propertyError{name: name, item: -1, msg: fmt.Sprintf(format, args...)}
+}
+
+// itemErrorf returns an error about an item of a list property value, it is positioned at the item
+func itemErrorf(name string, item int, format string, args ...any) error {
+	return &propertyError{name: name, item: item, msg: fmt.Sprintf(format, args...)}
+}
+
+// describeValue describes the type of a YAML value, for error messages
+func describeValue(v interface{}) string {
+	switch v.(type) {
+	case nil:
+		return "empty (null)"
+	case bool:
+		return "a boolean"
+	case int, int64, uint64, float64:
+		return "a number"
+	case string:
+		return "a string"
+	case []interface{}:
+		return "a list"
+	case map[interface{}]interface{}:
+		return "an object"
+	}
+	return fmt.Sprintf("%T", v)
 }
 
 // keyError is an error about a property name (e.g. an unknown property). LoadNode replaces it with a ParseError at
@@ -77,7 +131,7 @@ func locateError(err error, sources *Sources, raw map[interface{}]interface{}, n
 	var prop *propertyError
 	var key *keyError
 	if errors.As(err, &prop) {
-		pos = sources.ValuePos(raw, prop.name)
+		pos = sources.refPos(raw, undefinedRef{prop: prop.name, key: prop.key, item: prop.item})
 	} else if errors.As(err, &key) {
 		pos = sources.KeyPos(raw, key.name)
 	}

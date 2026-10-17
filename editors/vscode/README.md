@@ -8,7 +8,7 @@ Editor support for [runtree](https://github.com/nagylzs/runtree) tree files. Tre
 - Completion of node properties and their values, with documentation on hover.
 - Validation of property names (typos like `on_eror`), value types and allowed values (e.g. `on_error`, `status`).
 - A problem matcher (`$runtree`) for `runtree --check`, which also checks includes, variables and the other
-  semantics of the tree, and reports its errors in the Problems panel.
+  semantics of the tree, and reports all of its errors and warnings (e.g. undefined variables) in the Problems panel.
 
 The completion and the validation are provided by the [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)
 of Red Hat (it is installed with this extension), with the JSON Schema of runtree tree files

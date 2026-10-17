@@ -14,6 +14,9 @@ type Node struct {
 	Parent *Node
 	Nodes  []*Node
 
+	undefinedRefs []undefinedRef // found while loading the node
+	generatedId   bool           // the id was not given in the source
+
 	Type               Type   // immutable!
 	Id                 string // immutable!
 	BuiltinVars        bool
@@ -59,6 +62,7 @@ type Node struct {
 // Parsed contains all values that are parsed from YAML file, and subject to variable substitution
 type Parsed struct {
 	Vars        map[string]interface{}
+	LoopVars    map[string]interface{} // the combination of the parent's for_vars that this node was generated for
 	DefVars     map[string]interface{}
 	IfEq        map[string]interface{}
 	IfNEq       map[string]interface{}

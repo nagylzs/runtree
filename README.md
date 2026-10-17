@@ -59,16 +59,43 @@ but in that case, version information will not be included in the binary.
 ## Checking a tree file
 
 `runtree --check tree.yaml` loads the tree file and the files that it includes, and exits without starting the GUI
-or any process. When there is an error, it prints it with its position, and the exit code is 1:
+or any process. It prints all errors with their positions, and the exit code is 1 when there is an error:
 
 ```
 servers.yaml:7:7: unknown property "on_eror" (did you mean "on_error"?)
   in node: upgrade all › upgrade servers › deploy
   included from main.yaml:5:17 (include "servers.yaml|upgrade")
+servers.yaml:12:16: invalid args: item 2 is a number, expected a string (put it in quotes)
+  in node: upgrade all › upgrade servers › reboot
+  included from main.yaml:5:17 (include "servers.yaml|upgrade")
+2 errors
 ```
 
-The first line uses the usual `file:line:column: message` format, so editors (e.g. a VS Code task) can jump to it.
-Only the first error is reported.
+The first line of each error uses the usual `file:line:column: message` format, so editors (e.g. a VS Code task) can
+jump to it. The errors are sorted by their position (the files in the order they are loaded). An error that is found
+several times (e.g. in an object that is included more than once, or under `for_vars`) is reported once, with
+"(found N times)" and the include chain of its first occurrence.
+
+Warnings are printed the same way, with `warning:` before the message, but they do not prevent loading the tree (they
+are printed when the GUI is started too):
+
+```
+lib.yaml:2:15: warning: undefined variable {user}, it is not set where it is included
+  in node: deploy › job
+  included from main.yaml:6:16 (include "lib.yaml|job")
+main.yaml: OK, 5 nodes, 1 warning
+```
+
+The warnings are:
+
+- `undefined variable {name}`: a value refers to a variable that is not set for the node. The reference is left as it
+  is, e.g. the command gets `{user}@host` as an argument. In an included object it usually means that the variable
+  should be set where the object is included (with `vars` or `for_vars` of a parent node, or with `def_vars` of the
+  object). Only `{name}` references are checked, where the name is like an identifier (`[A-Za-z_][A-Za-z0-9_-]*`)
+  and it is not after a `$` (`${name}` is a shell variable). Other text in curly braces, like `{}`, `{a,b}` or
+  `{{.Name}}`, is not reported. It is only a warning, because a command may need a `{name}` text (e.g.
+  `jq '{name}'`).
+- `for_vars: name is an empty list`: there are no combinations, so the node has no sub-nodes.
 
 ## Editor support
 
@@ -337,9 +364,12 @@ Variable values can be substituted for various properties:
 Inside a given node (YAML object), the evaluation of `vars` and `def_vars` always happen BEFORE the evaluation of other
 properties.
 
-Variable substitution is noted with `{VARIABLE_NAME}` syntax inside strings. The `{` and `}` curly braces can be escaped
-with `\{` and `\}`. Undefined variables evaluate to empty strings, and non-string variable values are converted to
-strings.
+Variable substitution is noted with `{VARIABLE_NAME}` syntax inside strings. The substitution is done in a single pass:
+the substituted values are not evaluated again. Undefined variables are left as they are (`{VARIABLE_NAME}`), and they
+are reported as warnings (see [Checking a tree file](#checking-a-tree-file)). Only string variables can be substituted,
+it is an error to use a list variable (or a number) in a string.
+
+TODO: the `{` and `}` curly braces cannot be escaped yet.
 
 TODO: maybe we could use https://expr-lang.org/docs/language-definition instead?
 
@@ -370,7 +400,11 @@ my_parent_node:
       args: ["make", "{target}"]
 ```
 
-The `vars` block re-assigns variable values AFTER the whole `vars` block has been parsed and evaluated.
+The values in a `vars` block can use the other variables of the same block, and the inherited variables. A variable
+of the block overrides the inherited one with the same name, in the other values of the block too. The order of the
+variables in the block does not matter, and they can refer to each other through any number of steps (but not in a
+cycle, that is an error). In its own value, a variable means its inherited value, so it can be extended. The values in
+a `def_vars` block can only use the inherited variables.
 
 Example:
 
@@ -378,21 +412,23 @@ Example:
 outer_node:
   vars:
     target: "build"
+    path: "/usr/bin"
   type: "seq"
   nodes:
     - type: "run"
       vars:
-        # This assignment will be performed AFTER the current "vars" block is parsed.
-        target: "test"
-        # As a result, this will set command to "make build", because inside this var block, "target" still has its 
-        # previous (inherited) value.
+        # "make test": {target} is the value in this block, it overrides the inherited "build"
         command: "make {target}"
-      # This will run "make build -v test"
-      args: ["{command}", "-v", "{target}"]
-
+        target: "test"
+        # "/usr/bin:/opt/tools/bin": in its own value, {path} is the inherited value
+        path: "{path}:/opt/tools/bin"
+      # This will run "make test" in a shell, with PATH=/usr/bin:/opt/tools/bin
+      envs:
+        PATH: "{path}"
+      args: ["bash", "-c", "{command}"]
 ```
 
-TODO: strict mode: throw an error when a variable is undefined (needs error handling)
+TODO: strict mode: an option to make the undefined variable warnings errors
 
 #### System variables (builtins)
 
@@ -1085,6 +1121,12 @@ tree:
 ```
 
 For variable value lists, you can only use a list of strings, or the name of a variable that is a list of strings.
+The strings can contain the variables of the node (e.g. `server: ["{env}-01", "{env}-02"]`). When a list is empty,
+there are no combinations, and the node has no sub-nodes.
+
+The `for_vars` variables are set for the sub-nodes like inherited variables: the `vars` of a sub-node override them,
+and its `def_vars` are not used for them. So an included object can have `def_vars` for the case when it is included
+without `for_vars`.
 
 It is important to understand that for_vars has na effect on the sub-nodes only. It is not possible to use it on a 
 run node, because it has no sub-nodes.
