@@ -285,3 +285,32 @@ func TestSuggestProperty(t *testing.T) {
 		}
 	}
 }
+
+// The for_vars example of the README: the nodes are generated in the order of the variables in the source (the first
+// one changes the slowest), it must not depend on map iteration order.
+func TestForVarsOrder(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"tree.yaml": `tree:
+  vars:
+    targets: ["dev", "uat"]
+  for_vars:
+      server: ["server01", "server02", "server03"]
+      target: targets
+  par:
+    - args: ["ssh", "root@{server}", "make", "build", "{target}"]
+`})
+	want := "server01/dev server01/uat server02/dev server02/uat server03/dev server03/uat"
+	for i := 0; i < 20; i++ {
+		tree, err := loadFile(filepath.Join(dir, "tree.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, n := range tree.Root.Nodes {
+			args := n.Calculated.Args
+			got = append(got, strings.TrimPrefix(args[1], "root@")+"/"+args[len(args)-1])
+		}
+		if strings.Join(got, " ") != want {
+			t.Fatalf("parse %d: %s, want %s", i, strings.Join(got, " "), want)
+		}
+	}
+}

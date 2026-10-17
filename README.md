@@ -1043,8 +1043,9 @@ tree:
     - args: ["ssh", "root@{server}", "make", "build", "{target}"]
 ```
 
-This will iterate over the cartesian product of the possible variable values, and generate nodes for all of them.
-The above example is equivalent to:
+This will iterate over the cartesian product of the possible variable values, and generate nodes for all of them,
+in the order the variables are written: the first variable changes the slowest, like nested loops. The above example
+is equivalent to:
 
 ```yaml
 tree:

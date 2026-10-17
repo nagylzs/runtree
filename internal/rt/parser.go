@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
@@ -331,10 +332,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	}
 
 	// iterate over the cartesian product of variable values found in for_vars
-	keys := make([]string, 0, len(forVars))
-	for k := range forVars {
-		keys = append(keys, k)
-	}
+	keys := forVarsKeys(sources, raw, forVars)
 
 	// e.g., if indices is [0, 1], it means the 0th element of keys[0] and 1st of keys[1]
 	indices := make([]int, len(keys))
@@ -409,6 +407,29 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 	return n, nil
 
+}
+
+// forVarsKeys returns the for_vars variable names in the order they are written in the source, so that the first
+// one changes the slowest (like nested loops). Without a source order (or for the fake for_vars), they are sorted.
+func forVarsKeys(sources *Sources, raw map[interface{}]interface{}, forVars map[string][]interface{}) []string {
+	keys := make([]string, 0, len(forVars))
+	if m, ok := raw["for_vars"].(map[interface{}]interface{}); ok {
+		for _, k := range sources.Keys(m) {
+			if ks, ok := k.(string); ok {
+				if _, ok := forVars[ks]; ok {
+					keys = append(keys, ks)
+				}
+			}
+		}
+	}
+	if len(keys) != len(forVars) {
+		keys = keys[:0]
+		for k := range forVars {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+	}
+	return keys
 }
 
 // calculate for_vars
