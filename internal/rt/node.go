@@ -52,6 +52,7 @@ type Node struct {
 
 	Started  time.Time
 	Finished time.Time
+	Starts   int // how many times the node was started (a re-run is the second start)
 
 	elapsed             time.Duration // time elapsed in running state, on this exact node
 	totalProcElapsed    time.Duration // total elapsed in running processes, this node and its subnodes

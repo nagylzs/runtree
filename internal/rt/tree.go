@@ -40,6 +40,7 @@ type Tree struct {
 	xAcquired   *set.Set[string]
 
 	terminalHelper TerminalHelper
+	outputRecorder OutputRecorder
 
 	lastId int // the number of the last generated node id
 }
@@ -207,6 +208,11 @@ func (t *Tree) CheckLock(d time.Duration) {
 
 func (t *Tree) SetTerminalHelper(helper TerminalHelper) {
 	t.terminalHelper = helper
+}
+
+// SetOutputRecorder sets the recorder of the terminal output, it must be called before the tree runs
+func (t *Tree) SetOutputRecorder(r OutputRecorder) {
+	t.outputRecorder = r
 }
 
 // UnfinishedRunCounts counts the run nodes that are not in Success or Skipped status, grouped by status.

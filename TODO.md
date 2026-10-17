@@ -41,11 +41,10 @@ attributes. Terminal input is never logged (passwords). A handler sends every re
    `--log-format json`.
 2. Done: the Log tab of the GUI (the events of the subtree, auto-scroll). Maybe later: filter by level or event,
    search.
-3. `--log-db file`: the events in SQLite (`modernc.org/sqlite`, pure Go, so a headless runtree would not need cgo),
-   with a run id per runtree session (start time, tree file, host, user), written in batched transactions from a
-   channel, so the scheduler never waits for the disk.
-4. Maybe: save the terminal output of the nodes (raw pty output chunks, as files or in SQLite, can be replayed
-   later). It is lost now when the GUI is closed.
+3. Done: `--log-db file`: the events in SQLite (`internal/logdb`, `modernc.org/sqlite`), a run per runtree session,
+   written in batches by a goroutine; `--show-runs`, `--show-events`.
+4. Done: the terminal output of the nodes is saved in the same database, `--show-output`. Maybe later: show the
+   previous runs and their output in the GUI; delete old runs (`--prune-log`?); compress the output.
 
 # GUI layout and navigation (from the user, 2026-10-17)
 

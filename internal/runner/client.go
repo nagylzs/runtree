@@ -33,6 +33,7 @@ type Client struct {
 	cmdLock   sync.Mutex
 	onNotify  func(ProcState)
 	onError   func(Error)
+	output    io.Writer // gets a copy of the terminal output, see SetOutput
 }
 
 func NewClient(ctx context.Context, address string, logger *slog.Logger, onError func(Error)) (*Client, error) {
@@ -59,6 +60,13 @@ func NewClient(ctx context.Context, address string, logger *slog.Logger, onError
 		stateLock: sync.Mutex{},
 	}
 	return c, nil
+}
+
+// SetOutput sets a writer that gets a copy of the terminal output of the process (not the input), e.g. to save it.
+// Its errors are ignored, and it should not block for long: the terminal waits for it. It must be called before
+// StartPty.
+func (c *Client) SetOutput(w io.Writer) {
+	c.output = w
 }
 
 // StartPty starts a pty master on the server side, and connects it to a local pty slave.
@@ -275,7 +283,11 @@ func (c *Client) run() {
 		// so it will never complete...
 	}()
 	go func() {
-		io.Copy(c.ptyConn, c.ptyStream)
+		var dst io.Writer = c.ptyConn
+		if c.output != nil {
+			dst = teeWriter{dst, c.output}
+		}
+		io.Copy(dst, c.ptyStream)
 		wg.Done()
 		// in contrast, ptyStream will be closed when the remote process exits, this signals the end of
 		// the communication
@@ -329,4 +341,18 @@ func createUnixSocket() (string, net.Listener, error) {
 			return socketPath, listener, nil
 		}
 	}
+}
+
+// teeWriter writes to w, and a copy to copyTo (its errors are ignored)
+type teeWriter struct {
+	w      io.Writer
+	copyTo io.Writer
+}
+
+func (t teeWriter) Write(p []byte) (int, error) {
+	n, err := t.w.Write(p)
+	if n > 0 {
+		_, _ = t.copyTo.Write(p[:n])
+	}
+	return n, err
 }

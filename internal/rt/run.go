@@ -27,9 +27,11 @@ func (n *Node) Start(locked bool) error {
 	n.WantManualStatus = false
 
 	n.calcClientArgs()
+	n.Starts++
 	logger := n.log()
 	logger.Info(fmt.Sprintf("starting on %s: %s", n.Calculated.Runner, quoteArgs(n.Calculated.Args)),
-		attrEvent, EventStart, "runner", n.Calculated.Runner, "args", n.Calculated.Args, "cwd", n.Calculated.CWD)
+		attrEvent, EventStart, "start", n.Starts, "runner", n.Calculated.Runner, "args", n.Calculated.Args,
+		"cwd", n.Calculated.CWD)
 	ctx := context.Background()
 
 	c, err := runner.NewClient(ctx, n.Calculated.Runner, logger, n.onError)
@@ -37,6 +39,11 @@ func (n *Node) Start(locked bool) error {
 		n.startFailed(err.Error())
 		n.updateStatusesUp(true)
 		return fmt.Errorf("failed to start: %w", err)
+	}
+	if r := n.Tree.outputRecorder; r != nil {
+		if w := r.NodeOutput(n, n.Starts); w != nil {
+			c.SetOutput(w)
+		}
 	}
 	err = c.StartPty(ctx, *n.ClientArgs, n.procStateChanged)
 	if err != nil {
@@ -66,7 +73,7 @@ func (n *Node) TerminalFailed(err error) {
 // startFailed sets the start error, and logs it
 func (n *Node) startFailed(msg string) {
 	n.StartError = msg
-	n.log().Error("failed to start: "+msg, attrEvent, EventStartFailed, "error", msg)
+	n.log().Error("failed to start: "+msg, attrEvent, EventStartFailed, "start", n.Starts, "error", msg)
 }
 
 func (n *Node) procStateChanged(state runner.ProcState) {
@@ -140,8 +147,8 @@ func (n *Node) logExit(state runner.ProcState) {
 	if !n.ExitedSuccessfully(state) {
 		level = slog.LevelWarn
 	}
-	attrs := []any{attrEvent, EventExited, "pid", state.Pid, "exit_code", state.ExitCode, "elapsed", elapsed,
-		"user_time", state.UserTime, "system_time", state.SystemTime}
+	attrs := []any{attrEvent, EventExited, "start", n.Starts, "pid", state.Pid, "exit_code", state.ExitCode,
+		"elapsed", elapsed, "user_time", state.UserTime, "system_time", state.SystemTime}
 	if state.Error != "" {
 		attrs = append(attrs, "error", state.Error)
 	}

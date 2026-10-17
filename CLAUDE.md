@@ -89,6 +89,9 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
 - `terminal.go` — `TerminalHelper` interface: the only way `rt` talks to the GUI. `gtkui.RunTreeApp` implements it.
 - `eventlog.go` — events (log records with `node` and `event` attributes), and `EventLog`, the in-memory store that
   the tree's slog handler fills (it has its own lock, it never waits for the tree lock).
+- `internal/logdb` — `--log-db`: saves the events (a slog handler, combined with stderr by `logging.Multi`) and the
+  terminal output (`rt.OutputRecorder`, fed by `runner.Client.SetOutput`) in SQLite, in batches from a goroutine;
+  the reader and the `--show-*` printing are there too. Bump `schemaVersion` when changing the tables.
 
 ### Locking convention
 The whole tree is guarded by one `sync.RWMutex` (`Tree.Lock/RLock`, with a `who` string for debugging deadlocks —

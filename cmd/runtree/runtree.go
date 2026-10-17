@@ -49,6 +49,14 @@ func main() {
 		os.Exit(0)
 	}
 
+	if args.ShowRuns || args.ShowEvents || args.ShowOutput != "" {
+		if err := showLog(args); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	if len(posArgs) < 2 {
 		_, _ = fmt.Fprintf(os.Stderr, "Usage: runtree [options] <runtree_yaml_file>\n")
 		os.Exit(1)
@@ -139,6 +147,18 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		_, _ = fmt.Fprintf(os.Stderr, "%s: OK, %d nodes%s\n", posArgs[1], len(runTree.Nodes),
 			plural(", %d warning", len(warnings)))
 		return nil
+	}
+
+	if args.LogDB != "" {
+		db, err := openLogDB(args.LogDB, fullFilePath, runTree)
+		if err != nil {
+			return fmt.Errorf("could not open the log database: %w", err)
+		}
+		defer func() {
+			if err := db.Close(); err != nil {
+				slog.Error("could not close the log database", "error", err)
+			}
+		}()
 	}
 
 	err = gtkui.InitApplication(runTree, warnings)

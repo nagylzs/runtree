@@ -110,9 +110,9 @@ attribute (the id of the node) when they are about a node:
 | Event               | Level         | Logged when                                                                  |
 |---------------------|---------------|------------------------------------------------------------------------------|
 | `scheduler-started` | info          | the scheduler is started                                                     |
-| `start`             | info          | a command is started on a runner (`runner`, `args`, `cwd`)                   |
+| `start`             | info          | a command is started on a runner (`start`, `runner`, `args`, `cwd`) (1)      |
 | `start-failed`      | error         | it could not be started (e.g. the runner is not available)                   |
-| `exited`            | info / warn   | the process exited (`pid`, `exit_code`, `error`, `elapsed`), warn on failure |
+| `exited`            | info / warn   | the process exited (`start`, `pid`, `exit_code`, `error`, `elapsed`) (2)     |
 | `status`            | info / warn   | the status of a node changes (`from`, `to`), warn for failed and paused      |
 | `operation`         | info / warn   | an operation is performed from the GUI (`op`, `recursive`), warn on failure  |
 | `signal`            | info / warn   | a signal is sent from the GUI (`signal`)                                     |
@@ -123,9 +123,58 @@ attribute (the id of the node) when they are about a node:
 | `unlocked`          | info          | it releases them                                                             |
 | `runner-error`      | error         | a runner reports an error (`code`)                                           |
 
+- (1) `start` is 1 for the first start of the node, 2 for the first re-run, and so on.
+- (2) warn when the process failed (it did not exit with a success exit code).
+
 The Log tab of the GUI shows these messages (and the other messages about the node, e.g. when the connection to the
 runner is lost) for the selected node and the nodes below it. The root node shows the messages about the tree too. The
 GUI keeps the last 100 000 messages. What you type in the terminals is never logged.
+
+### Saving the log
+
+`runtree --log-db runs.db tree.yaml` saves the events and the terminal output of the processes in an SQLite database.
+Every runtree session is a new run in the same file, so it keeps the history of the runs. It is written in the
+background (in batches, every 100 ms), and it can be read while runtree runs:
+
+```
+$ runtree --log-db runs.db --show-runs
+RUN  STARTED              FINISHED             HOST  USER   EVENTS  OUTPUT   TREE
+1    2026-10-17 23:45:44  2026-10-17 23:52:10  box   admin  31      12.4 KB  /home/admin/trees/upgrade.yaml
+$ runtree --log-db runs.db --show-events
+2026-10-17 23:45:44 INFO  scheduler started
+2026-10-17 23:45:44 INFO  [n2] upgrade › host7: starting on 10.0.0.7:5000: apt-get -y upgrade
+2026-10-17 23:47:12 WARN  [n2] upgrade › host7: exited with code 100 after 1m28s
+...
+$ runtree --log-db runs.db --show-output host7 | less -R
+```
+
+`--show-events` and `--show-output` show the last run, `--run ID` selects another one. `--show-output` takes the id of
+the node (in brackets in the events), its title or its path, and prints the raw terminal output (with the escape
+sequences, `less -R` or a terminal shows it). When the node was run more than once, it shows the last start, `--start
+N` selects another one. The output is what the terminal showed, so it also has what the processes echoed of your
+input (but not passwords, programs do not echo them).
+
+The tables (the times are UTC, `datetime(time, 'localtime')` converts them):
+
+- `runs`: `id`, `started`, `finished` (empty while runtree runs, or when it was killed), `tree_file`, `host`, `user`,
+  `pid`, `version`, `dropped` (the number of events that were not saved, because the disk was too slow)
+- `nodes`: the nodes of each run: `run_id`, `node_id`, `parent_id`, `type`, `label` (the title or the command), `path`
+- `events`: `run_id`, `time`, `level`, `node_id`, `event`, `message`, and `attrs`: the other attributes as a JSON
+  object (durations are in seconds)
+- `output`: `run_id`, `node_id`, `start` (1, then 2 for a re-run...), `time`, `data`: chunks of the raw terminal
+  output
+
+For example:
+
+```sql
+-- the nodes that failed in the last run
+SELECT n.path, e.time FROM events e JOIN nodes n USING (run_id, node_id)
+WHERE e.run_id = (SELECT max(id) FROM runs) AND e.event = 'status' AND e.attrs ->> 'to' = 'Failed';
+
+-- the slowest processes of all runs
+SELECT e.run_id, n.path, e.attrs ->> 'elapsed' AS seconds FROM events e JOIN nodes n USING (run_id, node_id)
+WHERE e.event = 'exited' ORDER BY seconds DESC LIMIT 10;
+```
 
 ## Editor support
 

@@ -3,6 +3,7 @@ package logging
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -71,4 +72,48 @@ func hasAttr(r slog.Record, key string) bool {
 		return !found
 	})
 	return found
+}
+
+// Multi returns a handler that sends the records to all the handlers (that are enabled for their level)
+func Multi(handlers ...slog.Handler) slog.Handler {
+	return multiHandler(handlers)
+}
+
+type multiHandler []slog.Handler
+
+func (m multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	for _, h := range m {
+		if h.Enabled(ctx, level) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m multiHandler) Handle(ctx context.Context, r slog.Record) error {
+	var errs []error
+	for _, h := range m {
+		if h.Enabled(ctx, r.Level) {
+			if err := h.Handle(ctx, r.Clone()); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (m multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	result := make(multiHandler, len(m))
+	for i, h := range m {
+		result[i] = h.WithAttrs(attrs)
+	}
+	return result
+}
+
+func (m multiHandler) WithGroup(name string) slog.Handler {
+	result := make(multiHandler, len(m))
+	for i, h := range m {
+		result[i] = h.WithGroup(name)
+	}
+	return result
 }

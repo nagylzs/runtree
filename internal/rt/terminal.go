@@ -1,6 +1,10 @@
 package rt
 
-import "github.com/nagylzs/runtree/internal/runner"
+import (
+	"io"
+
+	"github.com/nagylzs/runtree/internal/runner"
+)
 
 // TerminalHelper connects remote ptys to local terminal emulators
 // Please note that OnNodeChanged is only called when the status or the expanded state is changed.
@@ -15,4 +19,11 @@ type TerminalHelper interface {
 	OnNodeChanged(n *Node, oldStatus Status, oldExpanded bool) // Node status or expanded changed
 	OnClientError(locked bool, node *Node, e runner.Error)
 	OnInternalError(message string) // A recovered panic, called from any goroutine, in unlocked state
+}
+
+// OutputRecorder gets a copy of the terminal output of the started nodes, e.g. to save it. NodeOutput is called when
+// a node is started (with the tree locked), start is Node.Starts. It returns nil when the output is not needed. The
+// writer is called by the goroutine that copies the output to the terminal, so it should not block for long.
+type OutputRecorder interface {
+	NodeOutput(n *Node, start int) io.Writer
 }

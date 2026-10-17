@@ -42,3 +42,21 @@ func TestJSONFormat(t *testing.T) {
 		t.Errorf("the output is %s", out)
 	}
 }
+
+func TestMulti(t *testing.T) {
+	var warn, info bytes.Buffer
+	l := slog.New(Multi(
+		slog.NewTextHandler(&warn, &slog.HandlerOptions{Level: slog.LevelWarn}),
+		slog.NewTextHandler(&info, &slog.HandlerOptions{Level: slog.LevelInfo}),
+	)).With("node", "n1").WithGroup("g")
+	l.Info("info", "a", 1)
+	l.Warn("warning")
+	l.Debug("debug")
+	if out := warn.String(); strings.Contains(out, "msg=info") || !strings.Contains(out, "msg=warning node=n1") {
+		t.Errorf("the warning handler got\n%s", out)
+	}
+	if out := info.String(); !strings.Contains(out, "msg=info node=n1 g.a=1") || !strings.Contains(out, "msg=warning") ||
+		strings.Contains(out, "debug") {
+		t.Errorf("the info handler got\n%s", out)
+	}
+}
