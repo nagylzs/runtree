@@ -11,7 +11,7 @@ import (
 	"github.com/nagylzs/runtree/internal/runner"
 )
 
-// GTK4 has no signal for widget size changes, so the size of the displayed terminal is checked periodically.
+// GTK4 has no signal for widget size changes, so the size of the terminal area is checked periodically.
 const terminalSizeCheckMs = 250
 
 // nodeTerminal is the terminal emulator that displays the remote pty of a started node
@@ -34,6 +34,8 @@ func (ra *RunTreeApp) createTerminal(n *rt.Node, client *runner.Client, size run
 		return err
 	}
 	setupTerminalClipboard(term)
+	// Same size as the remote pty, until it is displayed or resized
+	term.SetSize(size.Cols, size.Rows)
 
 	nt := &nodeTerminal{term: term, client: client, size: size, wanted: size, sent: size}
 	ra.lock.Lock()
@@ -54,30 +56,50 @@ func (ra *RunTreeApp) createTerminal(n *rt.Node, client *runner.Client, size run
 	return nil
 }
 
-// checkTerminalSize sends the size of the displayed terminal to its remote pty, when the number of columns or rows
-// has changed. It is called periodically from the main gtk loop.
+// checkTerminalSize keeps the size of every running terminal equal to the size of the terminal area, including
+// the terminals that are not displayed, so that TUI programs already have the right size when their terminal is
+// displayed. It is called periodically from the main gtk loop.
 func (ra *RunTreeApp) checkTerminalSize() bool {
-	nt := ra.currentTerm
-	if nt == nil || !nt.term.Mapped() {
+	probe := ra.pane.termProbe
+	if !probe.Mapped() {
 		return true
 	}
-	size := runner.WinSize{
-		Cols:   nt.term.GetColumnCount(),
-		Rows:   nt.term.GetRowCount(),
-		Width:  uint16(nt.term.Width()),
-		Height: uint16(nt.term.Height()),
+	area := runner.WinSize{
+		Cols:   probe.GetColumnCount(),
+		Rows:   probe.GetRowCount(),
+		Width:  uint16(probe.Width()),
+		Height: uint16(probe.Height()),
 	}
-	if size.Cols == nt.size.Cols && size.Rows == nt.size.Rows {
-		return true
-	}
-	nt.size = size
 
-	// Save the last known size so that new terminals can start with this size.
 	ra.lock.Lock()
-	ra.lastWinSize = size
+	// Save the last known size so that new terminals can start with this size.
+	ra.lastWinSize = area
+	terminals := make([]*nodeTerminal, 0, len(ra.terminals))
+	for _, nt := range ra.terminals {
+		terminals = append(terminals, nt)
+	}
 	ra.lock.Unlock()
 
-	nt.sendSize(size)
+	for _, nt := range terminals {
+		displayed := nt == ra.currentTerm && nt.term.Mapped()
+		size := area
+		if displayed {
+			// vte has already resized itself to its allocation
+			size.Cols, size.Rows = nt.term.GetColumnCount(), nt.term.GetRowCount()
+		}
+		if size.Cols == nt.size.Cols && size.Rows == nt.size.Rows {
+			continue
+		}
+		ls := nt.client.LastState()
+		if !ls.Alive() {
+			continue
+		}
+		if !displayed {
+			nt.term.SetSize(size.Cols, size.Rows)
+		}
+		nt.size = size
+		nt.sendSize(size)
+	}
 	return true
 }
 

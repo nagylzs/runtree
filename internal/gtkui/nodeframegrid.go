@@ -62,9 +62,7 @@ func (w *NodeFrameGrid) addStringProp(id string, name string, tooltip string, co
 		eValue.SetTooltipText(tooltip)
 	}
 
-	btnCpy := gtk.NewButton()
-	btnCpy.SetChild(gtk.NewButtonFromIconName("copy"))
-	btnCpy.SetObjectProperty("id", id)
+	btnCpy := gtk.NewButtonFromIconName("edit-copy-symbolic")
 	btnCpy.ConnectClicked(func() {
 		eValue.Clipboard().SetText(eValue.Text())
 		ShowToast("Copied to clipboard")

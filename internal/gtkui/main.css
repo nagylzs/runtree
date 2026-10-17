@@ -138,3 +138,7 @@ of the current theme.
     color: #cb4b16;
     background-color: #002b36;
 }
+
+vte-terminal {
+    padding: 4px;
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	vte "github.com/nagylzs/gotk4-vte"
 	"github.com/nagylzs/runtree/internal/rt"
 )
 
@@ -15,6 +16,7 @@ type MainPaned struct {
 	rightSide   *gtk.Paned
 	toolBox     *NodeFrameTools
 	termOverlay *gtk.Overlay
+	termProbe   *vte.Terminal // invisible terminal over the whole terminal area, it tells the size of the area
 
 	lastToggleButton *gtk.ToggleButton
 	navModeButtons   map[NavMode]*gtk.ToggleButton
@@ -89,9 +91,23 @@ func NewMainPaned() *MainPaned {
 	toolsScroll.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyAutomatic)
 	toolsScroll.SetChild(tools)
 	termOverlay := gtk.NewOverlay()
+	// The probe is an invisible terminal on top of the terminal area. It is always allocated to the whole area, so
+	// its column and row count is the size of the area, even when no terminal is displayed. This is used to resize
+	// the terminals that are not displayed, so they are already correct when they are displayed.
+	termProbe, err := vte.TerminalNew()
+	if err != nil {
+		panic(fmt.Sprintf("could not create terminal: %s", err))
+	}
+	termProbe.SetOpacity(0)
+	termProbe.SetCanTarget(false)
+	termProbe.SetFocusable(false)
+	termOverlay.AddOverlay(termProbe)
 	rightSide.SetStartChild(toolsScroll)
 	rightSide.SetEndChild(termOverlay)
 	rightSide.SetPosition(600)
+	// Thin separators have an invisible grab area that reaches into the terminal, so selecting text from the
+	// first column or row would move the separator. Wide separators can only be grabbed where they are visible.
+	rightSide.SetWideHandle(true)
 
 	m := &MainPaned{
 		Paned:          *gtk.NewPaned(gtk.OrientationHorizontal),
@@ -100,11 +116,13 @@ func NewMainPaned() *MainPaned {
 		rightSide:      rightSide,
 		toolBox:        tools,
 		termOverlay:    termOverlay,
+		termProbe:      termProbe,
 		navModeButtons: navModeButtons,
 	}
 	m.SetStartChild(leftSide)
 	m.SetEndChild(rightSide)
 	m.SetPosition(700)
+	m.SetWideHandle(true)
 
 	return m
 }

@@ -30,8 +30,8 @@ github.com/mattn/go-isatty v0.0.22 h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw
 github.com/mattn/go-isatty v0.0.22/go.mod h1:ZXfXG4SQHsB/w3ZeOYbR0PrPwLy+n6xiMrJlRFqopa4=
 github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyuac5Z2hdY=
 github.com/mitchellh/mapstructure v1.5.0/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
-github.com/nagylzs/gotk4-vte v0.1.0 h1:MmUOygkI+j0oQMUCx4dMD+ukp/rAvfaM+NYyl9a3j9w=
-github.com/nagylzs/gotk4-vte v0.1.0/go.mod h1:kCUths1A7I1PnWc0FyX7byaPLNCGm8Ax3iXI6lWlo9I=
+github.com/nagylzs/gotk4-vte v0.2.0 h1:BjKtXFeOzKBDAuivJJ6vFLaeQuLmk/cPKd+YI/0Zr8w=
+github.com/nagylzs/gotk4-vte v0.2.0/go.mod h1:kCUths1A7I1PnWc0FyX7byaPLNCGm8Ax3iXI6lWlo9I=
 github.com/nagylzs/set v0.0.0-20250912150903-ab46110d11ed h1:H7iz866pDOT48MsNECVf2e60WBHdsWVpSVF/hiD6PQ4=
 github.com/nagylzs/set v0.0.0-20250912150903-ab46110d11ed/go.mod h1:77nzg1vitim2UsDk45VeqdMdpmOhDsYBo3DG3debtcg=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
