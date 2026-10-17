@@ -253,7 +253,20 @@ func (w *NodeFrameHeader) onOp(op rt.NodeOp, recursive bool) {
 		return
 	}
 
-	node.LockTree("NodeFrameTools.onOp")
+	// When the reset would unprovide resources, then the user can select them first.
+	if op == rt.OpResetToWaiting {
+		if info := planReset(node, recursive); info != nil {
+			showResetDialog(node, recursive, info)
+			return
+		}
+	}
+	performOp(node, op, recursive, nil)
+}
+
+// performOp performs a manual operation on the node, and shows the error, if any.
+// It must be called from the main gtk loop.
+func performOp(node *rt.Node, op rt.NodeOp, recursive bool, args *rt.OpArgs) {
+	node.LockTree("performOp")
 	defer node.UnLockTree()
 
 	// Is this operation allowed?
@@ -264,7 +277,7 @@ func (w *NodeFrameHeader) onOp(op rt.NodeOp, recursive bool) {
 		return
 	}
 
-	_, err := node.PerformOp(op, true, recursive, true)
+	_, err := node.PerformOp(op, true, recursive, true, args)
 	if err != nil {
 		ShowToast(err.Error())
 	}

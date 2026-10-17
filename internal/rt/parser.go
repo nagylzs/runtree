@@ -16,7 +16,7 @@ const MaxYamlFileSize = 1024 * 1024
 var ValidNodeConfigs = set.FromArray([]string{
 	"id", "title", "description",
 	"args", "args_prefix",
-	"cwd", "vars", "def_vars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
+	"cwd", "runner", "vars", "def_vars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
 	"provides", "requires",
 	"on_error", "max_proc", "envs", "type", "rlocks", "xlocks", "nodes",
 	"par", "seq", "run", "include", "status",
@@ -136,6 +136,11 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	}
 
 	n.Parsed.CWD, err = getStringDef(raw, "cwd", "")
+	if err != nil {
+		return n, err
+	}
+
+	n.Parsed.Runner, err = getStringDef(raw, "runner", "")
 	if err != nil {
 		return n, err
 	}

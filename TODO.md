@@ -18,6 +18,9 @@
   the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
   runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol
   change (bump `runner.Version`), a session registry on the runner, and restoring node statuses in the GUI.
+* Re-run (manual `run` on a finished node) has the same problem as reset to waiting had: the resources provided by
+  the node stay provided while it runs again, so the nodes that require them may start before it finishes. Offer the
+  same unprovide dialog as for reset to waiting.
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
@@ -30,7 +33,6 @@
   produce GTK warnings ("Trying to measure GtkBox for width of 1024, but it needs at least ...")
 * GTK command line parameters cannot be passed to the application (`gtkapplication.go` `RunApplication`)
 * recursive manual operations: allow them when they are allowed on the child nodes (`op.go` `PerformOp`)
-* `OpResetToWaiting` on run nodes is marked as unfinished (`op.go` `PerformOp`)
 * allow a run node with empty `args` when `args_prefix` is not empty (`parser.go` `SelfCheck`)
 * cache the rlock root after building the tree, instead of walking up the tree every time (`deplock.go`
   `getRLockRoot`)
@@ -53,7 +55,9 @@ Ordered by impact:
 * TUI frontend (non-GTK), so runtree works headless, over SSH, and on macOS/Windows.
   GTK4+VTE+cgo is the biggest install/build barrier.
 * Headless mode: exit with root node's status (already listed above), so it can double as a CI step.
-* Tests, at least for parser, vars substitution, scheduler, and lock/deps semantics.
+* Better test coverage. There is a test suite (`go test ./...`, run by CI) but it only covers reset to waiting /
+  unprovide and some calculated properties. Add tests at least for the parser, vars substitution, the scheduler,
+  lock/deps semantics and status calculation.
 * Reduce DSL friction: avoid duplicating inventory via per-node `runner`; make it easy for
   a leaf node to call an existing Ansible playbook / script.
 * Pitch: "`make -j` for ops, where every job is a terminal you can step into".

@@ -34,6 +34,9 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 		if n.Status == StatusFrozen {
 			addOps(OpThaw, OpSkip, OpResetToWaiting)
 		}
+		if n.Status == StatusSkipped {
+			addOps(OpResetToWaiting)
+		}
 		if !StatusFinished(n.Status) {
 			addOps(OpFail, OpSuccess)
 		}
@@ -59,15 +62,44 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 	if n.Status == StatusPaused {
 		addOps(OpFail, OpSuccess, OpResetToWaiting)
 	}
+	if StatusFinished(n.Status) {
+		addOps(OpResetToWaiting)
+	}
 	return ops
 }
 
-// PerformOp should only be called manually, the scheduler uses its own ways.
-func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (bool, error) {
+// OpArgs holds the optional arguments of an operation. A nil *OpArgs means the default arguments.
+type OpArgs struct {
+	// Unprovide is used by OpResetToWaiting: the names of the provided resources that may be unprovided.
+	// nil means all of them. See Node.PlanResetToWaiting.
+	Unprovide []string
+}
+
+// PerformOp should only be called manually, the scheduler uses its own ways. args can be nil.
+//
+// OpResetToWaiting also unprovides the resources that were provided by the nodes that are reset (or become
+// unfinished), unless they are still provided by other nodes. args.Unprovide can limit the unprovided resources.
+func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, args *OpArgs) (bool, error) {
 	if !locked {
 		panic("must be called in locked state")
 	}
+	if op != OpResetToWaiting {
+		return n.performOp(op, locked, recursive, manual)
+	}
+	before := n.Tree.providerNodes()
+	changed, err := n.performOp(op, locked, recursive, manual)
+	if err != nil {
+		return changed, err
+	}
+	var names []string = nil
+	if args != nil {
+		names = args.Unprovide
+	}
+	n.Tree.unprovideLost(before, names)
+	return changed, nil
+}
 
+func (n *Node) performOp(op NodeOp, locked bool, recursive bool, manual bool) (bool, error) {
 	_, allowed := n.AllowedManualOps(locked, recursive)[op]
 	// TODO: if the operation is recursive, then it might be allowed on child nodes?
 	if !allowed {
@@ -96,8 +128,8 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 		case OpSuccess:
 			ms = StatusSuccess
 		case OpResetToWaiting:
-			// TODO
 			ms = StatusWaiting
+			n.StartError = "" // from a previous start
 		default:
 			return false, fmt.Errorf("internal error: unknown operation: %s", OpName(op))
 		}
@@ -138,12 +170,13 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 			n.SchedulerMessage = ""
 			changed = true
 		}
-		// Set waiting / thaw frozen seq/par node
+		// Set waiting / thaw frozen seq/par node, reset skipped seq/par node
 		// This is **not** manual status, so later calcParStatus/calSeqStatus can change it.
-		// However, calcParStatus/calSeqStatus will refrain from changing it from frozen to anything.
-		if n.Status == StatusFrozen && (op == OpResetToWaiting || op == OpThaw) {
+		// However, calcParStatus/calSeqStatus will refrain from changing it from frozen or skipped to anything.
+		if (n.Status == StatusFrozen && (op == OpResetToWaiting || op == OpThaw)) ||
+			(n.Status == StatusSkipped && op == OpResetToWaiting) {
 			n.WantManualStatus = false
-			n.Status = ms
+			n.Status = StatusWaiting
 			n.SchedulerMessage = ""
 			changed = true
 		}
@@ -152,7 +185,7 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 	if recursive {
 		for i := range n.Nodes {
 			sub := n.Nodes[i]
-			ch, _ := sub.PerformOp(op, locked, sub.HasChild(), manual)
+			ch, _ := sub.performOp(op, locked, sub.HasChild(), manual)
 			if ch {
 				changed = true
 			}
@@ -180,7 +213,7 @@ func (n *Node) performOnErrorSiblings(locked bool) {
 		// Here we ignore all errors, because the only reason that it can fail is because the operation is not allowed
 		// in the siblings current state.
 		println(sib.Id+" "+StatusName(sib.Status), "->", OpName(n.OnError.Siblings))
-		_, err := sib.PerformOp(n.OnError.Siblings, true, sib.HasChild(), false)
+		_, err := sib.PerformOp(n.OnError.Siblings, true, sib.HasChild(), false, nil)
 		if err != nil {
 			sib.Tree.logger.Error("performOnErrorSiblings", "error", err)
 		}

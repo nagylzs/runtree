@@ -33,8 +33,10 @@ Running locally requires a runner listening first; the default runner address is
 ./runtree -v test/test01.yaml     # GUI; --max-depth, --cpu-profile, --mem-profile, --net-profile-port also available
 ```
 
-`test/*.yaml` are hand-run example trees, not automated tests. There are currently **no `_test.go` files** in the
-repo; `go test ./...` runs nothing. CI (`.github/workflows/build.yml`) only runs `scripts/build.py` on `main`.
+`test/*.yaml` are hand-run example trees, not automated tests. Unit tests are `internal/rt/*_test.go`; shared helpers
+are in `internal/rt/helpers_test.go` (`loadTestTree` builds a tree from YAML with the scheduler disabled, `setStatus`
+sets a node status). Run them with `go test ./...`. CI (`.github/workflows/build.yml`) runs the tests and then
+`scripts/build.py` on `main`. Coverage is still small: add tests for new and changed code.
 
 Dark GTK theme is the design target: `GTK_THEME=Adwaita:dark`.
 

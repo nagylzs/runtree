@@ -443,9 +443,9 @@ another node (deploy command).
 Any node can list resource names (simple strings) after the `provides` and `requires` properties. 
 The `runtree` utility keeps track a list of resources that are available or **provided**. Initially (when the tree is 
 loaded and the root node is started), this list is empty. When a node reaches `success` state, then the resources listed 
-after its `provides` property are added to the list of available/provided resources. This list can only be extended, it
-can never be shortened. The scheduler will not start a node until all required resources are provided by other (success)
-nodes. It is possible to create deadlocks with dependency synchronization, it is the user's responsibility to avoid that.
+after its `provides` property are added to the list of available/provided resources. Resources are only removed from
+this list by the [reset to waiting](#reset-to-waiting) operation. The scheduler will not start a node until all required
+resources are provided by other (success) nodes. It is possible to create deadlocks with dependency synchronization, it is the user's responsibility to avoid that.
 
 The `provides` property cannot be inherited from parent nodes, it would make no sense; because under normal 
 circumstances, the parent cannot be finished before the child, and so the child will provide the resource before 
@@ -528,7 +528,10 @@ There are certain operations defined **on single nodes**:
 * `fail` - the scheduler can perform this in `running` state, when the node fails (e.g., the corresponding process fails,
    or one of its sub-nodes fails). It can also be set manually in `paused` state.
 * `signal` - can only be performed in `running` state, it sends a signal (selected by the user) to the process
-* `reset to waiting` - TODO
+* `reset to waiting` - set `waiting` status, so that the scheduler starts the node again (when its requirements are
+   met). The user can perform it on run-type nodes in `frozen`, `paused` and finished (`success`, `failed`,
+   `skipped`) states, and on `seq`/`par` nodes in `frozen`, `paused` and `skipped` states. Running nodes cannot be
+   reset. It may unprovide resources, see [Reset to waiting](#reset-to-waiting).
 
 ### Freeze and thaw
 
@@ -560,6 +563,24 @@ This creates a breakpoint in the tree. User interaction is required to "run and 
 The `run` operation is what the node should normally do when scheduled. The run operation may take a long time. Starting
 the run operation is also referred to as "starting the node". When the node is successfully started, then it goes into 
 `running` state.
+
+### Reset to waiting
+
+The `reset to waiting` operation is used to go over some steps again, for example after the source code was fixed
+because a test failed. Performed recursively (`ResetToWaiting all` in the GUI), it resets every node of the subtree that
+can be reset, so the whole subtree runs again. Running nodes are not reset.
+
+The resources provided by the nodes that are reset (and by their parents that become unfinished because of the reset)
+are **unprovided**, unless they are also provided by other nodes. This makes the nodes that require them wait until
+they are provided again. For example, if `build` provides `binary`, `deploy` requires `binary` and provides `deployed`,
+and `run` requires `deployed`, then resetting all of them unprovides `binary` and `deployed`, so `deploy` waits for the
+new `build`, and `run` waits for the new `deploy` (even if they run under a `par` node).
+
+When the reset would unprovide resources, the GUI shows a dialog where you can choose to unprovide all of them
+(default), or select the resources that should be unprovided. A resource that is not unprovided stays available,
+so the nodes that require it can start right away, without waiting for the node that provided it.
+
+Resetting a node also clears the error of its previous start (e.g., when the runner could not be reached).
 
 ### Cancel
 

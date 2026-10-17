@@ -120,20 +120,18 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 			return false, err
 		}
 	}
-	cRunner := ""
 	if n.Parsed.Runner == "" && n.Parent != nil {
-		cRunner = n.Parent.Parsed.Runner
-	}
-	if cRunner == "" {
-		cRunner, err = varEval(n.Parsed.Runner, c.Vars)
+		// the parent is already calculated, so this is inherited through any number of levels
+		c.Runner = n.Parent.Calculated.Runner
+	} else {
+		c.Runner, err = varEval(n.Parsed.Runner, c.Vars)
 		if err != nil {
 			return false, err
 		}
+		if c.Runner == "" {
+			c.Runner = config.DefaultRunnerAddress
+		}
 	}
-	if cRunner == "" {
-		cRunner = config.DefaultRunnerAddress
-	}
-	c.Runner = cRunner
 	if n.Parsed.XLocks == nil && n.Parent != nil {
 		// exclusive locks must not be inherited, they are exclusive!
 		// c.XLocks = n.Parent.Calculated.XLocks
@@ -153,14 +151,10 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 			return false, err
 		}
 	}
-	if n.Parsed.Provides == nil && n.Parent != nil {
-		// TODO: is it a problem that it references to the same object?
-		c.Provides = n.Parent.Calculated.Provides
-	} else {
-		c.Provides, err = varEvalSet(n.Parsed.Provides, c.Vars)
-		if err != nil {
-			return false, err
-		}
+	// provides must not be inherited: a node provides its resources when the node itself succeeds
+	c.Provides, err = varEvalSet(n.Parsed.Provides, c.Vars)
+	if err != nil {
+		return false, err
 	}
 
 	req := set.NewSet[string]()
