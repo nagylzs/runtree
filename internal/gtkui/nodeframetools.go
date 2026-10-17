@@ -12,6 +12,7 @@ type NodeFrameTools struct {
 	properties  *NodeFrameProperites
 	description *NodeFrameDescription
 	deps        *NodeFrameDeps
+	log         *NodeFrameLog
 	vars        *NodeFrameVars
 	envs        *NodeFrameEnvs
 }
@@ -39,7 +40,8 @@ func NewToolsWidget() *NodeFrameTools {
 	deps := NewNodeFrameDeps()
 	addScrolledTab(deps)
 
-	nb.AppendPage(gtk.NewLabel(""), gtk.NewLabel("Log"))
+	log := NewNodeFrameLog()
+	addScrolledTab(log)
 
 	description := NewNodeFrameDescription()
 	addScrolledTab(description)
@@ -63,6 +65,7 @@ func NewToolsWidget() *NodeFrameTools {
 		header:      header,
 		properties:  properties,
 		deps:        deps,
+		log:         log,
 		description: description,
 		vars:        vars,
 		envs:        envs,
@@ -74,6 +77,7 @@ func (w *NodeFrameTools) SetNode(node *rt.Node) {
 	w.properties.SetNode(node)
 	w.description.SetNode(node)
 	w.deps.SetNode(node)
+	w.log.SetNode(node)
 	w.vars.SetNode(node)
 	w.envs.SetNode(node)
 }

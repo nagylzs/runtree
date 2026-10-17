@@ -1,6 +1,9 @@
 package rt
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // AllowedManualOps tells the direct operations that can be performed on the node in its current state.
 func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
@@ -86,6 +89,10 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, ar
 	if _, allowed := n.AllowedManualOps(locked, recursive)[op]; !allowed {
 		return false, fmt.Errorf("this operation is not allowed in %s state", StatusName(n.Status))
 	}
+	if manual {
+		n.log().Info("operation: "+opLabel(op, recursive), attrEvent, EventOperation, "op", OpName(op),
+			"recursive", recursive)
+	}
 	// An operation on a node ends the manual status of the seq/par nodes above it (see calcParSeqStatus), so their
 	// statuses are calculated from their sub-nodes again.
 	for p := n.Parent; p != nil; p = p.Parent {
@@ -97,6 +104,10 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, ar
 	}
 	changed, err := n.performOp(op, locked, recursive, manual)
 	if err != nil {
+		if manual {
+			n.log().Warn(fmt.Sprintf("operation %s failed: %s", opLabel(op, recursive), err), attrEvent,
+				EventOperation, "op", OpName(op), "recursive", recursive, "error", err)
+		}
 		return changed, err
 	}
 	if op == OpResetToWaiting {
@@ -104,7 +115,10 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, ar
 		if args != nil {
 			names = args.Unprovide
 		}
-		n.Tree.unprovideLost(before, names)
+		if removed := n.Tree.unprovideLost(before, names); len(removed) > 0 {
+			n.log().Info("unprovided "+strings.Join(removed, ", "), attrEvent, EventUnprovided,
+				"resources", removed)
+		}
 	}
 	n.updateStatusesUp(true)
 	return changed, nil
@@ -227,16 +241,27 @@ func (n *Node) performOnErrorSiblings(locked bool) {
 	if n.Parent == nil || n.OnError.Siblings == OpNone {
 		return
 	}
+	op := n.OnError.Siblings
+	n.log().Info(fmt.Sprintf("on_error: %s the siblings", strings.ToLower(OpName(op))), attrEvent, EventOnError,
+		"op", OpName(op))
 	for _, sib := range n.Parent.Nodes {
 		if sib == n {
 			continue
 		}
 		// Here we ignore all errors, because the only reason that it can fail is because the operation is not allowed
 		// in the siblings current state.
-		println(sib.Id+" "+StatusName(sib.Status), "->", OpName(n.OnError.Siblings))
-		_, err := sib.PerformOp(n.OnError.Siblings, true, sib.HasChild(), false, nil)
+		_, err := sib.PerformOp(op, true, sib.HasChild(), false, nil)
 		if err != nil {
-			sib.Tree.logger.Error("performOnErrorSiblings", "error", err)
+			sib.log().Debug("on_error operation of a sibling", "op", OpName(op), "error", err)
 		}
 	}
+}
+
+// opLabel is the name of an operation for messages, like on the buttons of the GUI
+func opLabel(op NodeOp, recursive bool) string {
+	label := OpName(op)
+	if recursive {
+		label += " all"
+	}
+	return label
 }

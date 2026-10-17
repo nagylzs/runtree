@@ -116,9 +116,10 @@ func (t *Tree) providerNodes() map[*Node]bool {
 
 // unprovideLost removes the provided resources that were provided by the "before" provider nodes, but are not
 // provided by any provider node anymore. When names is not nil, then only the listed resources can be removed.
-func (t *Tree) unprovideLost(before map[*Node]bool, names []string) {
+// It returns the removed resources.
+func (t *Tree) unprovideLost(before map[*Node]bool, names []string) []string {
 	after := t.providerNodes()
-	removed := false
+	var removed []string
 	for _, name := range t.provided.List() {
 		if names != nil && !slices.Contains(names, name) {
 			continue
@@ -145,13 +146,14 @@ func (t *Tree) unprovideLost(before map[*Node]bool, names []string) {
 			}
 			continue
 		}
-		t.logger.Info("unprovide", "resource", name)
 		t.provided.Remove(name)
 		delete(t.providedBy, name)
-		removed = true
+		removed = append(removed, name)
 	}
-	if removed {
+	if len(removed) > 0 {
 		t.Root.updateBlockedAll(true)
 		t.Awake()
 	}
+	slices.Sort(removed)
+	return removed
 }

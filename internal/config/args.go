@@ -3,6 +3,7 @@ package config
 type BaseArgs struct {
 	Verbose     bool   `short:"v" long:"verbose" description:"Show verbose information"`
 	Debug       bool   `short:"d" long:"debug" description:"Show debug information"`
+	LogFormat   string `long:"log-format" choice:"text" choice:"json" default:"text" description:"Format of the log on stderr"`
 	ShowVersion bool   `long:"version" description:"Show version information and exit"`
 	CPUProfile  string `long:"cpu-profile" description:"Write CPU profile to file"`
 	MemProfile  string `long:"mem-profile" description:"Write MEM profile to file"`

@@ -1,7 +1,6 @@
 package rt
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/nagylzs/runtree/internal/signal"
@@ -16,6 +15,7 @@ const HZ = time.Second
 // Within this loop, the scheduler keeps processing nodes until there is nothing to be processed.
 // Then it stops until it is awakened by a Schedule() call, or HZ elapses.
 func (t *Tree) Run() {
+	t.logger.Info("scheduler started", attrEvent, EventSchedulerStarted, "nodes", len(t.Nodes))
 	for !signal.IsStopping() {
 		t.Awake()
 		time.Sleep(HZ)
@@ -36,10 +36,10 @@ func (t *Tree) debouncedSchedule(_ int) {
 // schedule must be called in unlocked state
 func (t *Tree) schedule() {
 	defer t.recoverPanic("scheduler")
-	started := time.Now()
+	began := time.Now()
+	var started *Node
 	defer func() {
-		elapsed := time.Since(started)
-		println(fmt.Sprintf("schedule took %s", elapsed))
+		t.logger.Debug("schedule cycle", "elapsed", time.Since(began), "started", started)
 	}()
 
 	t.Lock("schedule")
@@ -57,10 +57,9 @@ func (t *Tree) schedule() {
 	// find a runnable node
 	n := t.findRunnable(t.Root)
 	if n == nil {
-		t.logger.Debug("runnable not found")
 		return
 	}
-	t.logger.Info("starting", "id", n.Id)
+	started = n
 	_ = n.Start(true)
 
 	t.Awake() // probably not needed, starting the node will awake the scheduler anyway
@@ -72,24 +71,18 @@ func (t *Tree) findRunnable(n *Node) *Node {
 		return nil
 	}
 
-	//println("findRunnable start ", n.Id)
-	//defer println("findRunnable end ", n.Id)
-
 	if StatusFinished(n.Status) {
 		n.SchedulerMessage = "finished"
-		//println("findRunnable finished -> nil ", n.Id)
 		return nil
 	}
 
 	if n.Status == StatusFrozen {
 		n.SchedulerMessage = "won't schedule"
-		//println("findRunnable frozen -> nil ", n.Id)
 		return nil
 	}
 
 	if n.Status == StatusPaused {
 		n.SchedulerMessage = "won't schedule"
-		//println("findRunnable paused -> nil ", n.Id)
 		return nil
 	}
 
@@ -97,13 +90,11 @@ func (t *Tree) findRunnable(n *Node) *Node {
 	// so maybe we should move this to findRunnableRun ? but then it won't be optimized that much
 	if n.MaxProc >= 0 && n.NProc >= n.MaxProc {
 		n.SchedulerMessage = "max proc reached"
-		//println("findRunnable max proc reached -> nil", n.Id)
 		return nil
 	}
 
 	if n.Blocked {
 		n.SchedulerMessage = "blocked"
-		//println("findRunnable blocked", n.Id)
 		return nil
 	}
 
@@ -127,7 +118,6 @@ func (t *Tree) findRunnableSeq(n *Node) *Node {
 		// so we look for runnable items inside...
 		sn := t.findRunnable(c)
 		if sn != nil {
-			//println("findRunnableSeq", n.Id, "->", sn.Id)
 			return sn
 		}
 		// but we do not go to the next item unless this one is finished
@@ -135,7 +125,6 @@ func (t *Tree) findRunnableSeq(n *Node) *Node {
 			return nil
 		}
 	}
-	//println("findRunnableSeq", n.Id, "-> nil")
 	return nil
 }
 
@@ -147,20 +136,16 @@ func (t *Tree) findRunnablePar(n *Node) *Node {
 		// that are runnable
 		sn := t.findRunnable(c)
 		if sn != nil {
-			//println("findRunnablePar", n.Id, "->", sn.Id)
 			return sn
 		}
 	}
-	//println("findRunnablePar", n.Id, "-> nil")
 	return nil
 }
 
 // findRunnableRun returns the node if it can be started by the scheduler
 func (t *Tree) findRunnableRun(n *Node) *Node {
 	if n.Status == StatusWaiting {
-		//println("findRunnableRun", n.Id, "->", n.Id)
 		return n
 	}
-	//println("findRunnableRun", n.Id, "-> nil")
 	return nil
 }

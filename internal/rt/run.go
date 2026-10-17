@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/nagylzs/runtree/internal/runner"
 )
@@ -27,20 +28,21 @@ func (n *Node) Start(locked bool) error {
 	}
 
 	n.calcClientArgs()
-	logger := slog.With("node", n.Id)
+	logger := n.log()
+	logger.Info(fmt.Sprintf("starting on %s: %s", n.Calculated.Runner, quoteArgs(n.Calculated.Args)),
+		attrEvent, EventStart, "runner", n.Calculated.Runner, "args", n.Calculated.Args, "cwd", n.Calculated.CWD)
 	ctx := context.Background()
 
 	c, err := runner.NewClient(ctx, n.Calculated.Runner, logger, n.onError)
 	if err != nil {
-		n.StartError = err.Error()
-		logger.Error("failed to start", "error", n.StartError)
+		n.startFailed(err.Error())
 		n.updateStatusesUp(true)
 		return fmt.Errorf("failed to start: %w", err)
 	}
-	err = c.StartPty(ctx, *n.ClientArgs, n.procStateChanged)
+	exit := &exitLog{}
+	err = c.StartPty(ctx, *n.ClientArgs, func(state runner.ProcState) { n.procStateChanged(state, exit) })
 	if err != nil {
-		n.StartError = err.Error()
-		logger.Error("failed to start", "error", n.StartError)
+		n.startFailed(err.Error())
 		return fmt.Errorf("failed to start: %w", err)
 	}
 
@@ -54,8 +56,7 @@ func (n *Node) Start(locked bool) error {
 // started node to a terminal. It makes the node fail, and closes the client, so the runner terminates the process.
 func (n *Node) TerminalFailed(err error) {
 	n.LockTree("Node.TerminalFailed")
-	n.StartError = fmt.Sprintf("could not connect terminal: %s", err.Error())
-	n.Tree.logger.Error("failed to start", "node", n.Id, "error", n.StartError)
+	n.startFailed(fmt.Sprintf("could not connect terminal: %s", err.Error()))
 	c := n.Client
 	n.UnLockTree()
 	// Closing the client calls procStateChanged, that locks the tree and updates the status.
@@ -64,10 +65,25 @@ func (n *Node) TerminalFailed(err error) {
 	}
 }
 
-func (n *Node) procStateChanged(state runner.ProcState) {
+// startFailed sets the start error, and logs it
+func (n *Node) startFailed(msg string) {
+	n.StartError = msg
+	n.log().Error("failed to start: "+msg, attrEvent, EventStartFailed, "error", msg)
+}
+
+// exitLog tells if the exit of a started process is logged already (the client may report it more than once)
+type exitLog struct {
+	logged bool
+}
+
+func (n *Node) procStateChanged(state runner.ProcState, exit *exitLog) {
 	defer n.Tree.recoverPanic("process state change of " + n.Id)
 	n.LockTree("Node.procStateChanged")
 	defer n.UnLockTree()
+	if !state.Alive() && !exit.logged {
+		exit.logged = true
+		n.logExit(state)
+	}
 	// process exited, node's old state is alive -> will decrease the number of processes
 	if !state.Alive() && StatusActive(n.Status) {
 		n.DecProc(true)
@@ -117,8 +133,56 @@ func (n *Node) DecProc(locked bool) {
 	}
 }
 
+// logExit logs the exit of the process of the node, before its status is updated
+func (n *Node) logExit(state runner.ProcState) {
+	msg := "exited"
+	if state.Exited && state.ExitCode >= 0 {
+		msg = fmt.Sprintf("exited with code %d", state.ExitCode)
+	} else if state.Error != "" {
+		msg = "exited: " + state.Error // killed by a signal, or the connection to the runner is lost
+	}
+	var elapsed time.Duration
+	if StatusActive(n.Status) && !n.Started.IsZero() {
+		elapsed = time.Since(n.Started)
+		msg += " after " + formatDuration(elapsed)
+	}
+	level := slog.LevelInfo
+	if !n.ExitedSuccessfully(state) {
+		level = slog.LevelWarn
+	}
+	attrs := []any{attrEvent, EventExited, "pid", state.Pid, "exit_code", state.ExitCode, "elapsed", elapsed,
+		"user_time", state.UserTime, "system_time", state.SystemTime}
+	if state.Error != "" {
+		attrs = append(attrs, "error", state.Error)
+	}
+	n.log().Log(context.Background(), level, msg, attrs...)
+}
+
+// SendSignal sends a signal (e.g. "SIGINT") to the process of a run node, when it is running. It tells if the signal
+// was sent.
+func (n *Node) SendSignal(locked bool, name string) (bool, error) {
+	if !locked {
+		panic("must be called in locked state")
+	}
+	c := n.Client
+	if c == nil {
+		return false, nil
+	}
+	if ps := c.LastState(); !ps.Alive() {
+		return false, nil
+	}
+	n.log().Info("sending "+name, attrEvent, EventSignal, "signal", name)
+	if err := c.SendSignal(context.Background(), name, true); err != nil {
+		n.log().Warn(fmt.Sprintf("could not send %s: %s", name, err), attrEvent, EventSignal, "signal", name,
+			"error", err)
+		return true, err
+	}
+	return true, nil
+}
+
 func (n *Node) onError(e runner.Error) {
 	defer n.Tree.recoverPanic("runner error of " + n.Id)
+	n.log().Error(e.Message, attrEvent, EventRunnerError, "code", e.Code)
 	n.RLockTree("Node.onError")
 	defer n.RUnlockTree()
 	th := n.Tree.terminalHelper

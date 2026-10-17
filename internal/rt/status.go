@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"context"
 	"slices"
 	"time"
 
@@ -39,7 +40,6 @@ func (n *Node) updateStatusesUp(locked bool) {
 		}
 		n = n.Parent
 	}
-	println("updateStatusesUp", changed)
 	if changed {
 		t.Awake()
 	}
@@ -69,6 +69,10 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 	}
 	statusChanged = prevStatus != s
 	n.Status = s
+	if statusChanged {
+		n.log().Log(context.Background(), statusLevel(s), StatusName(prevStatus)+" → "+StatusName(s),
+			attrEvent, EventStatus, "from", StatusName(prevStatus), "to", StatusName(s))
+	}
 
 	// After a manual node restart, we return to auto status updates. Manual success and failed are final decisions,
 	// and waiting lasts until the node is started.
@@ -100,7 +104,7 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 	oldActive, newActive := StatusActive(prevStatus), StatusActive(s)
 	if !oldActive && newActive {
 		if n.ExpandOnActive && !n.Expanded {
-			println("expanding", n.Id)
+			n.log().Debug("expanded")
 			n.Expanded = true
 			expandedChanged = true
 			/*
@@ -125,7 +129,7 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 	oldFinished, newFinished := StatusFinished(prevStatus), StatusFinished(s)
 	if !oldFinished && newFinished {
 		if n.CollapseOnFinished && n.Expanded && n.Parent != nil {
-			println("collapsing", n.Id)
+			n.log().Debug("collapsed")
 			n.Expanded = false
 			expandedChanged = true
 		}

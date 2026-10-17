@@ -74,7 +74,7 @@ func (ra *RunTreeApp) Start() {
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
-			RunTree.PrintWho()
+			RunTree.CheckLock(5 * time.Second)
 		}
 	}()
 }
@@ -147,7 +147,7 @@ func (ra *RunTreeApp) ProcStateChanged(n *rt.Node, state runner.ProcState) {
 // also called from OnNodeChanged when a process is started
 func (ra *RunTreeApp) OnTreeNodeSelected(node *rt.Node) {
 	if node != nil {
-		println(fmt.Sprintf("%s selected", node.Id))
+		slog.Debug("node selected", "node", node.Id)
 	}
 	ra.lock.Lock()
 	ra.selected = node

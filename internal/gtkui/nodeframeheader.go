@@ -1,7 +1,6 @@
 package gtkui
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -316,16 +315,11 @@ func (w *NodeFrameHeader) sendSignal(name string, recursive bool) {
 }
 
 func (w *NodeFrameHeader) sendSignalNode(node *rt.Node, name string, recursive bool) {
-	if node.Client != nil {
-		ps := node.Client.LastState()
-		if ps.Alive() {
-			// TODO: add these to node log!
-			ShowToast(fmt.Sprintf("Sending signal %s to %s", name, node.Id))
-			err := node.Client.SendSignal(context.TODO(), name, true)
-			if err != nil {
-				ShowToast("Failed to send signal: " + err.Error())
-			}
-		}
+	sent, err := node.SendSignal(true, name)
+	if err != nil {
+		ShowToast("Failed to send signal: " + err.Error())
+	} else if sent {
+		ShowToast(fmt.Sprintf("Sending signal %s to %s", name, node.Id))
 	}
 	if recursive {
 		for _, sub := range node.Nodes {

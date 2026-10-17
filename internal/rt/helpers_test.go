@@ -2,7 +2,6 @@ package rt
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -44,7 +43,7 @@ func parseTestTree(t *testing.T, source string) (*Tree, error) {
 	}
 	tree.awaker = events.NewDebouncer(func(int) {}, true)
 	tree.unblocker = events.NewDebouncer(func(int) {}, false)
-	tree.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	tree.SetLogHandler(slog.DiscardHandler)
 	return tree, nil
 }
 

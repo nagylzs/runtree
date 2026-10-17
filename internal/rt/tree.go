@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/nagylzs/runtree/internal/events"
 	"github.com/nagylzs/set"
@@ -17,16 +18,19 @@ type Tree struct {
 	NodeById map[string]*Node
 	Nodes    []*Node // access nodes by post-order index
 
-	logger    *slog.Logger
+	logger    *slog.Logger // logs the events too, see eventlog.go
+	events    *EventLog
 	awaker    *events.Debouncer[int]
 	unblocker *events.Debouncer[int]
 
 	nodeListenerLock sync.Mutex
 	nodeListeners    []chan *Node // node level events, when node status changes
 
-	lck    *sync.RWMutex
-	lckwho *sync.Mutex
-	who    string
+	lck      *sync.RWMutex
+	lckwho   *sync.Mutex
+	who      string
+	whoSince time.Time // when who got the lock
+	warned   time.Time // whoSince of the last warning of CheckLock
 
 	providedBy  map[string]*Node
 	provided    *set.Set[string]
@@ -120,7 +124,7 @@ func loadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tre
 	tree := &Tree{
 		Root:             nil,
 		NodeById:         make(map[string]*Node),
-		logger:           slog.Default(),
+		events:           NewEventLog(DefaultEventLogSize),
 		nodeListenerLock: sync.Mutex{},
 		nodeListeners:    make([]chan *Node, 1000),
 		lck:              &sync.RWMutex{},
@@ -132,6 +136,7 @@ func loadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tre
 		rAcquired:        set.NewSet[string](),
 		xAcquired:        set.NewSet[string](),
 	}
+	tree.SetLogHandler(slog.Default().Handler())
 	tree.awaker = events.NewDebouncer(tree.debouncedSchedule, true)
 	tree.unblocker = events.NewDebouncer(tree.debouncedUnblock, false)
 
@@ -145,9 +150,21 @@ func loadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tre
 	return tree, sources.Errors()
 }
 
+// SetLogHandler sets the handler of the log records of the tree (they are kept in its EventLog too). The default is
+// the handler of the default logger when the tree is loaded.
+func (t *Tree) SetLogHandler(h slog.Handler) {
+	t.logger = slog.New(&eventHandler{log: t.events, next: h})
+}
+
+// EventLog returns the log records of the tree, see eventlog.go
+func (t *Tree) EventLog() *EventLog {
+	return t.events
+}
+
 func (t *Tree) setWho(who string) {
 	t.lckwho.Lock()
 	t.who = who
+	t.whoSince = time.Now()
 	t.lckwho.Unlock()
 }
 
@@ -171,12 +188,20 @@ func (t *Tree) RUnlock() {
 	t.lck.RUnlock()
 }
 
-func (t *Tree) PrintWho() {
+// CheckLock logs a warning when the tree is locked by the same holder for longer than d, it is probably a deadlock,
+// or a long blocking call (e.g. connecting to a runner that does not answer). It warns once for each time the lock is
+// held. (The holder is only known for sure when there is one, because the readers overwrite each other.) It is called
+// periodically by the GUI.
+func (t *Tree) CheckLock(d time.Duration) {
 	t.lckwho.Lock()
-	who := t.who
+	who, since := t.who, t.whoSince
+	warn := who != "" && time.Since(since) > d && t.warned != since
+	if warn {
+		t.warned = since
+	}
 	t.lckwho.Unlock()
-	if who != "" {
-		println("Tree locked by", who)
+	if warn {
+		t.logger.Warn("the tree is locked for a long time", "by", who, "for", time.Since(since).Round(time.Second))
 	}
 }
 

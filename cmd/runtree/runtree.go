@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	_ "net/http"
@@ -14,10 +13,9 @@ import (
 	"runtime/pprof"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/lmittmann/tint"
-	"github.com/mattn/go-isatty"
 	"github.com/nagylzs/runtree/internal/config"
 	"github.com/nagylzs/runtree/internal/gtkui"
+	"github.com/nagylzs/runtree/internal/logging"
 	"github.com/nagylzs/runtree/internal/rt"
 	"github.com/nagylzs/runtree/internal/version"
 )
@@ -28,20 +26,23 @@ func main() {
 	var args = config.CLIArgs{BaseArgs: config.BaseArgs{Verbose: false, Debug: false}, MaxDepth: config.DefaultMaxDepth}
 	posArgs, err := flags.ParseArgs(&args, os.Args)
 	if err != nil {
-		println(err.Error())
+		// go-flags has printed the help or the error already
+		if flags.WroteHelp(err) {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
 
 	if args.ShowVersion {
 		version.PrintVersion()
-		println("GTK 4 app id: " + gtkui.ApplicationId)
+		fmt.Println("GTK 4 app id: " + gtkui.ApplicationId)
 		os.Exit(0)
 	}
 
 	if args.Schema {
 		schema, err := rt.JSONSchema()
 		if err != nil {
-			println(err.Error())
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 		_, _ = os.Stdout.Write(schema)
@@ -53,24 +54,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set loglevel
-	var programLevel = new(slog.LevelVar)
-	if args.Debug {
-		programLevel.Set(slog.LevelDebug)
-	} else if args.Verbose {
-		programLevel.Set(slog.LevelInfo)
-	} else {
-		programLevel.Set(slog.LevelWarn)
-	}
-
-	lw := os.Stderr
-	h := slog.New(
-		tint.NewHandler(lw, &tint.Options{
-			NoColor: !isatty.IsTerminal(lw.Fd()),
-			Level:   programLevel,
-		}),
-	)
-	slog.SetDefault(h)
+	logging.Setup(args.Verbose, args.Debug, args.LogFormat)
 
 	if args.CPUProfile != "" {
 		f, err := os.Create(args.CPUProfile)
@@ -88,7 +72,8 @@ func main() {
 
 	if args.NetProfile > 0 {
 		go func() {
-			log.Println(http.ListenAndServe(fmt.Sprintf("localhost:%d", args.NetProfile), nil))
+			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", args.NetProfile), nil)
+			slog.Error("the profile http server stopped", "error", err)
 		}()
 		slog.Warn(fmt.Sprintf("Open http://localhost:%d/debug/pprof/ for live profiling", args.NetProfile))
 	}

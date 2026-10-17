@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/lmittmann/tint"
-	"github.com/mattn/go-isatty"
 	"github.com/nagylzs/runtree/internal/config"
+	"github.com/nagylzs/runtree/internal/logging"
 	"github.com/nagylzs/runtree/internal/runner"
 	"github.com/nagylzs/runtree/internal/signal"
 	"github.com/nagylzs/runtree/internal/version"
@@ -26,7 +25,10 @@ func main() {
 	}
 	posArgs, err := flags.ParseArgs(&args, os.Args)
 	if err != nil {
-		println(err.Error())
+		// go-flags has printed the help or the error already
+		if flags.WroteHelp(err) {
+			os.Exit(0)
+		}
 		os.Exit(1)
 	}
 
@@ -35,24 +37,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Set loglevel
-	var programLevel = new(slog.LevelVar)
-	if args.Debug {
-		programLevel.Set(slog.LevelDebug)
-	} else if args.Verbose {
-		programLevel.Set(slog.LevelInfo)
-	} else {
-		programLevel.Set(slog.LevelWarn)
-	}
-
-	lw := os.Stderr
-	h := slog.New(
-		tint.NewHandler(lw, &tint.Options{
-			NoColor: !isatty.IsTerminal(lw.Fd()),
-			Level:   programLevel,
-		}),
-	)
-	slog.SetDefault(h)
+	logging.Setup(args.Verbose, args.Debug, args.LogFormat)
 
 	signal.SetupSignalHandler()
 

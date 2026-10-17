@@ -2,7 +2,6 @@
 * implement NavBlocked navmode
 * document "include" property, explain include/reduce
 * show requires/provides on the dependencies tab
-* populate node logs, it should be structured
 * possibly show a progress bar for each node, that shows the percentage of finished nodes
 * create a special view that shows tree total time, tree total progress and processing speed graph?
 * MAYBE after selecting a status filter in the navbar, show a graph for number of nodes for that status?
@@ -32,6 +31,24 @@
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
+
+# Logging (plan, 2026-10-17)
+
+Two kinds of logs, through one slog pipeline: diagnostic logs about runtree itself (scheduler, runner connections,
+GUI), for developers, on stderr with `-v` / `-d`; and events about what happened to the tree (node started, exited,
+status changed, manual operations, signals, on_error, provides, locks, runner errors), with `node` and `event`
+attributes. Terminal input is never logged (passwords). A handler sends every record to several places: stderr
+(filtered by `-v` / `-d`, optionally JSON), an in-memory store for the Log tab, and later SQLite.
+
+1. Done: the `println`s are replaced, the log levels are fixed, the events and a per-node logger (`rt/eventlog.go`),
+   `--log-format json`.
+2. Done: the Log tab of the GUI (the events of the subtree, auto-scroll). Maybe later: filter by level or event,
+   search.
+3. `--log-db file`: the events in SQLite (`modernc.org/sqlite`, pure Go, so a headless runtree would not need cgo),
+   with a run id per runtree session (start time, tree file, host, user), written in batched transactions from a
+   channel, so the scheduler never waits for the disk.
+4. Maybe: save the terminal output of the nodes (raw pty output chunks, as files or in SQLite, can be replayed
+   later). It is lost now when the GUI is closed.
 
 # Appearance (from the user, 2026-10-17)
 

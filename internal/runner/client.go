@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"math/rand"
 	"net"
@@ -204,7 +203,7 @@ func (c *Client) recvProcState(ctx context.Context) {
 		c.requestStop(fmt.Errorf("could not receive new ProcState: %w", err))
 		return
 	}
-	slog.Info(fmt.Sprintf("ProcState: %+v", ps))
+	c.logger.Debug("process state", "pid", ps.Pid, "exited", ps.Exited, "exit_code", ps.ExitCode, "error", ps.Error)
 	c.stateLock.Lock()
 	c.lastState = ps
 	c.stateLock.Unlock()
@@ -213,7 +212,7 @@ func (c *Client) recvProcState(ctx context.Context) {
 	if !ps.Alive() {
 		err = c.sendMsg(ctx, MsgDisconnect, nil, false)
 		if err != nil {
-			slog.Info(fmt.Sprintf("recvProcState: MsgDisconnect: %s", err.Error()))
+			c.logger.Debug("could not send disconnect", "error", err)
 		}
 		// not sure why this is needed, but if we disconnect too soon, then the error message
 		// of a quickly exited program may not arrive
@@ -229,7 +228,7 @@ func (c *Client) recvError(ctx context.Context) {
 		c.requestStop(fmt.Errorf("could not receive new Error: %w", err))
 		return
 	}
-	c.logger.Error(fmt.Sprintf("Error: %+v", e))
+	c.logger.Debug("runner error", "code", e.Code, "message", e.Message)
 	if c.onError != nil {
 		c.onError(e)
 	}
@@ -263,7 +262,7 @@ func (c *Client) run() {
 
 	c.ptyConn, err = listener.Accept()
 	if err != nil {
-		log.Fatalf("Accept error: %v", err)
+		c.requestStop(fmt.Errorf("could not accept the terminal connection: %w", err))
 		return
 	}
 	defer c.ptyConn.Close()

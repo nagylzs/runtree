@@ -98,6 +98,35 @@ The warnings are:
   `jq '{name}'`): tag such strings with [`!raw`](#raw-strings).
 - `for_vars: name is an empty list`: there are no combinations, so the node has no sub-nodes.
 
+## Logs
+
+`runtree` and `rtrunner` log to stderr: only the warnings and the errors by default, `-v` adds the information
+messages, and `-d` the debug messages too. `--log-format json` writes a JSON object per line instead of text (e.g.
+for `jq`).
+
+With `-v`, runtree logs what happens to the tree. These log records have an `event` attribute, and a `node`
+attribute (the id of the node) when they are about a node:
+
+| Event               | Level         | Logged when                                                                  |
+|---------------------|---------------|------------------------------------------------------------------------------|
+| `scheduler-started` | info          | the scheduler is started                                                     |
+| `start`             | info          | a command is started on a runner (`runner`, `args`, `cwd`)                   |
+| `start-failed`      | error         | it could not be started (e.g. the runner is not available)                   |
+| `exited`            | info / warn   | the process exited (`pid`, `exit_code`, `error`, `elapsed`), warn on failure |
+| `status`            | info / warn   | the status of a node changes (`from`, `to`), warn for failed and paused      |
+| `operation`         | info / warn   | an operation is performed from the GUI (`op`, `recursive`), warn on failure  |
+| `signal`            | info / warn   | a signal is sent from the GUI (`signal`)                                     |
+| `on-error`          | info          | the `on_error` operation is performed on the siblings (`op`)                 |
+| `provided`          | info          | a node provides resources (`resources`)                                      |
+| `unprovided`        | info          | resources are not provided anymore, after a reset to waiting (`resources`)   |
+| `locked`            | info          | a node acquires its `xlocks` and `rlocks`                                    |
+| `unlocked`          | info          | it releases them                                                             |
+| `runner-error`      | error         | a runner reports an error (`code`)                                           |
+
+The Log tab of the GUI shows these messages (and the other messages about the node, e.g. when the connection to the
+runner is lost) for the selected node and the nodes below it. The root node shows the messages about the tree too. The
+GUI keeps the last 100 000 messages. What you type in the terminals is never logged.
+
 ## Editor support
 
 Name tree files `*.rt.yaml` (e.g. `upgrade_servers.rt.yaml`), so that editors can recognize them. runtree itself

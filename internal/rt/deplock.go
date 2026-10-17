@@ -1,6 +1,10 @@
 package rt
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
 
 // Unblock can be called manually to request a new lock calculation cycle.
 // This is a debounced call, if you call it several times within a short amount of time, then
@@ -97,9 +101,12 @@ func (n *Node) registerProvided(locked bool) {
 
 	// register the new provided resources
 	n.Tree.provided.UnionInPlace(a)
-	for _, key := range a.List() {
+	names := a.List()
+	slices.Sort(names)
+	for _, key := range names {
 		n.Tree.providedBy[key] = n
 	}
+	n.log().Info("provided "+strings.Join(names, ", "), attrEvent, EventProvided, "resources", names)
 	n.Tree.Unblock()
 }
 
@@ -154,6 +161,10 @@ func (n *Node) acquireLocks(locked bool) {
 		panic("acquireLocks must be called tree-locked")
 	}
 	t := n.Tree
+	if locks := n.lockList(); locks != "" {
+		n.log().Info("acquired "+locks, attrEvent, EventLocked, "xlocks", n.Calculated.XLocks.List(),
+			"rlocks", n.Calculated.RLocks.List())
+	}
 	for _, res := range n.Calculated.XLocks.List() {
 		a, ok := t.xAcquiredBy[res]
 		if ok {
@@ -183,6 +194,10 @@ func (n *Node) releaseLocks(locked bool) {
 		panic("releaseLocks must be called tree-locked")
 	}
 	t := n.Tree
+	if locks := n.lockList(); locks != "" {
+		n.log().Info("released "+locks, attrEvent, EventUnlocked, "xlocks", n.Calculated.XLocks.List(),
+			"rlocks", n.Calculated.RLocks.List())
+	}
 	unlocked := false
 	for _, res := range n.Calculated.XLocks.List() {
 		n2, ok := t.xAcquiredBy[res]

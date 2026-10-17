@@ -86,6 +86,8 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
   Lock bookkeeping is tree-wide (`Tree.providedBy`, `xAcquiredBy`, …).
 - `op.go` — manual operations (`PerformOp`, `AllowedManualOps`) invoked from the GUI; the scheduler never uses them.
 - `terminal.go` — `TerminalHelper` interface: the only way `rt` talks to the GUI. `gtkui.RunTreeApp` implements it.
+- `eventlog.go` — events (log records with `node` and `event` attributes), and `EventLog`, the in-memory store that
+  the tree's slog handler fills (it has its own lock, it never waits for the tree lock).
 
 ### Locking convention
 The whole tree is guarded by one `sync.RWMutex` (`Tree.Lock/RLock`, with a `who` string for debugging deadlocks —
@@ -103,8 +105,11 @@ Styling is in the embedded `main.css`. All GTK calls must happen on the GTK main
 
 ## Conventions
 
-- Logging is `log/slog` with `tint`; `-v` → Info, `-d` → Debug. Stray `println` debugging calls exist in the
-  scheduler; don't add more.
+- Logging is `log/slog` (`internal/logging`: tint text or JSON on stderr; `-v` → Info, `-d` → Debug). Don't use
+  `println`. In `rt`, log with the tree's logger (`t.logger`, or `n.log()` that adds the `node` attribute): its
+  records at Info and above are kept in `Tree.EventLog()`, the GUI's Log tab (`nodeframelog.go`) shows them. Events
+  of the tree have an `event` attribute (constants in `eventlog.go`, documented in README.md "Logs"), and their
+  message must be complete for humans: the Log tab shows only the message. Never log terminal input or `envs`.
 - New YAML node properties need: an entry in `NodeProperties` (`properties.go`: name, value kind, inherited, default,
   description; the accepted property names and the JSON Schema come from it), then regenerate the schema with
   `go test ./internal/rt/ -run TestSchemaFileIsUpToDate -update-schema` (a test fails if it is stale), parsing in

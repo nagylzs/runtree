@@ -76,14 +76,14 @@ func (s *Server) startPty(ca CmdArgs) (PtyRunner, error) {
 	// Start the command
 	tty, err := pty.Start(cmd)
 	if err != nil {
-		s.logger.Error("Cannot start pty", "error", err.Error())
+		s.logger.Error("could not start the command", "args", ca.Args, "error", err)
 		if tty != nil {
 			buf := bytes.NewBuffer(nil)
 			_, err2 := io.Copy(buf, tty)
 			if err2 != nil {
-				s.logger.Error("Could not read tty", "error", err2.Error())
+				s.logger.Error("could not read the pty", "error", err2)
 			}
-			s.logger.Error("tty", "output", buf.String())
+			s.logger.Error("the output of the command", "output", buf.String())
 		}
 		s.logError(s.sendProcState(err))
 		return nil, err

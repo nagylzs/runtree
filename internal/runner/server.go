@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"sync"
@@ -57,7 +58,7 @@ type Server struct {
 // RunNewServer creates a new server for the given connection, and runs it until the client disconnects.
 // Should be called as a goroutine.
 func RunNewServer(ctx context.Context, conn io.ReadWriteCloser, logger *slog.Logger) error {
-	logger.Info("NEGOTIATE")
+	logger.Debug("negotiating the protocol version")
 	err := negotiateVersion(ctx, conn)
 	if err != nil {
 		return err
@@ -73,13 +74,7 @@ func RunNewServer(ctx context.Context, conn io.ReadWriteCloser, logger *slog.Log
 		stop:      &atomic.Bool{},
 		exited:    make(chan struct{}),
 	}
-	err = srv.Serve(ctx)
-	if err != nil {
-		logger.Error(err.Error())
-		return err
-	}
-
-	return nil
+	return srv.Serve(ctx)
 }
 
 func (s *Server) Serve(ctx context.Context) error {
@@ -100,22 +95,22 @@ func (s *Server) Serve(ctx context.Context) error {
 func (s *Server) ServePty(ctx context.Context) error {
 	var err error
 
-	s.logger.Info("MUX")
+	s.logger.Debug("starting the streams")
 	session, err := smux.Server(s.conn, nil)
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		err := session.Close()
-		if err != nil {
-			s.logger.Error(err.Error())
+		// usually the client has closed the connection already (broken pipe), and closing the session closes the
+		// connection too
+		if err := session.Close(); err != nil {
+			s.logger.Debug("closing the session", "error", err)
 		}
-		err = s.conn.Close()
-		if err != nil {
-			s.logger.Error(err.Error())
+		if err := s.conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			s.logger.Error("could not close the connection", "error", err)
 		}
-		defer s.logger.Info("DISCONNECT")
+		s.logger.Debug("disconnected")
 	}()
 
 	ptyStream, err := session.AcceptStream()
@@ -125,7 +120,6 @@ func (s *Server) ServePty(ctx context.Context) error {
 	cmdStream, err := session.AcceptStream()
 	if err != nil {
 		ptyStream.Close()
-		s.logger.Error(err.Error())
 		return err
 	}
 	s.ptyStream, s.cmdStream = ptyStream, cmdStream
@@ -136,7 +130,8 @@ func (s *Server) ServePty(ctx context.Context) error {
 		return err
 	}
 
-	s.logger.Debug("ServePty", "cmd", ca)
+	// not the environment, it may contain secrets
+	s.logger.Debug("starting", "args", ca.Args, "cwd", ca.Cwd)
 
 	if ca.InheritSysEnvs {
 		ca.Env = append(os.Environ(), ca.Env...)
@@ -154,7 +149,7 @@ func (s *Server) ServePty(ctx context.Context) error {
 		}
 	}()
 
-	s.logger.Info("started", "pid", ptyRunner.Pid())
+	s.logger.Info("started", "pid", ptyRunner.Pid(), "args", ca.Args)
 
 	s.stop.Store(false)
 	s.logError(s.sendProcState(err))
@@ -164,21 +159,26 @@ func (s *Server) ServePty(ctx context.Context) error {
 	go s.connectStreams(s.ptyRunner.StdIn(), s.ptyStream, "pty-send")
 	go s.recvCommands()
 
-	err = s.ptyRunner.Cmd().Wait()
+	waitErr := s.ptyRunner.Cmd().Wait()
 	close(s.exited)
-	s.logger.Warn("exited", "pid", s.ptyRunner.Pid(),
-		"exitcode", s.ptyRunner.Cmd().ProcessState.ExitCode(), "error", err)
-	s.logError(s.sendProcState(err))
+	s.logger.Info("exited", "pid", s.ptyRunner.Pid(),
+		"exit_code", s.ptyRunner.Cmd().ProcessState.ExitCode(), "error", waitErr)
+	s.logError(s.sendProcState(waitErr))
 
-	s.logger.Info("waiting for client to close connection...")
+	s.logger.Debug("waiting for the client to close the connection")
 	s.wg.Wait()
-	s.logger.Info("client closed")
+	s.logger.Debug("the client closed the connection")
 
-	s.logger.Debug("closing Serve()...")
-	s.logError(s.ptyStream.Close())
-	s.logError(s.cmdStream.Close())
+	// the client may have closed the connection already (broken pipe)
+	if err := s.ptyStream.Close(); err != nil {
+		s.logger.Debug("closing the pty stream", "error", err)
+	}
+	if err := s.cmdStream.Close(); err != nil {
+		s.logger.Debug("closing the command stream", "error", err)
+	}
 
-	return err
+	// the exit status of the command is not an error of the server, the client gets it
+	return nil
 }
 
 func (s *Server) logError(err error) {
@@ -289,7 +289,7 @@ func (s *Server) connectStreams(dst io.Writer, src io.Reader, channel string) {
 	// a full server stop. For this reason, we request a stop with nil error, and hope that the process will
 	// exit soon.
 	if err != nil {
-		s.logger.Warn("connectStreams", "error", err.Error())
+		s.logger.Debug("stream error", "channel", channel, "error", err)
 	}
 	s.requestStop(nil) // instead of s.requestStop(err)
 }
@@ -337,7 +337,7 @@ func (s *Server) recvResize(ctx context.Context) {
 		s.requestStop(fmt.Errorf("could not receive new pty size: %w", err))
 		return
 	}
-	slog.Info("resize", "size", ws)
+	s.logger.Debug("resize", "size", ws)
 	err = s.ptyRunner.Resize(ws)
 	if err != nil {
 		s.requestStop(fmt.Errorf("could not resize pty: %w", err))

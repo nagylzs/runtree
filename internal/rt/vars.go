@@ -78,11 +78,6 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 		iv[k] = v
 	}
 
-	// if c.Vars["host"] == "backup.hontalan.mess.hu" && n.Parsed.DefVars != nil {
-	//if n.Id == "n69" {
-	//	println(n.Id)
-	//}
-
 	var err error
 	c.Vars, err = calcVars(n.Parsed.Vars, n.Parsed.DefVars, iv, undefined("vars", "", -1),
 		undefined("def_vars", "", -1))
