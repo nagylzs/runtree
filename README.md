@@ -118,7 +118,7 @@ attribute (the id of the node) when they are about a node:
 | `signal`            | info / warn   | a signal is sent from the GUI (`signal`)                                     |
 | `on-error`          | info          | the `on_error` operation is performed on the siblings (`op`)                 |
 | `provided`          | info          | a node provides resources (`resources`)                                      |
-| `unprovided`        | info          | resources are not provided anymore, after a reset to waiting (`resources`)   |
+| `unprovided`        | info          | resources are not provided anymore, by a reset to waiting or a re-run        |
 | `locked`            | info          | a node acquires its `xlocks` and `rlocks`                                    |
 | `unlocked`          | info          | it releases them                                                             |
 | `runner-error`      | error         | a runner reports an error (`code`)                                           |
@@ -740,6 +740,13 @@ This creates a breakpoint in the tree. User interaction is required to "run and 
 The `run` operation is what the node should normally do when scheduled. The run operation may take a long time. Starting
 the run operation is also referred to as "starting the node". When the node is successfully started, then it goes into 
 `running` state.
+
+The user can run a node manually too, also a finished one again (`Re-run` in the GUI). A finished node does not
+provide its resources while it runs again, and neither do its successful parents (they become running): these
+resources are **unprovided** (unless other nodes provide them too), so the nodes that require them wait until the node
+finishes again. The GUI shows the same dialog as for [reset to waiting](#reset-to-waiting), where you can keep some
+of them provided. A re-run that cannot be started (e.g. the runner is not available) makes the node failed, and
+it unprovides the resources too.
 
 ### Reset to waiting
 

@@ -41,7 +41,7 @@ func TestSchedulerRecoversFromPanic(t *testing.T) {
 
 func TestProcStateChangedRecoversFromPanic(t *testing.T) {
 	tree, helper := brokenTree(t)
-	tree.NodeById["job"].procStateChanged(runner.ProcState{Exited: true}, &exitLog{}) // must not panic
+	tree.NodeById["job"].procStateChanged(runner.ProcState{Exited: true}) // must not panic
 	checkRecovered(t, helper, "process state change of job")
 	checkUnlocked(t, tree)
 }

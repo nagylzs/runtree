@@ -22,10 +22,9 @@ func (n *Node) Start(locked bool) error {
 
 	defer n.updateStatusesUp(true)
 
-	// Once we start a node that was manually waiting, we do not want it to have manual status anymore
-	if n.WantManualStatus && n.ManualStatus == StatusWaiting {
-		n.WantManualStatus = false
-	}
+	// The status of a started node comes from its process (or its start error), not from a previous manual status
+	// (e.g. manually waiting, or success when it is run again).
+	n.WantManualStatus = false
 
 	n.calcClientArgs()
 	logger := n.log()
@@ -39,8 +38,7 @@ func (n *Node) Start(locked bool) error {
 		n.updateStatusesUp(true)
 		return fmt.Errorf("failed to start: %w", err)
 	}
-	exit := &exitLog{}
-	err = c.StartPty(ctx, *n.ClientArgs, func(state runner.ProcState) { n.procStateChanged(state, exit) })
+	err = c.StartPty(ctx, *n.ClientArgs, n.procStateChanged)
 	if err != nil {
 		n.startFailed(err.Error())
 		return fmt.Errorf("failed to start: %w", err)
@@ -71,19 +69,10 @@ func (n *Node) startFailed(msg string) {
 	n.log().Error("failed to start: "+msg, attrEvent, EventStartFailed, "error", msg)
 }
 
-// exitLog tells if the exit of a started process is logged already (the client may report it more than once)
-type exitLog struct {
-	logged bool
-}
-
-func (n *Node) procStateChanged(state runner.ProcState, exit *exitLog) {
+func (n *Node) procStateChanged(state runner.ProcState) {
 	defer n.Tree.recoverPanic("process state change of " + n.Id)
 	n.LockTree("Node.procStateChanged")
 	defer n.UnLockTree()
-	if !state.Alive() && !exit.logged {
-		exit.logged = true
-		n.logExit(state)
-	}
 	// process exited, node's old state is alive -> will decrease the number of processes
 	if !state.Alive() && StatusActive(n.Status) {
 		n.DecProc(true)
@@ -133,7 +122,8 @@ func (n *Node) DecProc(locked bool) {
 	}
 }
 
-// logExit logs the exit of the process of the node, before its status is updated
+// logExit logs the exit of the process of the node. It is called by updateStatus when a running node stops running,
+// before the status change is logged. (The process state may be seen by the scheduler before procStateChanged.)
 func (n *Node) logExit(state runner.ProcState) {
 	msg := "exited"
 	if state.Exited && state.ExitCode >= 0 {
@@ -142,7 +132,7 @@ func (n *Node) logExit(state runner.ProcState) {
 		msg = "exited: " + state.Error // killed by a signal, or the connection to the runner is lost
 	}
 	var elapsed time.Duration
-	if StatusActive(n.Status) && !n.Started.IsZero() {
+	if !n.Started.IsZero() {
 		elapsed = time.Since(n.Started)
 		msg += " after " + formatDuration(elapsed)
 	}

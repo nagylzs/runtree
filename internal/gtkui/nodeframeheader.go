@@ -258,12 +258,10 @@ func (w *NodeFrameHeader) onOp(op rt.NodeOp, recursive bool) {
 		return
 	}
 
-	// When the reset would unprovide resources, then the user can select them first.
-	if op == rt.OpResetToWaiting {
-		if info := planReset(node, recursive); info != nil {
-			showResetDialog(node, recursive, info)
-			return
-		}
+	// When the operation (reset to waiting, run) would unprovide resources, then the user can select them first.
+	if info := planUnprovide(node, op, recursive); info != nil {
+		showUnprovideDialog(node, op, recursive, info)
+		return
 	}
 	performOp(node, op, recursive, nil)
 }

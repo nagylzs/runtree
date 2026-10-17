@@ -1,8 +1,11 @@
 package rt
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,4 +116,67 @@ func checkUnlocked(t *testing.T, tree *Tree) {
 // sprintf is fmt.Sprintf, for YAML templates
 func sprintf(format string, args ...any) string {
 	return fmt.Sprintf(format, args...)
+}
+
+// startTestRunner starts a runner on a free local port for the test, and returns its address. It runs the commands
+// in ptys, like rtrunner.
+func startTestRunner(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			go func() { _ = runner.RunNewServer(context.Background(), conn, slog.New(slog.DiscardHandler)) }()
+		}
+	}()
+	return l.Addr().String()
+}
+
+// ptyTerminalHelper connects to the pty of the started nodes like the GUI does (and drops their output), so that the
+// runner client does not wait for a terminal.
+type ptyTerminalHelper struct {
+	fakeTerminalHelper
+}
+
+func (h *ptyTerminalHelper) AfterPtyStarted(n *Node) {
+	conn, err := net.Dial("unix", n.Client.PtyPath)
+	if err != nil {
+		return // the node does not finish, the test fails
+	}
+	go func() {
+		_, _ = io.Copy(io.Discard, conn)
+		_ = conn.Close()
+	}()
+}
+
+// killNode kills the process of a started node, and waits until it exits (it would outlive the test, because it runs
+// in its own session).
+func killNode(t *testing.T, n *Node) {
+	t.Helper()
+	n.LockTree("killNode")
+	c := n.Client
+	_, err := n.SendSignal(true, "SIGKILL")
+	n.UnLockTree()
+	if c == nil {
+		return
+	}
+	if err != nil {
+		t.Errorf("could not kill %s: %v", n.Id, err)
+	}
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		if ps := c.LastState(); !ps.Alive() {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Errorf("%s did not exit", n.Id)
+			return
+		}
+	}
 }

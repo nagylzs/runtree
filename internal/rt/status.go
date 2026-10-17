@@ -70,6 +70,11 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 	statusChanged = prevStatus != s
 	n.Status = s
 	if statusChanged {
+		// the exit of the process, unless it could not be started (that is logged already)
+		if n.Type == TypeRun && StatusActive(prevStatus) && !StatusActive(s) && n.Client != nil &&
+			n.StartError == "" {
+			n.logExit(n.Client.LastState())
+		}
 		n.log().Log(context.Background(), statusLevel(s), StatusName(prevStatus)+" → "+StatusName(s),
 			attrEvent, EventStatus, "from", StatusName(prevStatus), "to", StatusName(s))
 	}

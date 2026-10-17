@@ -36,7 +36,8 @@ Running locally requires a runner listening first; the default runner address is
 
 `test/*.rt.yaml` are hand-run example trees, not automated tests. Unit tests are `internal/rt/*_test.go`; shared helpers
 are in `internal/rt/helpers_test.go` (`loadTestTree` builds a tree from YAML with the scheduler disabled, `setStatus`
-sets a node status). Run them with `go test ./...`. CI (`.github/workflows/build.yml`) runs the tests and then
+sets a node status; `startTestRunner` runs an in-process runner on a free port and `ptyTerminalHelper` attaches to the
+ptys, for tests that start real processes; `killNode` stops them). Run them with `go test ./...`. CI (`.github/workflows/build.yml`) runs the tests and then
 `scripts/build.py` on `main`. Coverage is still small: add tests for new and changed code.
 
 Dark GTK theme is the design target: `GTK_THEME=Adwaita:dark`.

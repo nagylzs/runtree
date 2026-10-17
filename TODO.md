@@ -17,9 +17,6 @@
   the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
   runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol
   change (bump `runner.Version`), a session registry on the runner, and restoring node statuses in the GUI.
-* Re-run (manual `run` on a finished node) has the same problem as reset to waiting had: the resources provided by
-  the node stay provided while it runs again, so the nodes that require them may start before it finishes. Offer the
-  same unprovide dialog as for reset to waiting.
 * macOS support (checked on 2026-10-17, not tested on a Mac yet):
   * rtrunner: it cross-compiles for darwin/arm64 and darwin/amd64 (`internal/signal/signals_unix.go` is used on
     macOS too). Test it on a Mac (ptys, process groups, signals).
@@ -127,9 +124,9 @@ Ordered by impact:
 * TUI frontend (non-GTK), so runtree works headless, over SSH, and on macOS/Windows.
   GTK4+VTE+cgo is the biggest install/build barrier.
 * Headless mode: exit with root node's status (already listed above), so it can double as a CI step.
-* Better test coverage. There is a test suite (`go test ./...`, run by CI) but it only covers reset to waiting /
-  unprovide and some calculated properties. Add tests at least for the parser, vars substitution, the scheduler,
-  lock/deps semantics and status calculation.
+* Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
+  substitution, the operations, reset / re-run and unprovide, the events, and starting processes on an in-process
+  runner. Still thin: the scheduler loop (`findRunnable`, `max_proc`), lock/deps semantics, and the runner package.
 * Reduce DSL friction: avoid duplicating inventory via per-node `runner`; make it easy for
   a leaf node to call an existing Ansible playbook / script.
 * Pitch: "`make -j` for ops, where every job is a terminal you can step into".

@@ -5,17 +5,55 @@ import (
 	"strings"
 )
 
-// ProvidedResource is a provided resource that would be unprovided by a reset to waiting operation
+// ProvidedResource is a provided resource that would be unprovided by an operation (reset to waiting, run)
 type ProvidedResource struct {
 	Name       string
 	ProvidedBy []*Node // the nodes that provide it now, they will not provide it after the reset
 	RequiredBy []*Node // the nodes that require it
 }
 
-// ResetPlan tells what a reset to waiting operation would do, see Node.PlanResetToWaiting
-type ResetPlan struct {
-	Unprovide []ProvidedResource // resources that would not be provided anymore after the reset, sorted by name
-	Running   []*Node            // running nodes in the subtree, they would not be reset
+// UnprovidePlan tells which provided resources an operation would unprovide, see Node.PlanOp
+type UnprovidePlan struct {
+	Unprovide []ProvidedResource // resources that would not be provided anymore after the operation, sorted by name
+	Running   []*Node            // reset to waiting: the running nodes in the subtree, they would not be reset
+}
+
+// unprovides tells if PerformOp unprovides the resources that are lost by the operation
+func unprovides(op NodeOp) bool {
+	return op == OpResetToWaiting || op == OpRun
+}
+
+// PlanOp tells which provided resources an operation would unprovide, before it is performed. Only reset to waiting
+// (PlanResetToWaiting) and run (PlanRun) unprovide resources, the plan of the other operations is empty.
+func (n *Node) PlanOp(op NodeOp, locked bool, recursive bool) UnprovidePlan {
+	switch op {
+	case OpResetToWaiting:
+		return n.PlanResetToWaiting(locked, recursive)
+	case OpRun:
+		return n.PlanRun(locked)
+	}
+	return UnprovidePlan{}
+}
+
+// PlanRun tells which provided resources a run operation would unprovide: a finished node does not provide its
+// resources while it runs again, and neither do its successful parents (they become running).
+func (n *Node) PlanRun(locked bool) UnprovidePlan {
+	if !locked {
+		panic("must be called in locked state")
+	}
+	if _, allowed := n.AllowedManualOps(true, false)[OpRun]; !allowed {
+		return UnprovidePlan{}
+	}
+	lost := make(map[*Node]bool)
+	if providerStatus(n.Status) {
+		lost[n] = true
+	}
+	for p := n.Parent; p != nil; p = p.Parent {
+		if p.Status == StatusSuccess {
+			lost[p] = true
+		}
+	}
+	return UnprovidePlan{Unprovide: n.Tree.lostResources(lost)}
 }
 
 // providerStatus tells if a node in this status has provided its resources (see Node.updateStatus)
@@ -30,11 +68,11 @@ func providerStatus(st Status) bool {
 // some of their sub-nodes are reset. The plan is only used for displaying: PerformOp decides what to unprovide by
 // comparing the statuses before and after the reset, so the result may differ in rare cases (e.g. when a skipped
 // seq/par node is reset, and it becomes successful again right away).
-func (n *Node) PlanResetToWaiting(locked bool, recursive bool) ResetPlan {
+func (n *Node) PlanResetToWaiting(locked bool, recursive bool) UnprovidePlan {
 	if !locked {
 		panic("must be called in locked state")
 	}
-	var plan ResetPlan
+	var plan UnprovidePlan
 	lost := make(map[*Node]bool) // provider nodes that will not be providers after the reset
 
 	// walk visits the nodes the same way as performOp does, and returns true if something is reset in the subtree
@@ -72,11 +110,18 @@ func (n *Node) PlanResetToWaiting(locked bool, recursive bool) ResetPlan {
 			lost[p] = true
 		}
 	}
+	plan.Unprovide = n.Tree.lostResources(lost)
+	return plan
+}
 
-	for _, name := range n.Tree.provided.List() {
+// lostResources returns the provided resources that would not be provided anymore when the lost nodes are not
+// providers anymore (the resources that are provided by other nodes too stay), sorted by name
+func (t *Tree) lostResources(lost map[*Node]bool) []ProvidedResource {
+	var result []ProvidedResource
+	for _, name := range t.provided.List() {
 		var providedBy, requiredBy []*Node
 		stays := false
-		for _, node := range n.Tree.Nodes {
+		for _, node := range t.Nodes {
 			if node.Calculated.Requires.Contains(name) {
 				requiredBy = append(requiredBy, node)
 			}
@@ -90,17 +135,17 @@ func (n *Node) PlanResetToWaiting(locked bool, recursive bool) ResetPlan {
 			}
 		}
 		if len(providedBy) > 0 && !stays {
-			plan.Unprovide = append(plan.Unprovide, ProvidedResource{
+			result = append(result, ProvidedResource{
 				Name:       name,
 				ProvidedBy: providedBy,
 				RequiredBy: requiredBy,
 			})
 		}
 	}
-	slices.SortFunc(plan.Unprovide, func(a, b ProvidedResource) int {
+	slices.SortFunc(result, func(a, b ProvidedResource) int {
 		return strings.Compare(a.Name, b.Name)
 	})
-	return plan
+	return result
 }
 
 // providerNodes returns the nodes that have provided their resources

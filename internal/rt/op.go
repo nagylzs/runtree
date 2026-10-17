@@ -73,15 +73,16 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 
 // OpArgs holds the optional arguments of an operation. A nil *OpArgs means the default arguments.
 type OpArgs struct {
-	// Unprovide is used by OpResetToWaiting: the names of the provided resources that may be unprovided.
-	// nil means all of them. See Node.PlanResetToWaiting.
+	// Unprovide is used by OpResetToWaiting and OpRun: the names of the provided resources that may be unprovided.
+	// nil means all of them. See Node.PlanOp.
 	Unprovide []string
 }
 
 // PerformOp should only be called manually, the scheduler uses its own ways. args can be nil.
 //
-// OpResetToWaiting also unprovides the resources that were provided by the nodes that are reset (or become
-// unfinished), unless they are still provided by other nodes. args.Unprovide can limit the unprovided resources.
+// OpResetToWaiting and OpRun also unprovide the resources that were provided by the nodes that are reset or run again
+// (or become unfinished), unless they are still provided by other nodes. args.Unprovide can limit the unprovided
+// resources.
 func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, args *OpArgs) (bool, error) {
 	if !locked {
 		panic("must be called in locked state")
@@ -99,18 +100,12 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, ar
 		p.WantManualStatus = false
 	}
 	var before map[*Node]bool
-	if op == OpResetToWaiting {
+	if unprovides(op) {
 		before = n.Tree.providerNodes()
 	}
 	changed, err := n.performOp(op, locked, recursive, manual)
-	if err != nil {
-		if manual {
-			n.log().Warn(fmt.Sprintf("operation %s failed: %s", opLabel(op, recursive), err), attrEvent,
-				EventOperation, "op", OpName(op), "recursive", recursive, "error", err)
-		}
-		return changed, err
-	}
-	if op == OpResetToWaiting {
+	// also when the operation failed: a finished node that could not be started again is failed
+	if unprovides(op) {
 		var names []string = nil
 		if args != nil {
 			names = args.Unprovide
@@ -119,6 +114,13 @@ func (n *Node) PerformOp(op NodeOp, locked bool, recursive bool, manual bool, ar
 			n.log().Info("unprovided "+strings.Join(removed, ", "), attrEvent, EventUnprovided,
 				"resources", removed)
 		}
+	}
+	if err != nil {
+		if manual {
+			n.log().Warn(fmt.Sprintf("operation %s failed: %s", opLabel(op, recursive), err), attrEvent,
+				EventOperation, "op", OpName(op), "recursive", recursive, "error", err)
+		}
+		return changed, err
 	}
 	n.updateStatusesUp(true)
 	return changed, nil

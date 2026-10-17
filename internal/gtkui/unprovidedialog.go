@@ -8,37 +8,55 @@ import (
 	"github.com/nagylzs/runtree/internal/rt"
 )
 
-// resetInfo is the displayed part of a reset plan (rt.ResetPlan). It is collected while the tree is locked.
-type resetInfo struct {
-	resources []resetResource
-	running   []string // labels of the running nodes, they will not be reset
+// unprovideInfo is the displayed part of the plan of an operation that unprovides resources (rt.UnprovidePlan). It is
+// collected while the tree is locked.
+type unprovideInfo struct {
+	title     string // of the dialog
+	question  string
+	button    string // the label of the button that performs the operation
+	resources []unprovideResource
+	running   []string // reset to waiting: labels of the running nodes, they will not be reset
 }
 
-type resetResource struct {
+type unprovideResource struct {
 	name    string
 	details string // provided by, required by
 }
 
-// planReset returns the information for the reset dialog, or nil when the dialog is not needed (nothing would be
-// unprovided, or the operation is not allowed).
-func planReset(node *rt.Node, recursive bool) *resetInfo {
-	node.RLockTree("planReset")
+// planUnprovide returns the information for the unprovide dialog, or nil when the dialog is not needed (the operation
+// would not unprovide anything, or it is not allowed).
+func planUnprovide(node *rt.Node, op rt.NodeOp, recursive bool) *unprovideInfo {
+	node.RLockTree("planUnprovide")
 	defer node.RUnlockTree()
 
-	if _, allowed := node.AllowedManualOps(true, recursive)[rt.OpResetToWaiting]; !allowed {
+	if _, allowed := node.AllowedManualOps(true, recursive)[op]; !allowed {
 		return nil
 	}
-	plan := node.PlanResetToWaiting(true, recursive)
+	plan := node.PlanOp(op, true, recursive)
 	if len(plan.Unprovide) == 0 {
 		return nil
 	}
-	info := &resetInfo{}
+	info := &unprovideInfo{}
+	const waitText = "Nodes that require an unprovided resource will wait until it is provided again."
+	switch op {
+	case rt.OpRun:
+		info.title, info.button = "Run", "Run"
+		if rt.StatusFinished(node.Status) {
+			info.title, info.button = "Re-run", "Re-run"
+		}
+		info.question = fmt.Sprintf("%d resource(s) provided by this node or its parents will not be provided "+
+			"while it runs. "+waitText, len(plan.Unprovide))
+	default:
+		info.title, info.button = "Reset to waiting", "Reset"
+		info.question = fmt.Sprintf("The nodes that will be reset have provided %d resource(s). "+waitText,
+			len(plan.Unprovide))
+	}
 	for _, r := range plan.Unprovide {
 		details := "provided by " + nodeLabels(r.ProvidedBy)
 		if len(r.RequiredBy) > 0 {
 			details += ", required by " + nodeLabels(r.RequiredBy)
 		}
-		info.resources = append(info.resources, resetResource{name: r.Name, details: details})
+		info.resources = append(info.resources, unprovideResource{name: r.Name, details: details})
 	}
 	for _, n := range plan.Running {
 		info.running = append(info.running, nodeLabel(n))
@@ -70,14 +88,13 @@ func nodeLabels(nodes []*rt.Node) string {
 	return strings.Join(labels, ", ")
 }
 
-// showResetDialog asks which provided resources should be unprovided, and performs the reset to waiting operation
-// on the node when confirmed. It must be called from the main gtk loop.
-func showResetDialog(node *rt.Node, recursive bool, info *resetInfo) {
-	dialog := newDialogWindow("Reset to waiting")
+// showUnprovideDialog asks which provided resources should be unprovided, and performs the operation (reset to
+// waiting, run) on the node when confirmed. It must be called from the main gtk loop.
+func showUnprovideDialog(node *rt.Node, op rt.NodeOp, recursive bool, info *unprovideInfo) {
+	dialog := newDialogWindow(info.title)
 	dialog.SetResizable(true)
 
-	question := newWrappedLabel(fmt.Sprintf("The nodes that will be reset have provided %d resource(s). "+
-		"Nodes that require an unprovided resource will wait until it is provided again.", len(info.resources)))
+	question := newWrappedLabel(info.question)
 
 	rbAll := gtk.NewCheckButtonWithLabel("Unprovide all provided resources")
 	rbSelect := gtk.NewCheckButtonWithLabel("Select resources to unprovide")
@@ -108,8 +125,8 @@ func showResetDialog(node *rt.Node, recursive bool, info *resetInfo) {
 	scroll.SetChild(list)
 
 	btnCancel := gtk.NewButtonWithLabel("Cancel")
-	btnReset := gtk.NewButtonWithLabel("Reset")
-	btnReset.AddCSSClass("suggested-action")
+	btnPerform := gtk.NewButtonWithLabel(info.button)
+	btnPerform.AddCSSClass("suggested-action")
 
 	box := newDialogBox()
 	box.Append(question)
@@ -120,13 +137,13 @@ func showResetDialog(node *rt.Node, recursive bool, info *resetInfo) {
 		box.Append(newWrappedLabel("These nodes are running, they will not be reset: " +
 			strings.Join(info.running, ", ")))
 	}
-	box.Append(newDialogButtons(btnCancel, btnReset))
+	box.Append(newDialogButtons(btnCancel, btnPerform))
 	dialog.SetChild(box)
 
 	btnCancel.ConnectClicked(func() {
 		dialog.Close()
 	})
-	btnReset.ConnectClicked(func() {
+	btnPerform.ConnectClicked(func() {
 		var args *rt.OpArgs // nil: unprovide all
 		if rbSelect.Active() {
 			names := make([]string, 0, len(checks))
@@ -139,10 +156,10 @@ func showResetDialog(node *rt.Node, recursive bool, info *resetInfo) {
 		}
 		dialog.Close()
 		// The tree may have changed since the dialog was opened, PerformOp checks everything again.
-		performOp(node, rt.OpResetToWaiting, recursive, args)
+		performOp(node, op, recursive, args)
 	})
 
-	// Cancel is the default, so that an accidental Enter does not reset anything.
+	// Cancel is the default, so that an accidental Enter does not do anything.
 	dialog.SetDefaultWidget(btnCancel)
 	dialog.Present()
 	btnCancel.GrabFocus()

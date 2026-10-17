@@ -263,7 +263,7 @@ func TestStartFailedEvents(t *testing.T) {
 	}
 }
 
-func TestExitEvents(t *testing.T) {
+func TestExitMessages(t *testing.T) {
 	for _, tc := range []struct {
 		state runner.ProcState
 		want  string
@@ -274,27 +274,78 @@ func TestExitEvents(t *testing.T) {
 	} {
 		tree := loadTestTree(t, eventTree)
 		a := tree.NodeById["a"]
-		a.Status, a.Started = StatusRunning, time.Now().Add(-2*time.Second)
-		exit := &exitLog{}
-		a.procStateChanged(runner.ProcState{Pid: 10}, exit) // running
-		a.Status = StatusRunning
-		a.procStateChanged(tc.state, exit)
-		a.procStateChanged(tc.state, exit) // the client may report it again
-		var exited []LogEntry
-		for _, e := range tree.EventLog().Since(0) {
-			if e.Event == EventExited {
-				exited = append(exited, e)
-			}
+		a.Started = time.Now().Add(-2 * time.Second)
+		a.logExit(tc.state)
+		entries := tree.EventLog().Since(0)
+		if len(entries) != 1 || entries[0].Event != EventExited {
+			t.Fatalf("%+v: the events are %v", tc.state, eventTexts(tree, 0))
 		}
-		if len(exited) != 1 {
-			t.Errorf("%+v: %d exit events, want 1", tc.state, len(exited))
-			continue
-		}
-		if got := exited[0].Level.String() + " " + exited[0].Message; !strings.HasPrefix(got, tc.want) {
+		if got := entries[0].Level.String() + " " + entries[0].Message; !strings.HasPrefix(got, tc.want) {
 			t.Errorf("%+v: the event is %q, want %q...", tc.state, got, tc.want)
 		}
-		if pid, _ := attrValue(exited[0], "pid"); pid != "10" {
+		if pid, _ := attrValue(entries[0], "pid"); pid != "10" {
 			t.Errorf("the pid is %q", pid)
+		}
+	}
+}
+
+const exitTree = `
+tree:
+  id: root
+  par:
+    - id: ok
+      args: ["true"]
+    - id: fails
+      args: [sh, -c, "sleep 0.2; exit 3"]
+`
+
+// TestExitEvents runs processes: the exit is logged once, before the status change (also when the scheduler sees the
+// exit first)
+func TestExitEvents(t *testing.T) {
+	tree := loadTestTree(t, exitTree)
+	tree.SetTerminalHelper(&ptyTerminalHelper{})
+	addr := startTestRunner(t)
+	tree.Lock("TestExitEvents")
+	for _, id := range []string{"ok", "fails"} {
+		n := tree.NodeById[id]
+		n.Calculated.Runner = addr
+		if err := n.Start(true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tree.UnLock()
+	// the scheduler updates the statuses periodically
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		tree.Lock("TestExitEvents")
+		tree.Root.updateStatusesDown(true)
+		done := StatusFinished(tree.Root.Status)
+		tree.UnLock()
+		if done {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the nodes did not finish, the events are\n%s", strings.Join(eventTexts(tree, 0), "\n"))
+		}
+	}
+	tree.RLock("TestExitEvents")
+	events := eventTexts(tree, 0)
+	tree.RUnlock()
+	for _, want := range [][]string{
+		{"ok exited INFO exited with code 0 after ", "ok status INFO Running → Success"},
+		{"fails exited WARN exited with code 3 after ", "fails status WARN Running → Failed"},
+	} {
+		i := slices.IndexFunc(events, func(e string) bool { return strings.HasPrefix(e, want[0]) })
+		if i < 0 || i+1 >= len(events) || events[i+1] != want[1] {
+			t.Errorf("%q is not followed by %q in the events\n%s", want[0], want[1], strings.Join(events, "\n"))
+		}
+		count := 0
+		for _, e := range events {
+			if strings.HasPrefix(e, strings.Fields(want[0])[0]+" exited ") {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Errorf("%d exit events of %s", count, strings.Fields(want[0])[0])
 		}
 	}
 }
