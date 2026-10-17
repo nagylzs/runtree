@@ -24,7 +24,8 @@ type Node struct {
 	MaxProc            int
 	NProc              int
 	OnError            OnError
-	SuccessExitCodes   []int // exit codes that mean success, inherited from the parent, the default is [0]
+	ChildrenOnError    OnError // inherited by the sub-nodes that do not specify on_error
+	SuccessExitCodes   []int   // exit codes that mean success, inherited from the parent, the default is [0]
 	Expanded           bool
 	ExpandOnActive     bool
 	CollapseOnFinished bool
@@ -122,6 +123,7 @@ func New(defType Type, parent *Node, tree *Tree) *Node {
 		CollapseOnFinished: true,
 		MaxProc:            -1,
 		OnError:            DefaultOnError,
+		ChildrenOnError:    DefaultOnError,
 
 		MissingRequired: set.NewSet[string](),
 		CannotRAcquire:  set.NewSet[string](),
@@ -233,6 +235,7 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.SuccessExitCodes = n2.SuccessExitCodes
 	n.NProc = n2.NProc
 	n.OnError = n2.OnError
+	n.ChildrenOnError = n2.ChildrenOnError
 	n.Expanded = n2.Expanded
 	n.ExpandOnActive = n2.ExpandOnActive
 	n.CollapseOnFinished = n2.CollapseOnFinished

@@ -191,11 +191,24 @@ Every node can have the following general read-write properties. They can be spe
   from the parent node, or `127.0.0.1:5000` (for the root node).
 - `on_error` - this determines what to do when the underlying process or a subnode fails. It is a string, or a list of
    two strings, containing the following values:
-      - `failed`, `paused`, `success`: what should be the status of the node. When not specified, then `failed` is the
-        default. 
-      -  `none`,`cancel`, `freeze`: what operation should perform on the not-yet-started siblings. When not specified,
-        then it defaults to `none` (which means do nothing with the siblings)
-   You can only specify one status and one operation at most.
+      - `failed`, `paused`, `success`: what should be the status of the node. The default is `failed`.
+      - `none`, `skip`, `freeze`: what operation should be performed on the not-yet-started siblings. The default is
+        `none` (which means do nothing with the siblings)
+   You can only specify one status and one operation at most. When `on_error` is not specified, then it is inherited
+   from the parent node: from its `children_on_error` property if it has one, otherwise from its `on_error`. The root
+   node defaults to `failed` and `none`.
+- `children_on_error` - the `on_error` value that is inherited by the sub-nodes (that do not specify `on_error`), with
+   the same syntax as `on_error`. When not specified, the sub-nodes inherit the `on_error` of the node. It is useful
+   when the node itself should behave differently from its sub-nodes. For example, a seq node that pauses when one of
+   its steps fails, while the steps (and everything below them) simply fail:
+
+  ```yaml
+  - type: seq
+    title: "Upgrade OS"
+    on_error: paused
+    children_on_error: failed
+    nodes: [ ... ]
+  ```
 - `ifeq` - conditionally includes or excludes the node from the tree. The node will only be included in the tree if
   all given variables have the given values
 - `ifneq` - similar to `ifeq` but it works in reverse: it includes the node if all given variables are different from
@@ -741,7 +754,7 @@ start new sub-nodes (waited for).
 
 - `type` - must be `seq` or `par`
 - `nodes` - the value of this property must be a list of nodes.
-- `on_error` - Can be `failed`, `success`, `pause`. When not specified, it defaults to `failed`.
+- `on_error`, `children_on_error` - see [General node properties](#general-node-properties).
 - `for` - create a simple for loop to go over a set of properties. See details below.
 
 TODO: default value of `on_error` should be determined by a command line switch! E.g., in interactive mode it should

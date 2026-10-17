@@ -62,6 +62,9 @@ func (p *NodeFrameProperites) buildGui() {
 	p.addStringProp("SuccessExitCodes", "SuccessExitCodes",
 		"Exit codes that mean success, only displayed when it is not the default (0)", 0, 12)
 	p.nextRow()
+	p.addStringProp("ChildrenOnError", "ChildrenOnError",
+		"The on_error value inherited by the sub-nodes, only displayed when it is different from on_error", 0, 12)
+	p.nextRow()
 
 }
 
@@ -154,6 +157,14 @@ func (p *NodeFrameProperites) updateGUI() {
 		successCodes = strings.Join(codes, ", ")
 	}
 	setStringProp("SuccessExitCodes", successCodes)
+	childrenOnError := ""
+	if node.ChildrenOnError != node.OnError {
+		childrenOnError = rt.StatusName(node.ChildrenOnError.Status)
+		if node.ChildrenOnError.Siblings != rt.OpNone {
+			childrenOnError += ", siblings: " + rt.OpName(node.ChildrenOnError.Siblings)
+		}
+	}
+	setStringProp("ChildrenOnError", childrenOnError)
 
 	// We only display rows that are needed, but if a row is needed then all of its props are displayed.
 	cnt := 0

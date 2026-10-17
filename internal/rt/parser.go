@@ -18,7 +18,7 @@ var ValidNodeConfigs = set.FromArray([]string{
 	"args", "args_prefix",
 	"cwd", "runner", "vars", "def_vars", "builtin_vars", "inherit_vars", "system_envs", "inherit_envs",
 	"provides", "requires",
-	"on_error", "max_proc", "success_exit_codes", "envs", "type", "rlocks", "xlocks", "nodes",
+	"on_error", "children_on_error", "max_proc", "success_exit_codes", "envs", "type", "rlocks", "xlocks", "nodes",
 	"par", "seq", "run", "include", "status",
 	"ifeq", "ifneq",
 	"for_vars",
@@ -264,6 +264,10 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	if err != nil {
 		return n, err
 	}
+	n.ChildrenOnError, err = loadChildrenOnError(n, raw)
+	if err != nil {
+		return n, err
+	}
 
 	n.Expanded, err = getBoolDef(raw, "expanded", false)
 	if err != nil {
@@ -467,11 +471,36 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 	return hasForVars, forVarsFinal, nil
 }
 
+// loadOnError returns the on_error property of the node. When it is not specified, then it is inherited from the
+// parent (its children_on_error, or its on_error), the default is DefaultOnError.
 func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
+	oe, specified, err := parseOnError(raw, "on_error")
+	if err != nil || specified {
+		return oe, err
+	}
+	if n.Parent == nil {
+		return DefaultOnError, nil
+	}
+	return n.Parent.ChildrenOnError, nil
+}
+
+// loadChildrenOnError returns the on_error value that the sub-nodes of the node inherit: its children_on_error
+// property, or its on_error when children_on_error is not specified. It must be called after loadOnError.
+func loadChildrenOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
+	oe, specified, err := parseOnError(raw, "children_on_error")
+	if err != nil || specified {
+		return oe, err
+	}
+	return n.OnError, nil
+}
+
+// parseOnError parses an on_error value (a string or a list of strings: a status and/or a sibling operation),
+// it also tells if it was specified.
+func parseOnError(raw map[interface{}]interface{}, key string) (OnError, bool, error) {
 	var err error
 	var one []string = nil
 	// read it as a string
-	v, ok := raw["on_error"]
+	v, ok := raw[key]
 	if ok {
 		v2, ok := v.(string)
 		if ok {
@@ -480,21 +509,13 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 	}
 	// read it as an array
 	if one == nil {
-		one, err = getStringArrayDef(raw, "on_error", nil)
+		one, err = getStringArrayDef(raw, key, nil)
 	}
-	// Is it specified?
-	if err == nil && one == nil {
-		// OnError was not specified
-		if n.Parent == nil {
-			// no parent -> return default
-			return DefaultOnError, nil
-		}
-		// inherit from parent
-		return n.Parent.OnError, nil
-	}
-
 	if err != nil {
-		return DefaultOnError, err
+		return DefaultOnError, true, err
+	}
+	if one == nil {
+		return DefaultOnError, false, nil
 	}
 	failed, paused, success, none, skip, freeze := false, false, false, false, false, false
 	stc, sbc := 0, 0
@@ -520,14 +541,14 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 			freeze = true
 			sbc++
 		default:
-			return DefaultOnError, fmt.Errorf("invalid value for on_error: %s", v)
+			return DefaultOnError, true, fmt.Errorf("invalid value for %s: %s", key, v)
 		}
 	}
 	if stc > 1 {
-		return DefaultOnError, fmt.Errorf("invalid value for on_error, cannot specify multiple statuses")
+		return DefaultOnError, true, fmt.Errorf("invalid value for %s, cannot specify multiple statuses", key)
 	}
 	if sbc > 1 {
-		return DefaultOnError, fmt.Errorf("invalid value for on_error, cannot specify multiple operations")
+		return DefaultOnError, true, fmt.Errorf("invalid value for %s, cannot specify multiple operations", key)
 	}
 	res := DefaultOnError
 	if stc > 0 {
@@ -552,7 +573,7 @@ func loadOnError(n *Node, raw map[interface{}]interface{}) (OnError, error) {
 			res.Siblings = OpFreeze
 		}
 	}
-	return res, nil
+	return res, true, nil
 }
 
 // loadSubNodes loads sub-nodes when specified via "nodes" property
