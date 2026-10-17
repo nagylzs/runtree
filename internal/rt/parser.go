@@ -387,8 +387,6 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		}
 	}
 
-	// TODO: run node self-check, raise error if there is a conflict/error in the settings
-	// TODO: raise error if there is an unexpected setting in the YAML
 	err = n.SelfCheck()
 	if err != nil {
 		return n, err
@@ -548,7 +546,6 @@ func loadSubNodes(parent *Node, rl interface{}, tree *Tree,
 	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{}) error {
 	l, ok := rl.([]interface{})
 	if !ok {
-		// TODO: allow use "seq", "par", "run" instead of "nodes"
 		return fmt.Errorf("invalid node type: %T", l)
 	}
 	for _, rsub := range l {

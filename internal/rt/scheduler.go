@@ -157,7 +157,6 @@ func (t *Tree) findRunnablePar(n *Node) *Node {
 // findRunnableRun returns the node if it can be started by the scheduler
 func (t *Tree) findRunnableRun(n *Node) *Node {
 	if n.Status == StatusWaiting {
-		// TODO: check requires, rlocks and xlocks and max_proc here!
 		//println("findRunnableRun", n.Id, "->", n.Id)
 		return n
 	}

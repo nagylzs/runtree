@@ -1,7 +1,3 @@
-
-op.go PerformOp
-run.go start
-
 * implement "if" node type
 * implement NavBlocked navmode
 * document "include" property, explain include/reduce
@@ -22,6 +18,26 @@ run.go start
   the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
   runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol
   change (bump `runner.Version`), a session registry on the runner, and restoring node statuses in the GUI.
+* confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
+  already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
+  by runtree (read the primary selection, confirm, then paste it with `PasteText`).
+
+# From TODO comments in the source (2026-10-17)
+
+* template substitution (`vars.go` `varEval*`): `{` and `}` cannot be escaped, and replaced values are substituted
+  again: a value that contains `{other}` may or may not be replaced, depending on map iteration order
+* navigator layout uses a hard-coded width of 1024 (`nodenavigator.go` `layoutList`, `layoutTree`), long node titles
+  produce GTK warnings ("Trying to measure GtkBox for width of 1024, but it needs at least ...")
+* GTK command line parameters cannot be passed to the application (`gtkapplication.go` `RunApplication`)
+* recursive manual operations: allow them when they are allowed on the child nodes (`op.go` `PerformOp`)
+* `OpResetToWaiting` on run nodes is marked as unfinished (`op.go` `PerformOp`)
+* allow a run node with empty `args` when `args_prefix` is not empty (`parser.go` `SelfCheck`)
+* cache the rlock root after building the tree, instead of walking up the tree every time (`deplock.go`
+  `getRLockRoot`)
+* max_proc is checked in `findRunnable` for every node type; move it to `findRunnableRun` if a node type is added
+  that does not start a process (e.g. "if") (`scheduler.go`)
+* the initial pty size comes from `TerminalHelper.GetWinSize` while calculating client args (`run.go`
+  `calcClientArgs`, "looks nasty")
 
 # Adoptability (from a review, 2026-09-16)
 
