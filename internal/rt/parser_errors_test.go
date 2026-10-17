@@ -454,7 +454,6 @@ func TestErrorsInSeveralIncludedFiles(t *testing.T) {
 // Generated ids look like "n12", and they must not conflict with the ids given in the tree.
 func TestGeneratedIdDoesNotConflict(t *testing.T) {
 	for _, id := range []string{"n1", "n2", "n3", "n10"} {
-		nid = 0 // like in a new runtree process
 		tree := loadTestTree(t, "tree:\n  seq:\n    - args: [\"true\"]\n    - id: "+id+"\n      args: [\"true\"]\n")
 		if n := tree.NodeById[id]; n == nil || n != tree.Root.Nodes[1] {
 			t.Errorf("id %s is not the node that has it", id)

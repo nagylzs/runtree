@@ -1,7 +1,7 @@
 {
   "name": "runtree",
   "displayName": "runtree",
-  "description": "Completion, documentation and validation for runtree tree files (*.rt.yaml)",
+  "description": "Errors and warnings as you type, go to definition for includes, completion and documentation for runtree tree files",
   "version": "0.1.0",
   "publisher": "nagylzs",
   "license": "GPL-3.0-only",
@@ -10,7 +10,7 @@
     "url": "https://github.com/nagylzs/runtree"
   },
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages",
@@ -24,7 +24,32 @@
   "extensionDependencies": [
     "redhat.vscode-yaml"
   ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:yaml"
+  ],
   "contributes": {
+    "configuration": {
+      "title": "runtree",
+      "properties": {
+        "runtree.languageServer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run the runtree language server (runtree-lsp): errors and warnings of the tree files as you type, go to definition for includes."
+        },
+        "runtree.languageServer.path": {
+          "type": "string",
+          "default": "runtree-lsp",
+          "description": "The runtree-lsp executable (a name on the PATH, or a path)."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "runtree.restartLanguageServer",
+        "title": "runtree: Restart the language server"
+      }
+    ],
     "yamlValidation": [
       {
         "fileMatch": [
@@ -63,5 +88,8 @@
   "scripts": {
     "vscode:prepublish": "cp ../../schema/runtree.schema.json ../../LICENSE .",
     "package": "npx @vscode/vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
   }
 }

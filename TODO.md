@@ -44,8 +44,11 @@ extension / yaml-language-server); the semantic checks need runtree's own parser
    `schema/runtree.schema.json`), and the VS Code extension in `editors/vscode` (schema for `*.rt.yaml`, problem
    matcher for `runtree --check`). Still to do: publish the extension (VS Code Marketplace / Open VSX), and use the
    value kinds of the table in the parser too (only the property names come from it now).
-3. Language server in Go (e.g. `runtree lsp`, reusing `internal/rt`): the errors and warnings of `--check` as you type
-   (include targets, undefined variables, include cycles), go to definition for includes, hover documentation.
+3. Done: the language server `runtree-lsp` (`internal/lsp`, without GTK): the errors and warnings of `--check` as you
+   type (with the unsaved changes, in the included files too), go to definition for includes; the VS Code extension
+   starts it. Still to do: hover (e.g. the values of a variable in a node), completion of include arguments (object
+   names, files), find the includes of an object (references), and publish `runtree-lsp` binaries for Windows and
+   macOS (it builds without cgo).
 
 # From TODO comments in the source (2026-10-17)
 

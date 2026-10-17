@@ -6,7 +6,7 @@ import copy
 import datetime
 import subprocess as sp
 
-targets=["rtrunner", "runtree"]
+targets=["rtrunner", "runtree", "runtree-lsp"]
 
 DIR=os.path.abspath(os.path.join(__file__,os.pardir,os.pardir))
 

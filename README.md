@@ -128,8 +128,22 @@ settings (the runtree extension does this):
 "yaml.customTags": ["!raw scalar"]
 ```
 
-The VS Code extension in `editors/vscode` does the association for `*.rt.yaml` files, and it has a problem matcher
-for `runtree --check` tasks (see its README).
+### Language server
+
+`runtree-lsp` is a language server for tree files: editors get the errors and warnings of `runtree --check` as you
+type (with the unsaved changes, and for the included files too), and go to definition for `include` arguments. It
+checks the YAML files of the workspace that have a top level `tree` object, the files that they include, and the open
+`*.rt.yaml` files (a `*.rt.yaml` file that no tree includes is checked object by object, without the undefined variable
+warnings, because the variables are set where the objects are included).
+
+It does not need GTK, so it builds on Linux, Windows and macOS:
+
+```bash
+go install github.com/nagylzs/runtree/cmd/runtree-lsp@latest
+```
+
+(`scripts/build.py` builds it too.) The VS Code extension in `editors/vscode` starts it, does the schema association
+for `*.rt.yaml` files, and it has a problem matcher for `runtree --check` tasks (see its README).
 
 
 # Building on Windows

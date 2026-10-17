@@ -43,10 +43,13 @@ Dark GTK theme is the design target: `GTK_THEME=Adwaita:dark`.
 
 ## Architecture
 
-Two binaries, one shared protocol:
+Three binaries; `runtree` and `rtrunner` share the runner protocol:
 
 - `cmd/rtrunner` → `internal/runner` (server side). Accepts TCP connections; each connection becomes one
   `Server` that runs exactly one command in a pty (`server_unix.go` via creack/pty, `server_windows.go` via conpty).
+- `cmd/runtree-lsp` → `internal/lsp`: language server for editors (stdio JSON-RPC, no dependencies, no GTK/cgo). It
+  loads the trees with `rt` (open documents through `Sources.Overlay`) and publishes `ParseError`s as diagnostics;
+  `editors/vscode/extension.js` starts it.
 - `cmd/runtree` → `internal/rt` (tree model + scheduler) + `internal/gtkui` (GTK4 GUI). Each started node opens its
   own `runner.Client` TCP connection.
 

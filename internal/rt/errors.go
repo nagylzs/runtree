@@ -15,7 +15,14 @@ type ParseError struct {
 	Included []IncludePos // where the object with the error was included from, the innermost first
 	Count    int          // how many times it was found (e.g. in for_vars combinations, or included several times)
 	Warning  bool         // it is only a warning, the tree can be used
+	Code     string       // the kind of the warning (CodeUndefinedVariable, ...), or ""
 }
+
+// The codes of the warnings
+const (
+	CodeUndefinedVariable = "undefined-variable"
+	CodeEmptyForVars      = "empty-for-vars"
+)
 
 // IncludePos is the position of an include property value
 type IncludePos struct {

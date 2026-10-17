@@ -36,6 +36,8 @@ type Tree struct {
 	xAcquired   *set.Set[string]
 
 	terminalHelper TerminalHelper
+
+	lastId int // the number of the last generated node id
 }
 
 var idRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
@@ -43,7 +45,8 @@ var idRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
 // newId returns a generated node id that is not used yet
 func (t *Tree) newId() string {
 	for {
-		id := nextId()
+		t.lastId++
+		id := fmt.Sprintf("n%d", t.lastId)
 		if _, ok := t.NodeById[id]; !ok {
 			return id
 		}

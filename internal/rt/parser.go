@@ -74,7 +74,8 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 			} else if sources.isIncluded() {
 				msg += ", it is not set where it is included"
 			}
-			sources.warn(&ParseError{Pos: sources.refPos(raw, r), Message: msg, Node: pathOf()})
+			sources.warn(&ParseError{Pos: sources.refPos(raw, r), Message: msg, Node: pathOf(),
+				Code: CodeUndefinedVariable})
 		}
 		n.undefinedRefs = nil
 	}
@@ -371,7 +372,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	for _, key := range keys {
 		if len(forVars[key]) == 0 {
 			m, _ := raw["for_vars"].(map[interface{}]interface{})
-			sources.warn(&ParseError{Pos: sources.ValuePos(m, key), Node: nodePath(n),
+			sources.warn(&ParseError{Pos: sources.ValuePos(m, key), Node: nodePath(n), Code: CodeEmptyForVars,
 				Message: fmt.Sprintf("for_vars: %s is an empty list, there are no sub-nodes", key)})
 			noCombinations = true
 		}
@@ -747,15 +748,10 @@ func includeSubNodes(parent *Node, rl interface{}, raw map[interface{}]interface
 		}
 
 		// relative or absolute import?
-		iidx := strings.Index(name, "|")
-		if iidx < 0 {
+		includeFilePath, localName = IncludeTarget(filePath, name)
+		if includeFilePath == filePath {
 			rawTrees = sources.Files[filePath]
-			includeFilePath = filePath
-			localName = name
 		} else {
-			// relative to the file that contains the include
-			includeFilePath = filepath.Join(filepath.Dir(filePath), name[:iidx])
-			localName = name[iidx+1:]
 			var err error
 			rawTrees, err = sources.AddFile(includeFilePath)
 			if err != nil {
@@ -1001,13 +997,6 @@ func getExitCodesDef(raw map[interface{}]interface{}, name string, defval []int)
 		res = append(res, code)
 	}
 	return res, nil
-}
-
-var nid int64
-
-func nextId() string {
-	nid++
-	return fmt.Sprintf("n%d", nid)
 }
 
 /*

@@ -54,6 +54,9 @@ func displayPath(path string) string {
 // the values in them.
 type Sources struct {
 	Files map[string]map[string]interface{}
+	// Overlay has the contents of the files that are used instead of the files on the disk (e.g. the unsaved
+	// documents of an editor), by absolute path
+	Overlay map[string][]byte
 
 	maps  map[uintptr]*mapPositions              // by map identity
 	lists map[uintptr][]Pos                      // item positions by list identity
@@ -309,22 +312,25 @@ func (s *Sources) AddFile(absoluteFilePath string) (map[string]interface{}, erro
 		s.order[absoluteFilePath] = len(s.order)
 	}
 	filePos := Pos{File: absoluteFilePath}
-	fi, err := os.Stat(absoluteFilePath)
-	if os.IsNotExist(err) {
-		return nil, newParseError(filePos, "file not found")
-	}
-	if err != nil {
-		return nil, newParseError(filePos, "could not open: %v", err)
-	}
-	if fi.Size() > MaxYamlFileSize {
-		return nil, newParseError(filePos, "file is bigger than %v bytes", MaxYamlFileSize)
-	}
-	data, err := os.ReadFile(absoluteFilePath)
-	if err != nil {
-		return nil, newParseError(filePos, "could not read: %v", err)
+	data, ok := s.Overlay[absoluteFilePath]
+	if !ok {
+		fi, err := os.Stat(absoluteFilePath)
+		if os.IsNotExist(err) {
+			return nil, newParseError(filePos, "file not found")
+		}
+		if err != nil {
+			return nil, newParseError(filePos, "could not open: %v", err)
+		}
+		if fi.Size() > MaxYamlFileSize {
+			return nil, newParseError(filePos, "file is bigger than %v bytes", MaxYamlFileSize)
+		}
+		data, err = os.ReadFile(absoluteFilePath)
+		if err != nil {
+			return nil, newParseError(filePos, "could not read: %v", err)
+		}
 	}
 	var doc yaml.Node
-	err = yaml.Unmarshal(data, &doc)
+	err := yaml.Unmarshal(data, &doc)
 	if err != nil {
 		if m := yamlLineRe.FindStringSubmatch(err.Error()); m != nil {
 			line, _ := strconv.Atoi(m[1])
