@@ -33,6 +33,24 @@
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
 
+# Appearance (from the user, 2026-10-17)
+
+The GUI is designed for a dark theme (`GTK_THEME=Adwaita:dark` or Dracula, with `GDK_DPI_SCALE`); `main.css` has
+about 40 hard coded colors.
+
+* resize cursor (<->) on the dividers of the panes. GTK 4 sets `col-resize` / `row-resize` on the handle of a
+  `gtk.Paned` (`mainpaned.go` uses wide handles); check why it does not show (cursor theme? CSS of the handle?), and
+  set it with `SetCursorFromName` if needed.
+* the terminal mark of run nodes (`rt.TermEmoji` "🖵", shown in the status label in `treenodeview.go`) needs a font
+  with that symbol. Use an embedded symbolic SVG icon (a `gtk.Image` before the status text, colored by the theme)
+  instead, so that it does not depend on fonts or icon themes.
+* dark / light / system appearance, with high contrast in all of them: replace the hard coded colors of `main.css`
+  with named colors (or `@media (prefers-color-scheme: ...)`, which GTK 4.20+ supports, 4.22 is installed), and
+  set the color scheme in `gtk.Settings` (`gtk-interface-color-scheme`). "System" follows the desktop setting
+  (org.freedesktop.appearance color-scheme of the settings portal). Choose it without taking screen space: a
+  command line flag and an item in a small menu button (see the main menu above), saved in a settings file in
+  `os.UserConfigDir()` (runtree has no settings file yet).
+
 # Tree files: error positions and VS Code support (roadmap, 2026-10-17)
 
 Keep YAML. A VS Code extension gets completion, hover and validation from a JSON Schema for free (Red Hat YAML
