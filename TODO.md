@@ -50,6 +50,17 @@ attributes. Terminal input is never logged (passwords). A handler sends every re
 4. Maybe: save the terminal output of the nodes (raw pty output chunks, as files or in SQLite, can be replayed
    later). It is lost now when the GUI is closed.
 
+# GUI layout and navigation (from the user, 2026-10-17)
+
+* redesign the properties tab (`NodeFrameProperites`, `nodeframeproperties.go`), so that it fits narrower screens
+* the path of the selected node (in the header, `nodeframeheader.go`) should wrap as needed, and its elements should
+  be clickable: a click selects that node, and jumps to it in the tree
+* in the navigator (`nodenavigator.go`), when the view mode is not the tree (Waiting, Failed, ...), the node cards
+  should have a clickable "jump to" icon: it switches to the tree view mode, selects the node and makes it visible
+  (expands its parents, scrolls to it)
+* Log tab: a button in the top right corner that scrolls down to the end, and starts following the end of the log
+  again
+
 # Appearance (from the user, 2026-10-17)
 
 The GUI is designed for a dark theme (`GTK_THEME=Adwaita:dark` or Dracula, with `GDK_DPI_SCALE`); `main.css` has
