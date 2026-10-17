@@ -131,7 +131,10 @@ settings (the runtree extension does this):
 ### Language server
 
 `runtree-lsp` is a language server for tree files: editors get the errors and warnings of `runtree --check` as you
-type (with the unsaved changes, and for the included files too), and go to definition for `include` arguments. It
+type (with the unsaved changes, and for the included files too), go to definition for `include` arguments, the
+values of a `{variable}` on hover (in every node that the line belongs to, e.g. for each `for_vars` combination or
+include, with where the value is set), and completion of `include` arguments (the objects of the file, and
+`file|name` for the other runtree files). It
 checks the YAML files of the workspace that have a top level `tree` object, the files that they include, and the open
 `*.rt.yaml` files (a `*.rt.yaml` file that no tree includes is checked object by object, without the undefined variable
 warnings, because the variables are set where the objects are included).

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/nagylzs/runtree/internal/config"
@@ -34,9 +33,11 @@ func isTreeFileName(path string) bool {
 	return strings.HasSuffix(base, ".rt.yaml") || strings.HasSuffix(base, ".rt.yml")
 }
 
-// findTrees returns the tree files (the YAML files that have a top level "tree" object) in the directories
-func findTrees(dirs []string) []string {
+// findFiles returns the tree files (the YAML files that have a top level "tree" object) in the directories, and the
+// runtree files: the tree files and the files that are named *.rt.yaml
+func findFiles(dirs []string) (trees []string, files []string) {
 	found := make(map[string]bool)
+	named := make(map[string]bool)
 	scanned := 0
 	for _, dir := range dirs {
 		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -61,15 +62,25 @@ func findTrees(dirs []string) []string {
 			if data, err := os.ReadFile(path); err == nil && treeKeyRe.Match(data) {
 				found[path] = true
 			}
+			if isTreeFileName(path) || found[path] {
+				named[path] = true
+			}
 			return nil
 		})
 	}
-	trees := make([]string, 0, len(found))
-	for f := range found {
-		trees = append(trees, f)
-	}
-	sort.Strings(trees)
-	return trees
+	return sortedKeys(found), sortedKeys(named)
+}
+
+// result is the result of an analysis
+type result struct {
+	diags map[string][]Diagnostic
+	trees []loadedTree // the trees (also the ones with errors, with their nodes that could be loaded)
+	files []string     // the runtree files: the files that the trees include, and the open *.rt.yaml files
+}
+
+type loadedTree struct {
+	tree *rt.Tree
+	src  *rt.Sources
 }
 
 type analysis struct {
@@ -82,7 +93,8 @@ type analysis struct {
 // analyze loads the trees (the tree files of the workspace and the open documents that are tree files), and returns
 // the diagnostics of every runtree file: the files that the trees include, and the open *.rt.yaml files. The open
 // documents are used instead of the files on the disk.
-func analyze(docs map[string]string, workspaceTrees []string) map[string][]Diagnostic {
+func analyze(docs map[string]string, workspaceTrees []string) *result {
+	res := &result{}
 	a := &analysis{docs: docs, texts: make(map[string]string), diags: make(map[string][]Diagnostic),
 		seen: make(map[string]bool)}
 	overlay := make(map[string][]byte, len(docs))
@@ -107,7 +119,11 @@ func analyze(docs map[string]string, workspaceTrees []string) map[string][]Diagn
 		src.Overlay = overlay
 		_, filename, err := rt.AddTree(root, src)
 		if err == nil {
-			_, err = rt.ParseToDom(src, filename, config.DefaultMaxDepth)
+			var tree *rt.Tree
+			tree, err = rt.LoadPartialTree(src, filename, "tree", config.DefaultMaxDepth)
+			if tree != nil {
+				res.trees = append(res.trees, loadedTree{tree: tree, src: src})
+			}
 		}
 		a.addErrors(err, root)
 		for _, w := range src.Warnings() {
@@ -163,7 +179,9 @@ func analyze(docs map[string]string, workspaceTrees []string) map[string][]Diagn
 			return x.Range.Start.Character - y.Range.Start.Character
 		})
 	}
-	return a.diags
+	res.diags = a.diags
+	res.files = sortedKeys(reached)
+	return res
 }
 
 func (a *analysis) addErrors(err error, file string) {

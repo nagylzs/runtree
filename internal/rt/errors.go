@@ -184,6 +184,11 @@ func nodeLabel(n *Node) string {
 	return n.Id
 }
 
+// Path returns the titles (or ids) of the node and its parents, e.g. "upgrade all › upgrade servers › deploy"
+func (n *Node) Path() string {
+	return nodePath(n)
+}
+
 // nodePath returns the titles (or ids) of the node and its parents, e.g. "upgrade all › upgrade servers › deploy"
 func nodePath(n *Node) string {
 	if n == nil {

@@ -72,6 +72,38 @@ func (t *Tree) addNodeById(n *Node) error {
 
 // LoadTree loads the tree from the top level object called id. The returned errors are ParseErrors.
 func LoadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tree, error) {
+	tree, err := loadTree(sources, filename, id, maxDepth)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]*Node, len(tree.Nodes))
+	tree.Root.FillNodeList(nodes)
+	tree.Nodes = nodes
+	return tree, nil
+}
+
+// LoadPartialTree is LoadTree for editors: it also returns the tree when there are errors, with the nodes that
+// could be loaded (it cannot be run). The tree is nil when the root object cannot be loaded at all.
+func LoadPartialTree(sources *Sources, filename string, id string, maxDepth uint) (*Tree, error) {
+	tree, err := loadTree(sources, filename, id, maxDepth)
+	if tree != nil {
+		tree.Nodes = nil
+		var walk func(n *Node)
+		walk = func(n *Node) {
+			tree.Nodes = append(tree.Nodes, n)
+			for _, c := range n.Nodes {
+				walk(c)
+			}
+		}
+		if tree.Root != nil {
+			walk(tree.Root)
+		}
+	}
+	return tree, err
+}
+
+// loadTree loads the tree, it returns the tree with the errors too (its Nodes has the number of nodes only)
+func loadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tree, error) {
 	rawTrees, ok := sources.Files[filename]
 	if !ok {
 		return nil, newParseError(Pos{File: filename}, "the file was not loaded")
@@ -108,14 +140,9 @@ func LoadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tre
 	if err != nil {
 		sources.report(err)
 	}
+	tree.Nodes = make([]*Node, ord)
 	// all errors of the tree
-	if err := sources.Errors(); err != nil {
-		return nil, err
-	}
-	nodes := make([]*Node, ord)
-	tree.Root.FillNodeList(nodes)
-	tree.Nodes = nodes
-	return tree, nil
+	return tree, sources.Errors()
 }
 
 func (t *Tree) setWho(who string) {

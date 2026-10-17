@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -91,4 +92,85 @@ func (s *Sources) TopKeyPos(file, name string) (Pos, bool) {
 		return Pos{}, false
 	}
 	return s.KeyPos(top, name), true
+}
+
+type span struct {
+	file       string
+	start, end int // lines
+}
+
+// span returns the lines of the source of an object: from its first line to the last line of its values
+func (s *Sources) span(m map[interface{}]interface{}) span {
+	p := s.MapPos(m)
+	sp := span{file: p.File, start: p.Line, end: p.Line}
+	var walk func(v interface{})
+	walk = func(v interface{}) {
+		switch tv := v.(type) {
+		case map[interface{}]interface{}:
+			for _, k := range s.Keys(tv) {
+				ks := fmt.Sprint(k)
+				sp.end = max(sp.end, s.KeyPos(tv, ks).Line, s.ValuePos(tv, ks).Line)
+				walk(tv[k])
+			}
+		case []interface{}:
+			for i, item := range tv {
+				sp.end = max(sp.end, s.ItemPos(tv, i).Line)
+				walk(item)
+			}
+		}
+	}
+	walk(m)
+	return sp
+}
+
+// NodesAt returns the nodes of the tree that were loaded from the innermost node object of the source that contains
+// the line of the file. There can be more nodes, e.g. when the object is included more than once, or for the
+// combinations of for_vars.
+func (s *Sources) NodesAt(t *Tree, file string, line int) []*Node {
+	type candidate struct {
+		raw  map[interface{}]interface{}
+		size int
+	}
+	var best *candidate
+	var nodes []*Node
+	spans := make(map[uintptr]span)
+	for _, n := range t.Nodes {
+		if n == nil {
+			continue
+		}
+		for _, raw := range n.sources {
+			sp, ok := spans[mapID(raw)]
+			if !ok {
+				sp = s.span(raw)
+				spans[mapID(raw)] = sp
+			}
+			if sp.file != file || line < sp.start || line > sp.end {
+				continue
+			}
+			size := sp.end - sp.start
+			switch {
+			case best == nil || size < best.size:
+				best = &candidate{raw: raw, size: size}
+				nodes = []*Node{n}
+			case mapID(raw) == mapID(best.raw):
+				nodes = append(nodes, n)
+			}
+		}
+	}
+	return nodes
+}
+
+// VarPos returns the position where the variable is set (see VarSource)
+func (s *Sources) VarPos(src VarSource, name string) (Pos, bool) {
+	if src.Node == nil {
+		return Pos{}, false
+	}
+	for _, raw := range src.Node.sources {
+		if m, ok := raw[src.Prop].(map[interface{}]interface{}); ok {
+			if _, ok := m[name]; ok {
+				return s.KeyPos(m, name), true
+			}
+		}
+	}
+	return Pos{}, false
 }

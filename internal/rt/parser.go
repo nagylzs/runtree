@@ -96,6 +96,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	n = &Node{
 		Parent:          parent,
 		Tree:            tree,
+		sources:         []map[interface{}]interface{}{raw},
 		MissingRequired: set.NewSet[string](),
 		CannotXAcquire:  set.NewSet[string](),
 		CannotRAcquire:  set.NewSet[string](),
@@ -339,7 +340,13 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 	// if we want to load this node into another one, then we copy all props here
 	if loadInto != nil {
+		parent.sources = append(parent.sources, n.sources...)
 		parent.loadFrom(n)
+		for k, src := range parent.Calculated.VarSources {
+			if src.Node == n {
+				parent.Calculated.VarSources[k] = VarSource{Node: parent, Prop: src.Prop}
+			}
+		}
 		*idx -= 1
 		delete(n.Tree.NodeById, n.Id)
 		n = parent

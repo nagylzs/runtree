@@ -9,6 +9,10 @@ Editor support for [runtree](https://github.com/nagylzs/runtree) tree files. Tre
   properties, invalid values, includes, undefined variables, and the other checks of `runtree --check`. The files
   that a tree includes are checked as part of the tree (with the include chain), also when they are not open.
 - Go to definition (F12) on an `include` argument opens the included object.
+- Hover on a `{variable}` shows its values in the nodes of the line (for each `for_vars` combination, or each place
+  where the object is included), and where each value is set (`vars`, `def_vars` or `for_vars`, with a link).
+- Completion of `include` arguments: the objects of the file, and `file|name` for the objects of the other runtree
+  files.
 - Completion of node properties and their values, with documentation on hover.
 - Validation of property names (typos like `on_eror`), value types and allowed values (e.g. `on_error`, `status`).
 - The `!raw` tag of runtree (strings without variable substitution) is known to the YAML extension (the

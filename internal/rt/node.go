@@ -14,8 +14,9 @@ type Node struct {
 	Parent *Node
 	Nodes  []*Node
 
-	undefinedRefs []undefinedRef // found while loading the node
-	generatedId   bool           // the id was not given in the source
+	undefinedRefs []undefinedRef                // found while loading the node
+	generatedId   bool                          // the id was not given in the source
+	sources       []map[interface{}]interface{} // the objects of the source that the node was loaded from
 
 	Type               Type   // immutable!
 	Id                 string // immutable!
@@ -96,6 +97,14 @@ type Calculated struct {
 	XLocks      *set.Set[string]
 	Provides    *set.Set[string]
 	Requires    *set.Set[string]
+	VarSources  map[string]VarSource // where the values of Vars are set
+}
+
+// VarSource tells where the value of a variable is set: in the vars or def_vars of Node, or in the for_vars of Node
+// (for its sub-nodes)
+type VarSource struct {
+	Node *Node
+	Prop string // vars, def_vars or for_vars
 }
 
 type OnError struct {

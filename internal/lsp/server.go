@@ -29,6 +29,8 @@ type Server struct {
 	uris      map[string]string // the URIs of the open documents, by path
 	folders   []string          // the workspace folders
 	trees     []string          // the tree files in the workspace folders
+	files     []string          // the runtree files in the workspace folders (tree files and *.rt.yaml)
+	last      *result           // the result of the last analysis
 	rescan    bool              // the workspace folders must be searched for tree files again
 	published map[string]bool   // the files that have (not empty) published diagnostics
 	timer     *time.Timer
@@ -94,6 +96,8 @@ func (s *Server) handle(m *message) {
 						"save":      map[string]bool{"includeText": false},
 					},
 					"definitionProvider": true,
+					"hoverProvider":      true,
+					"completionProvider": map[string]interface{}{"triggerCharacters": []string{"|"}},
 				},
 				"serverInfo": map[string]string{"name": "runtree-lsp", "version": version.Commit},
 			})
@@ -133,6 +137,16 @@ func (s *Server) handle(m *message) {
 		var p TextDocumentPositionParams
 		if err = json.Unmarshal(m.Params, &p); err == nil {
 			err = s.t.respond(m.ID, s.definition(p))
+		}
+	case "textDocument/hover":
+		var p TextDocumentPositionParams
+		if err = json.Unmarshal(m.Params, &p); err == nil {
+			err = s.t.respond(m.ID, s.hover(p))
+		}
+	case "textDocument/completion":
+		var p TextDocumentPositionParams
+		if err = json.Unmarshal(m.Params, &p); err == nil {
+			err = s.t.respond(m.ID, s.completion(p))
 		}
 	default:
 		// notifications that are not handled are ignored ($/cancelRequest, $/setTrace, ...)
@@ -206,29 +220,31 @@ func (s *Server) runAnalysis() {
 	folders := slices.Clone(s.folders)
 	s.mu.Unlock()
 	if rescan {
-		trees := findTrees(folders)
+		trees, files := findFiles(folders)
 		s.mu.Lock()
-		s.trees = trees
+		s.trees, s.files = trees, files
 		s.mu.Unlock()
 	}
 	s.mu.Lock()
 	trees := s.trees
 	s.mu.Unlock()
 
-	var diags map[string][]Diagnostic
+	var res *result
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
 				s.logger.Printf("internal error in the analysis: %v\n%s", r, debug.Stack())
 			}
 		}()
-		diags = analyze(docs, trees)
+		res = analyze(docs, trees)
 	}()
-	if diags == nil {
+	if res == nil {
 		return
 	}
+	diags := res.diags
 
 	s.mu.Lock()
+	s.last = res
 	uris := maps.Clone(s.uris)
 	prev := s.published
 	s.published = make(map[string]bool)
@@ -265,26 +281,12 @@ func (s *Server) definition(p TextDocumentPositionParams) *Location {
 	if err != nil {
 		return nil
 	}
-	s.mu.Lock()
-	docs := maps.Clone(s.docs)
-	uris := maps.Clone(s.uris)
-	s.mu.Unlock()
-	src := rt.NewSources()
-	src.Overlay = make(map[string][]byte, len(docs))
-	for f, text := range docs {
-		src.Overlay[f] = []byte(text)
-	}
+	docs, uris, _ := s.snapshot()
+	src := newSources(docs)
 	if _, err := src.AddFile(path); err != nil {
 		return nil
 	}
-	text := func(f string) string {
-		if t, ok := docs[f]; ok {
-			return t
-		}
-		data, _ := os.ReadFile(f)
-		return string(data)
-	}
-	line := []rune(lineAt(text(path), p.Position.Line))
+	line := []rune(lineAt(textOf(docs, path), p.Position.Line))
 	col := runeIndex(line, p.Position.Character)
 	for _, ref := range src.IncludeRefs(path) {
 		if ref.Pos.Line != p.Position.Line+1 {
@@ -306,7 +308,7 @@ func (s *Server) definition(p TextDocumentPositionParams) *Location {
 		if !ok {
 			uri = pathToURI(file)
 		}
-		return &Location{URI: uri, Range: lspRange(text(file), pos)}
+		return &Location{URI: uri, Range: lspRange(textOf(docs, file), pos)}
 	}
 	return nil
 }

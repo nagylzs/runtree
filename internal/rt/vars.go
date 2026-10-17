@@ -90,6 +90,25 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 		return false, err
 	}
 	// below this line, variable evaluation should use c.Vars and **not** n.Parsed.Vars!
+	c.VarSources = make(map[string]VarSource, len(c.Vars))
+	for k := range c.Vars {
+		_, own := n.Parsed.Vars[k]
+		_, loop := n.Parsed.LoopVars[k]
+		var inherited bool
+		if n.Parent != nil && n.InheritVars {
+			_, inherited = n.Parent.Calculated.Vars[k]
+		}
+		switch {
+		case own:
+			c.VarSources[k] = VarSource{Node: n, Prop: "vars"}
+		case loop:
+			c.VarSources[k] = VarSource{Node: n.Parent, Prop: "for_vars"}
+		case inherited:
+			c.VarSources[k] = n.Parent.Calculated.VarSources[k]
+		default:
+			c.VarSources[k] = VarSource{Node: n, Prop: "def_vars"}
+		}
+	}
 
 	// when the node is excluded, only these are reported
 	refs := len(n.undefinedRefs)
@@ -402,6 +421,11 @@ type undefinedFunc func(key string, item int, name string)
 // substituted. The calculated values have the start tags again (see unraw).
 const rawStartTag = "\uE000"
 
+// Unraw returns a string of the source (e.g. a title) as it is written: without the replaced start tags of !raw
+func Unraw(s string) string {
+	return unraw(s)
+}
+
 // unraw replaces the raw start tags back
 func unraw(s string) string {
 	if !strings.Contains(s, rawStartTag) {
@@ -413,6 +437,11 @@ func unraw(s string) string {
 // varNameRe matches the variable names that are reported when they are not defined. Other text in curly braces is
 // common in commands (e.g. "{}" in find, "{a,b}" in bash, "{{.Name}}" in docker), and they are left as they are.
 var varNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
+
+// IsVarName tells if a {name} reference is reported when the variable is not defined (see varNameRe)
+func IsVarName(name string) bool {
+	return varNameRe.MatchString(name)
+}
 
 // varEval substitutes variables ({name}) into a string. The substitution is done in a single pass: the substituted
 // values are not evaluated again. References to undefined variables are left as they are.

@@ -104,3 +104,34 @@ const (
 	errMethodNotFound = -32601
 	errInvalidParams  = -32602
 )
+
+type MarkupContent struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
+type Hover struct {
+	Contents MarkupContent `json:"contents"`
+	Range    *Range        `json:"range,omitempty"`
+}
+
+type TextEdit struct {
+	Range   Range  `json:"range"`
+	NewText string `json:"newText"`
+}
+
+const completionKindModule = 9
+
+type CompletionItem struct {
+	Label      string    `json:"label"`
+	Kind       int       `json:"kind,omitempty"`
+	Detail     string    `json:"detail,omitempty"`
+	SortText   string    `json:"sortText,omitempty"`
+	FilterText string    `json:"filterText,omitempty"`
+	TextEdit   *TextEdit `json:"textEdit,omitempty"`
+}
+
+type CompletionList struct {
+	IsIncomplete bool             `json:"isIncomplete"`
+	Items        []CompletionItem `json:"items"`
+}
