@@ -1,0 +1,61 @@
+{
+  "name": "runtree",
+  "displayName": "runtree",
+  "description": "Completion, documentation and validation for runtree tree files (*.rt.yaml)",
+  "version": "0.1.0",
+  "publisher": "nagylzs",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nagylzs/runtree"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "runtree",
+    "yaml",
+    "schema"
+  ],
+  "extensionDependencies": [
+    "redhat.vscode-yaml"
+  ],
+  "contributes": {
+    "yamlValidation": [
+      {
+        "fileMatch": [
+          "*.rt.yaml",
+          "*.rt.yml"
+        ],
+        "url": "./runtree.schema.json"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "runtree",
+        "owner": "runtree",
+        "source": "runtree",
+        "severity": "error",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(\\S.*?):(\\d+)(?::(\\d+))?: (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "cp ../../schema/runtree.schema.json ../../LICENSE .",
+    "package": "npx @vscode/vsce package"
+  }
+}

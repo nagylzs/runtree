@@ -93,6 +93,9 @@ or put this comment at the top of a tree file:
 
 The schema only checks the structure; `runtree --check` also checks includes, variables and the other semantics.
 
+The VS Code extension in `editors/vscode` does the association for `*.rt.yaml` files, and it has a problem matcher
+for `runtree --check` tasks (see its README).
+
 
 # Building on Windows
 
