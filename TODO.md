@@ -46,7 +46,6 @@ extension / yaml-language-server); the semantic checks need runtree's own parser
    value kinds of the table in the parser too (only the property names come from it now).
 3. Language server in Go (e.g. `runtree lsp`, reusing `internal/rt`): the errors and warnings of `--check` as you type
    (include targets, undefined variables, include cycles), go to definition for includes, hover documentation.
-* Show the warnings of the tree in the GUI too (now they are only printed to stderr when it starts).
 
 # From TODO comments in the source (2026-10-17)
 

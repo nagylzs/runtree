@@ -156,7 +156,7 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		return nil
 	}
 
-	err = gtkui.InitApplication(runTree)
+	err = gtkui.InitApplication(runTree, warnings)
 	if err != nil {
 		return fmt.Errorf("could not initialize application: %w", err)
 	}

@@ -46,8 +46,20 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	// Errors are reported (to sources), and loading continues with a default value, so that all errors of the tree
 	// are found. The tree can only be used when there are no errors.
 	reportedBefore := sources.reported
+	// the path of the node, as it will be in the tree: a node that is loaded into its parent replaces it
+	pathOf := func() string {
+		if loadInto != nil && n != nil && n != parent && nodeLabel(n) != "" {
+			return joinPath(nodePath(parent.Parent), nodeLabel(n))
+		}
+		return nodePath(n)
+	}
 	report := func(err error) {
-		sources.report(locateError(err, sources, raw, n, parent))
+		err = locateError(err, sources, raw, n, parent)
+		var pe *ParseError
+		if errors.As(err, &pe) && loadInto != nil && n != nil && n != parent && nodeLabel(n) != "" {
+			pe.Node = pathOf()
+		}
+		sources.report(err)
 	}
 	// warnings about the references to undefined variables
 	reportUndefined := func() {
@@ -62,7 +74,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 			} else if sources.isIncluded() {
 				msg += ", it is not set where it is included"
 			}
-			sources.warn(&ParseError{Pos: sources.refPos(raw, r), Message: msg, Node: nodePath(n)})
+			sources.warn(&ParseError{Pos: sources.refPos(raw, r), Message: msg, Node: pathOf()})
 		}
 		n.undefinedRefs = nil
 	}

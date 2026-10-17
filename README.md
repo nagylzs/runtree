@@ -76,8 +76,9 @@ jump to it. The errors are sorted by their position (the files in the order they
 several times (e.g. in an object that is included more than once, or under `for_vars`) is reported once, with
 "(found N times)" and the include chain of its first occurrence.
 
-Warnings are printed the same way, with `warning:` before the message, but they do not prevent loading the tree (they
-are printed when the GUI is started too):
+Warnings are printed the same way, with `warning:` before the message, but they do not prevent loading the tree. When
+the GUI is started, they are printed too, and a banner above the tree tells that there are warnings (its "Show
+warnings" button lists them):
 
 ```
 lib.yaml:2:15: warning: undefined variable {user}, it is not set where it is included

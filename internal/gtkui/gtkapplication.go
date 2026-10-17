@@ -14,15 +14,21 @@ import (
 //go:embed main.css
 var mainCss string
 
-func InitApplication(runTree *rt.Tree) error {
+// InitApplication creates the application for the tree. The warnings of the tree files are shown in the main window.
+func InitApplication(runTree *rt.Tree, warnings rt.ParseErrors) error {
 	var err error
 	RunTree = runTree
 	Application, err = NewRunTreeApp(runTree)
+	if err == nil {
+		Application.warnings = warnings
+	}
 	return err
 }
 
 func RunApplication() int {
-	GtkApplication = gtk.NewApplication(ApplicationId, gio.ApplicationFlagsNone)
+	// every runtree process runs its own tree: without NonUnique, a second runtree would only open another window of
+	// the first one (with the first tree) and exit
+	GtkApplication = gtk.NewApplication(ApplicationId, gio.ApplicationNonUnique)
 	GtkApplication.ConnectActivate(activateApplication)
 	go handleExitSignals()
 	cssutil.WriteCSS(mainCss)
@@ -45,7 +51,13 @@ func activateApplication() {
 	overlay := gtk.NewOverlay()
 	pane := NewMainPaned()
 	overlay.SetChild(pane)
-	window.SetChild(overlay)
+	overlay.SetVExpand(true)
+	content := gtk.NewBox(gtk.OrientationVertical, 0)
+	if len(Application.warnings) > 0 {
+		content.Append(newWarningsBanner(Application.warnings))
+	}
+	content.Append(overlay)
+	window.SetChild(content)
 
 	Application.pane = pane
 	Application.overlay = overlay

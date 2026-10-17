@@ -211,3 +211,16 @@ func TestRawTagErrors(t *testing.T) {
 		checkContains(t, pe.Message, tc.msg)
 	}
 }
+
+// The node path of a warning in an object that is loaded into the including node (a single include) is the path
+// that the node has in the tree.
+func TestWarningPathOfMergedInclude(t *testing.T) {
+	_, warnings := loadWithWarnings(t, map[string]string{
+		"tree.yaml": "tree:\n  title: root\n  seq:\n    - include: lib.yaml|job\n",
+		"lib.yaml":  "job:\n  title: job\n  args: [echo, \"{host}\"]\n",
+	})
+	checkWarnings(t, warnings, []wantWarning{{"lib.yaml", 3, 16, "undefined variable {host}"}})
+	if warnings[0].Node != "root › job" {
+		t.Errorf("node is %q, want %q", warnings[0].Node, "root › job")
+	}
+}

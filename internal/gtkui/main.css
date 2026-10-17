@@ -142,3 +142,10 @@ of the current theme.
 vte-terminal {
     padding: 4px;
 }
+
+/* the warnings of the tree files, above the main pane */
+.warnings-banner {
+    padding: 6px 12px;
+    background-color: #b58900;
+    color: #002b36;
+}

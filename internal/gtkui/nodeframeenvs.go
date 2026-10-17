@@ -19,7 +19,7 @@ type NodeFrameEnvs struct {
 func NewNodeFrameEnvs() *NodeFrameEnvs {
 	d := &NodeFrameEnvs{
 		TextView: gtk.NewTextView(),
-		tabLabel: gtk.NewLabel("Vars"),
+		tabLabel: gtk.NewLabel("Envs"),
 	}
 	d.TextView.SetEditable(false)
 	d.TextView.SetMonospace(true)
