@@ -123,7 +123,7 @@ func TestUndefinedVariableHints(t *testing.T) {
 `})
 	checkWarnings(t, warnings, []wantWarning{
 		{"tree.yaml", 6, 20, "undefined variable {target} (it is not inherited, because inherit_vars is false)"},
-		{"tree.yaml", 10, 12, "undefined variable {a} (def_vars can only use inherited variables)"},
+		{"tree.yaml", 10, 12, "undefined variable {a} (def_vars cannot use the vars of the same node)"},
 	})
 }
 
@@ -163,5 +163,51 @@ func TestSubstitutionSinglePass(t *testing.T) {
 		if want := "echo {b} {{d}} xy {y} {d"; got != want {
 			t.Fatalf("args are %q, want %q", got, want)
 		}
+	}
+}
+
+// A string tagged !raw is used as it is: no substitution, and no warnings.
+func TestRawTag(t *testing.T) {
+	tree, warnings := loadWithWarnings(t, map[string]string{"tree.yaml": `tree:
+  vars:
+    name: user
+    filter: !raw "{name}"
+    hosts: [a, !raw "{b}"]
+  for_vars:
+    host: hosts
+  seq:
+    - title: !raw "jq {name}"
+      envs:
+        F: !raw "{x}"
+      args: [bash, -c, !raw "jq '{name}' x.json", "{filter}-{name}", "{host}"]
+`})
+	checkWarnings(t, warnings, nil)
+	var got []string
+	for _, n := range tree.Root.Nodes {
+		got = append(got, n.Calculated.Title+"|"+n.Calculated.Envs["F"]+"|"+strings.Join(n.Calculated.Args, "|"))
+	}
+	want := []string{
+		"jq {name}|{x}|bash|-c|jq '{name}' x.json|{name}-user|a",
+		"jq {name}|{x}|bash|-c|jq '{name}' x.json|{name}-user|{b}",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestRawTagErrors(t *testing.T) {
+	for _, tc := range []struct {
+		source    string
+		line, col int
+		msg       string
+	}{
+		{"tree:\n  args: !raw [echo]\n", 2, 9, "!raw can only be used for a string"},
+		{"tree:\n  args: [echo, !rwa x]\n", 2, 16, "unknown tag !rwa (only !raw is supported)"},
+		{"tree:\n  vars:\n    !raw a: b\n  args: [echo]\n", 3, 5, "!raw can only be used for values"},
+	} {
+		dir := writeFiles(t, map[string]string{"tree.yaml": tc.source})
+		pe := parseError(t, filepath.Join(dir, "tree.yaml"))
+		checkPos(t, pe.Pos, "tree.yaml", tc.line, tc.col)
+		checkContains(t, pe.Message, tc.msg)
 	}
 }

@@ -62,6 +62,7 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
   `Sources` records the position of every map, key, value and list item. Parser errors are `ParseError`s
   (`file:line:col: message`, node path, include chain); inside `LoadNode`, return `propErrorf(name, ...)` for an invalid
   property value and `keyError` for a key, `locateError` adds the position. `runtree --check` only loads the tree.
+  Strings tagged `!raw` have their `{` replaced by `rawStartTag` (vars.go) until they are calculated (`unraw`).
 - `parser.go` — YAML → `Node` tree. Handles `include` (subtrees from same/other files, "reduce" when a single include
   is loaded into the parent), `for_vars` (cartesian product expansion), `ifeq`/`ifneq`, type inference from
   `seq:`/`par:`/`run:` shorthand keys, `on_error` parsing, and `Node.SelfCheck`. Errors are not returned from

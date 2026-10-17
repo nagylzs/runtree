@@ -94,7 +94,7 @@ The warnings are:
   object). Only `{name}` references are checked, where the name is like an identifier (`[A-Za-z_][A-Za-z0-9_-]*`)
   and it is not after a `$` (`${name}` is a shell variable). Other text in curly braces, like `{}`, `{a,b}` or
   `{{.Name}}`, is not reported. It is only a warning, because a command may need a `{name}` text (e.g.
-  `jq '{name}'`).
+  `jq '{name}'`): tag such strings with [`!raw`](#raw-strings).
 - `for_vars: name is an empty list`: there are no combinations, so the node has no sub-nodes.
 
 ## Editor support
@@ -119,6 +119,13 @@ or put this comment at the top of a tree file:
 ```
 
 The schema only checks the structure; `runtree --check` also checks includes, variables and the other semantics.
+
+The YAML extension reports the `!raw` tag (see [raw strings](#raw-strings)) as unknown, unless it is listed in the
+settings (the runtree extension does this):
+
+```json
+"yaml.customTags": ["!raw scalar"]
+```
 
 The VS Code extension in `editors/vscode` does the association for `*.rt.yaml` files, and it has a problem matcher
 for `runtree --check` tasks (see its README).
@@ -213,9 +220,6 @@ Every node can have the following general read-write properties. They can be spe
   for starting new processes, in particular for generating commands from the command templates (see below).
 - `def_vars` - similar to `vars`, it defines variable values only if they are not already defined and inherited from the
   parent node. It is an error to put the same variable name in both vars and def_vars (in the same node)
-- `builtin_vars`
-    - `true`:  Use builtin variables as a base. Default value is `true`.
-    - `false`: use an empty object as a base for variables.
 - `inherit_vars`:
     - `true`: the node inherits all variables from its parent node. Inherited values can be overwritten with locally
       defined values. Default value is `true`. 
@@ -337,12 +341,12 @@ Using `def_vars` with `inherit_vars=false` is an error.
 Variables for a node are calculated as follows:
 
 1. Parent variables are calculated before children.
-2. For each node, an empty map is initialized as the base.
-3. If `builtin_vars` is `true`, then builtin vars are added to the base.
-4. If `inherit_vars` is `true`, then parent vars are added to the base.
-5. Finally, locally defined string variable values are calculated using the base (substitution), and the result
-   key-value pairs are added to the base. It first happes with `vars`, and then with `def_vars` (with the not already 
-   defined variables).
+2. If `inherit_vars` is `true`, then the variables of the parent are the base. Otherwise, the base is empty.
+3. The `for_vars` variables of the parent (the combination that the node was generated for) are added to the base.
+4. `def_vars` are added for the variables that are not in the base. Their values can use the variables of the base
+   and the other `def_vars` (see below).
+5. `vars` are added, they override the variables of the base. Their values can use the base and the other variables
+   of the same block (see below).
 6. The result is then used as the calculated variables map for the node.
 
 Variable values can be substituted for various properties:
@@ -369,7 +373,19 @@ the substituted values are not evaluated again. Undefined variables are left as 
 are reported as warnings (see [Checking a tree file](#checking-a-tree-file)). Only string variables can be substituted,
 it is an error to use a list variable (or a number) in a string.
 
-TODO: the `{` and `}` curly braces cannot be escaped yet.
+The strings in list variables are calculated in the node where the variable is defined, like the other values.
+
+#### Raw strings
+
+A string that is tagged `!raw` is used as it is, without variable substitution (and without undefined variable
+warnings). It is useful for commands that contain curly braces, for example:
+
+```yaml
+args: ["bash", "-c", !raw "jq '{name: .user}' data.json"]
+```
+
+The tag applies to the whole string. It can be used for any string value (e.g. in `args`, `title`, `envs`, `vars`, or
+in a list variable), but not for object keys, lists or objects. Other tags are errors.
 
 TODO: maybe we could use https://expr-lang.org/docs/language-definition instead?
 
@@ -403,8 +419,22 @@ my_parent_node:
 The values in a `vars` block can use the other variables of the same block, and the inherited variables. A variable
 of the block overrides the inherited one with the same name, in the other values of the block too. The order of the
 variables in the block does not matter, and they can refer to each other through any number of steps (but not in a
-cycle, that is an error). In its own value, a variable means its inherited value, so it can be extended. The values in
-a `def_vars` block can only use the inherited variables.
+cycle, that is an error). In its own value, a variable means its inherited value, so it can be extended.
+
+The values in a `def_vars` block can use the inherited variables and the other defaults of the same block, with their
+final values: in the example below, `url` uses the inherited `host` when there is one, otherwise the default. They
+cannot use the `vars` of the same node: `def_vars` stand in for the values that are not given to the node (e.g. where
+it is included), and those cannot depend on the variables of the node itself. When it is needed, put the node into a
+`seq` node that has those `vars`.
+
+```yaml
+deploy:
+  def_vars:
+    host: "localhost"
+    port: "8080"
+    url: "http://{host}:{port}"
+  args: ["curl", "{url}"]
+```
 
 Example:
 
@@ -429,10 +459,6 @@ outer_node:
 ```
 
 TODO: strict mode: an option to make the undefined variable warnings errors
-
-#### System variables (builtins)
-
-**TODO**
 
 ## Environment variables
 

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -99,6 +100,8 @@ func (s *Sources) warn(pe *ParseError) {
 }
 
 func (s *Sources) record(pe *ParseError, list *ParseErrors) {
+	// the messages and the node titles may contain strings that are tagged !raw
+	pe.Message, pe.Node = unraw(pe.Message), unraw(pe.Node)
 	key := fmt.Sprintf("%v\x00%s\x00%s", pe.Warning, pe.Pos.String(), pe.Message)
 	if prev, ok := s.errIdx[key]; ok {
 		prev.Count++
@@ -361,7 +364,21 @@ func (s *Sources) pos(file string, n *yaml.Node) Pos {
 
 // convert converts a yaml node to the values that the parser works with (map[interface{}]interface{},
 // []interface{} and scalars), and it records their positions.
+// RawTag marks a string in a tree file that is used as it is, without variable substitution
+const RawTag = "!raw"
+
 func (s *Sources) convert(file string, n *yaml.Node) (interface{}, error) {
+	if n.Kind != yaml.AliasNode && n.Tag != "" && n.Tag != "!" && !strings.HasPrefix(n.Tag, "!!") {
+		switch {
+		case n.Tag == RawTag && n.Kind == yaml.ScalarNode:
+			// the start tags are replaced, so they are not substituted
+			return strings.ReplaceAll(n.Value, StartTag, rawStartTag), nil
+		case n.Tag == RawTag:
+			return nil, newParseError(s.pos(file, n), "%s can only be used for a string", RawTag)
+		default:
+			return nil, newParseError(s.pos(file, n), "unknown tag %s (only %s is supported)", n.Tag, RawTag)
+		}
+	}
 	switch n.Kind {
 	case yaml.AliasNode:
 		return s.convert(file, n.Alias)
@@ -425,6 +442,9 @@ func (s *Sources) convert(file string, n *yaml.Node) (interface{}, error) {
 			key, value := n.Content[i], n.Content[i+1]
 			if key.Tag == "!!merge" {
 				continue
+			}
+			if key.Tag == RawTag {
+				return nil, newParseError(s.pos(file, key), "%s can only be used for values", RawTag)
 			}
 			k, err := s.convert(file, key)
 			if err != nil {

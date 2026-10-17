@@ -58,7 +58,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 					msg += " (it is not inherited, because inherit_vars is false)"
 				}
 			} else if _, ok := n.Parsed.Vars[r.name]; ok && r.prop == "def_vars" {
-				msg += " (def_vars can only use inherited variables)"
+				msg += " (def_vars cannot use the vars of the same node)"
 			} else if sources.isIncluded() {
 				msg += ", it is not set where it is included"
 			}
@@ -190,11 +190,6 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	}
 
 	n.Parsed.IfNEq, err = getStringMapDef(raw, "ifneq", nil) /* getStringMapDef */
-	if err != nil {
-		report(err)
-	}
-
-	n.BuiltinVars, err = getBoolDef(raw, "builtin_vars", true)
 	if err != nil {
 		report(err)
 	}
@@ -504,6 +499,7 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 	for k, v := range forVars {
 		var av []interface{}
 		avOk := false
+		inline := false // a list variable is calculated already
 
 		sv, ok := v.(string)
 		if ok {
@@ -521,6 +517,7 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 
 		if !avOk {
 			av, avOk = v.([]interface{})
+			inline = avOk
 		}
 
 		if !avOk {
@@ -537,8 +534,12 @@ func caclForVars(raw map[interface{}]interface{}, n *Node, err error) (bool, map
 				return false, nil, propErrorf("for_vars", "invalid for_vars: %v: item %d is %s, expected a string", k, i+1,
 					describeValue(item))
 			}
+			if !inline {
+				values[i] = s
+				continue
+			}
 			ref := undefinedRef{prop: "for_vars", key: k, item: i}
-			values[i], err = varEvalUndefined(s, n.Calculated.Vars, "", func(_, name string) {
+			values[i], err = varEvalUndefined(s, n.Calculated.Vars, "", -1, func(_ string, _ int, name string) {
 				ref.name = name
 				n.undefinedRefs = append(n.undefinedRefs, ref)
 			})

@@ -17,23 +17,6 @@
           },
           "type": "array"
         },
-        "builtin_vars": {
-          "description": "Use the builtin variables as a base for the variables. Default: true.",
-          "enum": [
-            true,
-            false,
-            "yes",
-            "no",
-            "on",
-            "off",
-            "y",
-            "n",
-            "true",
-            "false",
-            "1",
-            "0"
-          ]
-        },
         "children_on_error": {
           "description": "The on_error value that the sub-nodes inherit (when they do not specify on_error). When it is not given, the sub-nodes inherit the on_error of the node.",
           "else": {

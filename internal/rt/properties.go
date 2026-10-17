@@ -61,8 +61,6 @@ var NodeProperties = []Property{
 	{Name: "def_vars", Kind: KindVarMap,
 		Description: "Default variable values: only used when the variable is not inherited from the parent. " +
 			"A variable cannot be in both vars and def_vars."},
-	{Name: "builtin_vars", Kind: KindBool, Default: "true",
-		Description: "Use the builtin variables as a base for the variables."},
 	{Name: "inherit_vars", Kind: KindBool, Default: "true",
 		Description: "Inherit the variables of the parent node. def_vars cannot be used when it is false."},
 	{Name: "envs", Kind: KindStringMap, Inherited: true,

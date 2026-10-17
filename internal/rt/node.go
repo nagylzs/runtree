@@ -19,7 +19,6 @@ type Node struct {
 
 	Type               Type   // immutable!
 	Id                 string // immutable!
-	BuiltinVars        bool
 	InheritVars        bool
 	SystemEnvs         bool
 	InheritEnvs        bool
@@ -117,7 +116,6 @@ func New(defType Type, parent *Node, tree *Tree) *Node {
 		Type:               defType,
 		Parent:             parent,
 		Id:                 nextId(),
-		BuiltinVars:        true,
 		InheritVars:        true,
 		SystemEnvs:         true,
 		InheritEnvs:        true,
@@ -230,7 +228,6 @@ func (n *Node) loadFrom(n2 *Node) {
 		panic("Node.loadFrom: trees must be the same")
 	}
 	n.Type = n2.Type
-	n.BuiltinVars = n2.BuiltinVars
 	n.InheritVars = n2.InheritVars
 	n.SystemEnvs = n2.SystemEnvs
 	n.InheritEnvs = n2.InheritEnvs

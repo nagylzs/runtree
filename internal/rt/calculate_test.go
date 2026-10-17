@@ -224,3 +224,67 @@ func TestVarsCycle(t *testing.T) {
 	checkPos(t, pe.Pos, "tree.yaml", 3, 8)
 	checkContains(t, pe.Message, "the variables refer to each other: a → b → c → a")
 }
+
+// def_vars can use the inherited variables and the other defaults (with their final values), but not the vars of
+// the same node.
+func TestDefVarsSameBlock(t *testing.T) {
+	tree := loadTestTree(t, `tree:
+  seq:
+    - include: job
+    - vars:
+        host: srv
+      include: job
+
+job:
+  def_vars:
+    url: "http://{host}:{port}"
+    host: localhost
+    port: "8080"
+  args: [curl, "{url}"]
+`)
+	var got []string
+	for _, n := range tree.Root.Nodes {
+		got = append(got, strings.Join(n.Calculated.Args, " "))
+	}
+	if want := "curl http://localhost:8080|curl http://srv:8080"; strings.Join(got, "|") != want {
+		t.Errorf("args are %q, want %q", strings.Join(got, "|"), want)
+	}
+}
+
+func TestDefVarsCycle(t *testing.T) {
+	_, err := parseTestTree(t, `tree:
+  def_vars:
+    a: "{b}"
+    b: "{a}"
+  args: [echo, "{a}"]
+`)
+	var pe *ParseError
+	if !errors.As(err, &pe) {
+		t.Fatalf("a ParseError was expected, got %v", err)
+	}
+	checkPos(t, pe.Pos, "tree.yaml", 3, 8)
+	checkContains(t, pe.Message, "the variables refer to each other: a → b → a")
+}
+
+// The strings in list variables are calculated where the variable is defined.
+func TestVarsListItems(t *testing.T) {
+	tree := loadTestTree(t, `tree:
+  vars:
+    env: prod
+    hosts: ["{env}-01", "{env}-02"]
+  seq:
+    - vars:
+        env: dev
+      for_vars:
+        host: hosts
+      seq:
+        - args: [ssh, "{host}"]
+`)
+	var got []string
+	for _, n := range tree.Root.Nodes[0].Nodes {
+		got = append(got, strings.Join(n.Calculated.Args, " "))
+	}
+	if want := "ssh prod-01|ssh prod-02"; strings.Join(got, "|") != want {
+		t.Errorf("args are %q, want %q", strings.Join(got, "|"), want)
+	}
+}

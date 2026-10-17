@@ -50,8 +50,9 @@ extension / yaml-language-server); the semantic checks need runtree's own parser
 
 # From TODO comments in the source (2026-10-17)
 
-* template substitution (`vars.go` `varEval`): `{` and `}` cannot be escaped (README documented `\{` and `\}`). Note
-  that `\{n,m\}` is common in grep and sed (BRE), so the escape should only apply to `\{name}`.
+* expression language for computed values (e.g. a `!expr` tag), probably with [Expr](https://expr-lang.org)
+  (MIT license): concatenating lists, replacing in strings, conditionals; variables of any type (numbers converted
+  to strings with their source text, e.g. `1.10`)
 * navigator layout uses a hard-coded width of 1024 (`nodenavigator.go` `layoutList`, `layoutTree`), long node titles
   produce GTK warnings ("Trying to measure GtkBox for width of 1024, but it needs at least ...")
 * GTK command line parameters cannot be passed to the application (`gtkapplication.go` `RunApplication`)

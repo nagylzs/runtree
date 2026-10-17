@@ -34,6 +34,11 @@
         "url": "./runtree.schema.json"
       }
     ],
+    "configurationDefaults": {
+      "yaml.customTags": [
+        "!raw scalar"
+      ]
+    },
     "problemMatchers": [
       {
         "name": "runtree",

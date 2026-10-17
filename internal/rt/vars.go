@@ -28,16 +28,19 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 	n.undefinedRefs = nil
 	// records the references to undefined variables in prop (key, item)
 	undefined := func(prop, key string, item int) undefinedFunc {
-		return func(mapKey, name string) {
-			k := key
+		return func(valueKey string, valueItem int, name string) {
+			k, i := key, item
 			if k == "" {
-				k = mapKey
+				k = valueKey
 			}
-			n.undefinedRefs = append(n.undefinedRefs, undefinedRef{prop: prop, key: k, item: item, name: name})
+			if i < 0 {
+				i = valueItem
+			}
+			n.undefinedRefs = append(n.undefinedRefs, undefinedRef{prop: prop, key: k, item: i, name: name})
 		}
 	}
 	eval := func(prop string, item int, value string, values map[string]interface{}) (string, error) {
-		res, err := varEvalUndefined(value, values, "", undefined(prop, "", item))
+		res, err := varEvalUndefined(value, values, "", -1, undefined(prop, "", item))
 		if err != nil {
 			return "", &propertyError{name: prop, item: item, msg: err.Error()}
 		}
@@ -141,7 +144,7 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 			ie[k] = v
 		}
 	}
-	c.Envs, err = calcMapStringString(n.Parsed.Envs, "envs", c.Vars, nil, ie, false, undefined("envs", "", -1))
+	c.Envs, err = calcEnvs(n.Parsed.Envs, c.Vars, ie, undefined("envs", "", -1))
 	if err != nil {
 		return false, err
 	}
@@ -242,36 +245,48 @@ func (n *Node) FillNodeList(list []*Node) {
 	}
 }
 
-// calcVars calculates the variables of a node from the inherited ones, its vars and its def_vars (the defaults for
-// the variables that are not inherited). The values of vars can use the other variables of the same block, in any
-// order (with their calculated values), and in its own value a variable means its inherited value (so that it can be
-// extended, e.g. path: "{path}:/opt/bin"). The values of def_vars can use the inherited variables. onVars and
-// onDefVars are called for the references to undefined variables.
+// calcVars calculates the variables of a node from the inherited ones, its def_vars (the defaults for the variables
+// that are not inherited) and its vars. The values of def_vars can use the inherited variables and the other
+// defaults. The values of vars can use all of these, and the other variables of the same block. A variable means its
+// inherited value in its own value (so that it can be extended, e.g. path: "{path}:/opt/bin"). onVars and onDefVars
+// are called for the references to undefined variables.
 func calcVars(vars, defVars, inherited map[string]interface{}, onVars, onDefVars undefinedFunc) (
 	map[string]interface{}, error) {
 	res := make(map[string]interface{}, len(inherited)+len(vars)+len(defVars))
 	for k, v := range inherited {
 		res[k] = v
 	}
+	used := make(map[string]interface{}, len(defVars))
 	for k, v := range defVars {
-		if _, ok := res[k]; ok {
-			continue // inherited
+		_, isInherited := inherited[k]
+		_, inVars := vars[k] // it is an error to have both, it is reported by the parser
+		if !isInherited && !inVars {
+			used[k] = v
 		}
-		if _, ok := vars[k]; ok {
-			continue // it is an error to have both, it is reported by the parser
-		}
-		if sv, ok := v.(string); ok {
-			var err error
-			v, err = varEvalUndefined(sv, inherited, k, onDefVars)
-			if err != nil {
-				return nil, &propertyError{name: "def_vars", key: k, item: -1, msg: err.Error()}
-			}
-		}
+	}
+	defaults, err := calcBlock(used, "def_vars", inherited, onDefVars)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range defaults {
 		res[k] = v
 	}
+	own, err := calcBlock(vars, "vars", maps.Clone(res), onVars)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range own {
+		res[k] = v
+	}
+	return res, nil
+}
 
-	// the vars are calculated in the order of their references
-	values := make(map[string]interface{}, len(vars))
+// calcBlock calculates the values of a block of variables (the value of prop). The values can use the other
+// variables of the block in any order (with their calculated values), and the variables of base (a variable in its
+// own value too). The strings and the strings in lists are calculated, other values are kept as they are.
+func calcBlock(block map[string]interface{}, prop string, base map[string]interface{}, on undefinedFunc) (
+	map[string]interface{}, error) {
+	values := make(map[string]interface{}, len(block))
 	var resolving []string // the variables that are being calculated, to find the cycles
 	var resolve func(k string) (interface{}, error)
 	resolve = func(k string) (interface{}, error) {
@@ -280,45 +295,63 @@ func calcVars(vars, defVars, inherited map[string]interface{}, onVars, onDefVars
 		}
 		for i, r := range resolving {
 			if r == k {
-				return nil, &propertyError{name: "vars", key: k, item: -1,
+				return nil, &propertyError{name: prop, key: k, item: -1,
 					msg: fmt.Sprintf("the variables refer to each other: %s", strings.Join(
 						append(append([]string(nil), resolving[i:]...), k), " → "))}
 			}
 		}
 		resolving = append(resolving, k)
 		defer func() { resolving = resolving[:len(resolving)-1] }()
-		v := vars[k]
-		if sv, ok := v.(string); ok {
-			var err error
-			v, err = varEvalLookup(sv, func(name string) (interface{}, bool, error) {
-				if _, own := vars[name]; own && name != k {
-					v, err := resolve(name)
-					return v, true, err
-				}
-				// inherited (its own name too), or a default
-				v, ok := res[name]
-				return v, ok, nil
-			}, k, onVars)
-			if err != nil {
-				var prop *propertyError
-				if errors.As(err, &prop) {
-					return nil, err // from the calculation of another variable
-				}
-				return nil, &propertyError{name: "vars", key: k, item: -1, msg: err.Error()}
+		lookup := func(name string) (interface{}, bool, error) {
+			if _, local := block[name]; local && name != k {
+				v, err := resolve(name)
+				return v, true, err
 			}
+			v, ok := base[name]
+			return v, ok, nil
+		}
+		eval := func(s string, item int) (string, error) {
+			res, err := varEvalLookup(s, lookup, k, item, on)
+			if err != nil {
+				var prop2 *propertyError
+				if errors.As(err, &prop2) {
+					return "", err // from the calculation of another variable
+				}
+				return "", &propertyError{name: prop, key: k, item: item, msg: err.Error()}
+			}
+			return res, nil
+		}
+		v := block[k]
+		switch tv := v.(type) {
+		case string:
+			sv, err := eval(tv, -1)
+			if err != nil {
+				return nil, err
+			}
+			v = sv
+		case []interface{}:
+			l := make([]interface{}, len(tv))
+			for i, item := range tv {
+				l[i] = item
+				if s, ok := item.(string); ok {
+					sv, err := eval(s, i)
+					if err != nil {
+						return nil, err
+					}
+					l[i] = sv
+				}
+			}
+			v = l
 		}
 		values[k] = v
 		return v, nil
 	}
-	for _, k := range slices.Sorted(maps.Keys(vars)) {
+	for _, k := range slices.Sorted(maps.Keys(block)) {
 		if _, err := resolve(k); err != nil {
 			return nil, err
 		}
 	}
-	for k, v := range values {
-		res[k] = v
-	}
-	return res, nil
+	return values, nil
 }
 
 // calcMapValues calculates the string values of an object property (raw, the value of rawProp) with the variables.
@@ -329,7 +362,7 @@ func calcMapValues(raw map[string]interface{}, rawProp string, vars map[string]i
 	for k, v := range raw {
 		if sv, ok := v.(string); ok {
 			var err error
-			v, err = varEvalUndefined(sv, vars, k, onRaw)
+			v, err = varEvalUndefined(sv, vars, k, -1, onRaw)
 			if err != nil {
 				return nil, &propertyError{name: rawProp, key: k, item: -1, msg: err.Error()}
 			}
@@ -339,64 +372,43 @@ func calcMapValues(raw map[string]interface{}, rawProp string, vars map[string]i
 	return res, nil
 }
 
-func calcMapStringString(raw map[string]string, rawProp string, vars map[string]interface{}, defVars map[string]string,
-	inheritFrom map[string]string, includeSources bool, onRaw undefinedFunc) (map[string]string, error) {
-	s := make(map[string]interface{}) // this is the source
-	// first put inherited values into source
-	for k, v := range inheritFrom {
-		s[k] = v
+// calcEnvs calculates the envs of a node: their values can use the inherited envs and the variables (that override
+// the envs with the same name). on is called for the references to undefined variables.
+func calcEnvs(envs map[string]string, vars map[string]interface{}, inherited map[string]string, on undefinedFunc) (
+	map[string]string, error) {
+	values := make(map[string]interface{}, len(inherited)+len(vars))
+	for k, v := range inherited {
+		values[k] = v
 	}
-	ihf2 := maps.Clone(s)
-	vars2 := maps.Clone(vars)
-	if vars2 == nil {
-		vars2 = make(map[string]interface{})
+	for k, v := range vars {
+		values[k] = v
 	}
-	var err error
-	// then put var values, substitute inherited values
-	for k, v := range vars2 {
-		sv, ok := v.(string)
-		if ok {
-			v, err = varEval(sv, ihf2)
-			if err != nil {
-				return nil, err
-			}
-		}
-		s[k] = v
-	}
-	for k, sv := range defVars {
-		_, ok := s[k]
-		if !ok {
-			sv, err = varEval(sv, ihf2)
-			if err != nil {
-				return nil, err
-			}
-			s[k] = sv
-		}
-	}
-	// this is the resulting map
-	var r = make(map[string]string)
-	if includeSources {
-		// include all source values
-		for k, v := range s {
-			sv, ok := v.(string)
-			if ok {
-				r[k] = sv
-			}
-		}
-	}
-	for k, sv := range raw {
-		sv, err = varEvalUndefined(sv, s, k, onRaw)
+	res := make(map[string]string, len(envs))
+	for k, v := range envs {
+		sv, err := varEvalUndefined(v, values, k, -1, on)
 		if err != nil {
-			return nil, &propertyError{name: rawProp, key: k, item: -1, msg: err.Error()}
+			return nil, &propertyError{name: "envs", key: k, item: -1, msg: err.Error()}
 		}
-		r[k] = sv
+		res[k] = sv
 	}
-	return r, nil
+	return res, nil
 }
 
 // undefinedFunc is called for a reference to an undefined variable (name), in the value of key in an object
-// property (or "")
-type undefinedFunc func(key string, name string)
+// property (or ""), in its item (or -1)
+type undefinedFunc func(key string, item int, name string)
+
+// rawStartTag replaces the start tags in the strings that are tagged !raw in the source, so that they are not
+// substituted. The calculated values have the start tags again (see unraw).
+const rawStartTag = "\uE000"
+
+// unraw replaces the raw start tags back
+func unraw(s string) string {
+	if !strings.Contains(s, rawStartTag) {
+		return s
+	}
+	return strings.ReplaceAll(s, rawStartTag, StartTag)
+}
 
 // varNameRe matches the variable names that are reported when they are not defined. Other text in curly braces is
 // common in commands (e.g. "{}" in find, "{a,b}" in bash, "{{.Name}}" in docker), and they are left as they are.
@@ -405,24 +417,24 @@ var varNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 // varEval substitutes variables ({name}) into a string. The substitution is done in a single pass: the substituted
 // values are not evaluated again. References to undefined variables are left as they are.
 func varEval(value string, values map[string]interface{}) (string, error) {
-	return varEvalUndefined(value, values, "", nil)
+	return varEvalUndefined(value, values, "", -1, nil)
 }
 
-// varEvalUndefined is varEval, and it calls undefined (if not nil) with key for the references to undefined
+// varEvalUndefined is varEval, and it calls undefined (if not nil) with key and item for the references to undefined
 // variables. ${name} is not reported, because it is a shell variable.
-func varEvalUndefined(value string, values map[string]interface{}, key string, undefined undefinedFunc) (string,
-	error) {
+func varEvalUndefined(value string, values map[string]interface{}, key string, item int, undefined undefinedFunc) (
+	string, error) {
 	return varEvalLookup(value, func(name string) (interface{}, bool, error) {
 		v, ok := values[name]
 		return v, ok, nil
-	}, key, undefined)
+	}, key, item, undefined)
 }
 
 // varEvalLookup is varEvalUndefined with a function that returns the variable values
-func varEvalLookup(value string, lookup func(name string) (interface{}, bool, error), key string,
+func varEvalLookup(value string, lookup func(name string) (interface{}, bool, error), key string, item int,
 	undefined undefinedFunc) (string, error) {
 	if !strings.Contains(value, StartTag) {
-		return value, nil
+		return unraw(value), nil
 	}
 	var b strings.Builder
 	pos := 0
@@ -445,7 +457,7 @@ func varEvalLookup(value string, lookup func(name string) (interface{}, bool, er
 		}
 		if !ok {
 			if undefined != nil && varNameRe.MatchString(name) && (start == 0 || value[start-1] != '$') {
-				undefined(key, name)
+				undefined(key, item, name)
 			}
 			// it is not a variable, continue after the start tag (there can be a variable in it, e.g. "{{name}}")
 			b.WriteString(StartTag)
@@ -460,7 +472,7 @@ func varEvalLookup(value string, lookup func(name string) (interface{}, bool, er
 		pos = start + len(StartTag) + j + len(EndTag)
 	}
 	b.WriteString(value[pos:])
-	return b.String(), nil
+	return unraw(b.String()), nil
 }
 
 /*

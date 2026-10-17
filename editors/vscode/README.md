@@ -7,6 +7,8 @@ Editor support for [runtree](https://github.com/nagylzs/runtree) tree files. Tre
 
 - Completion of node properties and their values, with documentation on hover.
 - Validation of property names (typos like `on_eror`), value types and allowed values (e.g. `on_error`, `status`).
+- The `!raw` tag of runtree (strings without variable substitution) is known to the YAML extension (the
+  `yaml.customTags` setting; if you set it yourself, add `"!raw scalar"` to your list).
 - A problem matcher (`$runtree`) for `runtree --check`, which also checks includes, variables and the other
   semantics of the tree, and reports all of its errors and warnings (e.g. undefined variables) in the Problems panel.
 
