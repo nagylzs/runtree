@@ -269,3 +269,19 @@ func (n *Node) commitTotalElapsed(locked bool) {
 	n.addTotalElapsed(elapsed)
 	n.totalProcCommitedTo = now
 }
+
+// FailedRunNodes returns the number of failed run nodes below the node. It is displayed for unfinished seq/par
+// nodes, because they only get their final status later (e.g. a par node keeps running its other sub-nodes).
+func (n *Node) FailedRunNodes(locked bool) int {
+	if !locked {
+		panic("must be called in locked state")
+	}
+	count := 0
+	for _, c := range n.Nodes {
+		if c.Type == TypeRun && StatusHasError(c.Status) {
+			count++
+		}
+		count += c.FailedRunNodes(locked)
+	}
+	return count
+}

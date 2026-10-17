@@ -199,6 +199,11 @@ func (w *NodeFrameHeader) updateGUI() {
 	if node.SchedulerMessage != "" {
 		st += ", " + node.SchedulerMessage
 	}
+	if node.HasChild() && !rt.StatusFinished(newStatus) {
+		if failed := node.FailedRunNodes(true); failed > 0 {
+			st += fmt.Sprintf(", %d failed", failed)
+		}
+	}
 	typ := rt.TypeName(node.Type)
 
 	w.title.SetText(displayLabel)

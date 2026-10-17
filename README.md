@@ -851,13 +851,33 @@ TODO: an algorithmic description would be better! What happens to waiting sub-no
   same atomic step.
 - The par node becomes `finished` (reaches final state) when all of its sub-nodes are `finished`. Locks are released in
   the same atomic step.
-- When a sub-node fails ( becomes `inactive` with `has_error=true`), then processing of further sub-nodes (if any)
-  depends on the value of the `on_error` property:
-    - `cancel` will recursively cancel all remaining (not yet started) sub-nodes. This is the default. For par nodes,
-      the result of this action may not be immediate.
-    - `run` will continue processing nodes normally
-    - `pause` will set the `paused` property of the par node to `true` right after a sub-node is `finished` with error.
-      This will pause the scheduler, and user interaction may be required to finish the node.
+- When a sub-node fails, the par node keeps running its other sub-nodes (they are usually independent), and it may
+  also start its not yet started sub-nodes. It gets the status given by its `on_error` property (`failed` by default,
+  `paused` or `success`) when all of its sub-nodes are finished. While it is still running, the GUI displays the
+  number of failed run nodes below it (e.g. `Running (2), 1 failed`).
+- To stop starting new sub-nodes after a failure, use the sibling operation of the sub-nodes' `on_error`: `freeze`
+  freezes the not yet started siblings of the failed sub-node (they can be thawed later to continue), `skip` skips
+  them. `children_on_error` sets it for all sub-nodes at once.
+
+Example: a rolling upgrade, one server at a time, that stops at the first failed server. The remaining servers are
+frozen, and the par node stays `running` until they are thawed (to continue the upgrade) or skipped (to finish it):
+
+```yaml
+- type: par
+  title: "Upgrade servers"
+  max_proc: 1
+  children_on_error: [failed, freeze]
+  nodes:
+    - type: run
+      title: "server1"
+      args: ["ssh", "root@server1", "apt-get -y dist-upgrade"]
+    - type: run
+      title: "server2"
+      args: ["ssh", "root@server2", "apt-get -y dist-upgrade"]
+    - type: run
+      title: "server3"
+      args: ["ssh", "root@server3", "apt-get -y dist-upgrade"]
+```
 
 ### For loops
 

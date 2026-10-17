@@ -10,21 +10,31 @@ jobs:
   build:
     if: github.ref == 'refs/heads/main'
 
-    runs-on: ubuntu-latest
+    # Pinned, so that a new ubuntu-latest does not change the build environment unexpectedly.
+    # All packages below are available on Ubuntu 26.04 (checked on 2026-10-17).
+    runs-on: ubuntu-26.04
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.x'
+
+    # The Go build cache is saved and restored by setup-go (keyed on go.sum). It also holds the compiled cgo
+    # packages (gotk4), which take most of the build time without the cache.
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version: stable
+        cache: true
 
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential pkg-config golang libgtk-4-dev libvte-2.91-gtk4-dev libgirepository1.0-dev
+        sudo apt-get install -y build-essential pkg-config libgtk-4-dev libvte-2.91-gtk4-dev libgirepository1.0-dev
 
     - name: Run tests
       env:
@@ -37,7 +47,7 @@ jobs:
       run: python3 scripts/build.py
 
     - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: linux-amd64-binaries
         path: |
@@ -46,4 +56,3 @@ jobs:
           dist/linux/amd64/runtree
           dist/linux/amd64/runtree_debug
         if-no-files-found: error
-  

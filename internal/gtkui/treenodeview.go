@@ -153,6 +153,10 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	prevStatus := nw.prevStatus
 	selected := nw.Selected
 	nw.prevStatus = node.Status
+	failed := 0
+	if hasChild && !rt.StatusFinished(status) {
+		failed = node.FailedRunNodes(true)
+	}
 
 	if lockTree {
 		node.RUnlockTree()
@@ -175,6 +179,9 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 		} else {
 			sn += fmt.Sprintf(" (%d)", nProc)
 		}
+	}
+	if failed > 0 {
+		sn += fmt.Sprintf(", %d failed", failed)
 	}
 	if icons != "" {
 		sn = icons + " " + sn
