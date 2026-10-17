@@ -11,7 +11,8 @@ of the YAML format, node properties, statuses, and operations — consult it bef
 semantics. TODO.md lists planned work.
 
 Go module: `github.com/nagylzs/runtree` (Go 1.25+, cgo required for the GUI). Linux is the primary target;
-`rtrunner` also builds on Windows, `runtree` (GUI) does not (VTE dependency).
+`rtrunner` also builds on Windows and cross-compiles for macOS, `runtree` (GUI) does not build on Windows (VTE
+dependency); see TODO.md for macOS.
 
 ## Build / run
 

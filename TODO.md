@@ -21,6 +21,14 @@
 * Re-run (manual `run` on a finished node) has the same problem as reset to waiting had: the resources provided by
   the node stay provided while it runs again, so the nodes that require them may start before it finishes. Offer the
   same unprovide dialog as for reset to waiting.
+* macOS support (checked on 2026-10-17, not tested on a Mac yet):
+  * rtrunner: it cross-compiles for darwin/arm64 and darwin/amd64 (`internal/signal/signals_unix.go` is used on
+    macOS too). Test it on a Mac (ptys, process groups, signals).
+  * runtree GUI: Homebrew has `gtk4` (4.24) and `vte3` built with `-Dgtk4=true` (`vte-2.91-gtk4`, 0.84), and
+    gotk4/gotkit have no OS specific code (cgo with pkg-config), so it should build after
+    `brew install pkgconf gtk4 vte3 socat`. Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift on
+    macOS), middle click paste (macOS has no primary selection), the close confirmation on Cmd+Q.
+  * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
