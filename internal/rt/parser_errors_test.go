@@ -276,7 +276,7 @@ func TestExampleTrees(t *testing.T) {
 	}
 }
 
-// The README example of the shortest form
+// The shortest form (docs/tree-files.md "Short forms")
 func TestShortestForm(t *testing.T) {
 	dir := writeFiles(t, map[string]string{"tree.yaml": `tree:
   on_error: "freeze"

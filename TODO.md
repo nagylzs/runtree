@@ -2,11 +2,9 @@
 * a seq/par node whose sub-nodes are all frozen (e.g. by on_error freeze) shows Waiting, not Frozen
 * implement NavBlocked navmode
 * document "include" property, explain include/reduce
-* show requires/provides on the dependencies tab
 * possibly show a progress bar for each node, that shows the percentage of finished nodes
 * create a special view that shows tree total time, tree total progress and processing speed graph?
 * MAYBE after selecting a status filter in the navbar, show a graph for number of nodes for that status?
-* show provides and requires under dependencies
 * play a sound when a node goes paused
 * create a main menu, and add menu items to toggle the various windows above
 * add extra actions for paused nodes to deal with siblings: cancel siblings, freeze siblings, thaw siblings, this is
@@ -45,6 +43,29 @@ attributes. Terminal input is never logged (passwords). A handler sends every re
    written in batches by a goroutine; `--show-runs`, `--show-events`.
 4. Done: the terminal output of the nodes is saved in the same database, `--show-output`. Maybe later: show the
    previous runs and their output in the GUI; delete old runs (`--prune-log`?); compress the output.
+
+# Found by the documentation audit (2026-10-18)
+
+The README was checked against the code when the documentation was moved to docs/. Fixed since then: the on_error
+sibling operation stopped running siblings in the middle, a single include lost the title, provides and requires of
+the including node, the descriptions of several properties. Still open:
+
+* the non-recursive Skip of a frozen seq/par node is offered in the GUI, but it does nothing (`op.go`)
+* "Skip all" (and on_error skip) skips the run nodes below a frozen seq/par node, but the seq/par node itself stays
+  Frozen, so its parent never finishes
+* listing the same name in `rlocks` and `xlocks` of a node is not an error (the old README said it was)
+* `~` is not expanded in `cwd` (expand it, or report it as an error?)
+* the exit code of runtree does not depend on the result of the tree (see headless mode)
+
+# Ideas (from the old README)
+
+* an expression language for conditions (e.g. https://expr-lang.org/)
+* a strict mode: an option to make the undefined variable warnings errors
+* deadlock detectors for locks and for dependencies
+* the default of on_error from a command line option (e.g. paused when interactive, failed when unattended)
+* signals for a subtree with different runners (which signals can be sent?)
+* a conditional node: run a condition node first, and the other sub-nodes depending on its result
+* `load` nodes, custom nodes (create, change and delete sub-nodes on the fly)
 
 # Runners (plan, 2026-10-18)
 

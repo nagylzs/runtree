@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `runtree` is a process scheduler: a YAML file defines a tree of nodes (`run` / `seq` / `par`), and a GTK4 GUI
 (`runtree`) schedules the leaf commands on runners, which execute them in pseudo-terminals and stream the ptys back
 so they can be shown/interacted with in the GUI. The default runner is embedded in `runtree` (`runner: local`); an
-`rtrunner` daemon (`runner: host:port`) runs them on another machine. README.md is the full user-facing spec
-of the YAML format, node properties, statuses, and operations — consult it before changing parser or scheduler
-semantics. TODO.md lists planned work.
+`rtrunner` daemon (`runner: host:port`) runs them on another machine. `docs/` is the user documentation (README.md
+is the overview): the YAML format, node properties, statuses, operations, runners — consult it before changing parser
+or scheduler semantics, and update it with the change. TODO.md lists planned work.
 
 Go module: `github.com/nagylzs/runtree` (Go 1.25+, cgo required for the GUI). Linux is the primary target;
 `rtrunner` also builds on Windows and cross-compiles for macOS, `runtree` (GUI) does not build on Windows (VTE
@@ -131,11 +131,14 @@ Styling is in the embedded `main.css`. All GTK calls must happen on the GTK main
 - Logging is `log/slog` (`internal/logging`: tint text or JSON on stderr; `-v` → Info, `-d` → Debug). Don't use
   `println`. In `rt`, log with the tree's logger (`t.logger`, or `n.log()` that adds the `node` attribute): its
   records at Info and above are kept in `Tree.EventLog()`, the GUI's Log tab (`nodeframelog.go`) shows them. Events
-  of the tree have an `event` attribute (constants in `eventlog.go`, documented in README.md "Logs"), and their
+  of the tree have an `event` attribute (constants in `eventlog.go`, documented in docs/logging.md "Events"), and their
   message must be complete for humans: the Log tab shows only the message. Never log terminal input or `envs`.
 - New YAML node properties need: an entry in `NodeProperties` (`properties.go`: name, value kind, inherited, default,
-  description; the accepted property names and the JSON Schema come from it), then regenerate the schema with
-  `go test ./internal/rt/ -run TestSchemaFileIsUpToDate -update-schema` (a test fails if it is stale), parsing in
-  `parser.go`, a `Parsed`/`Calculated` field
-  in `node.go`, substitution/inheritance in `vars.go`, GUI display in the relevant `nodeframe*.go`, and a README entry.
+  description; the accepted property names, the JSON Schema and docs/reference/properties.md come from it), then
+  regenerate them with `go test ./internal/rt/ -run 'TestSchemaFileIsUpToDate|TestPropertiesDocIsUpToDate'
+  -update-schema -update-docs` (tests fail if they are stale; `propertyGuide` in `docs_test.go` needs its section of
+  the guide), parsing in `parser.go`, a `Parsed`/`Calculated` field in `node.go`, substitution/inheritance in
+  `vars.go`, GUI display in the relevant `nodeframe*.go`, and its description in the guide (docs/).
+- Docs tests: `TestDocLinks` checks the relative links of README.md and docs/, `TestOptionsDocumented`
+  (internal/config) that every option is in docs/reference/cli.md, `TestExampleTrees` the examples.
 - Windows/Unix split uses `//go:build` files in `internal/runner` and `internal/signal`.

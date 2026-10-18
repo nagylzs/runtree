@@ -1,0 +1,128 @@
+# Getting started
+
+## Requirements
+
+runtree runs on Linux. The GUI (`runtree`) needs GTK 4 and VTE (the terminal widget of GNOME Terminal); the runner
+(`rtrunner`) is a static binary without dependencies, that also runs on macOS and other Linux machines.
+
+At runtime, the GUI needs `bash` and `socat` (each terminal attaches to the process with `socat`). runtree does not
+start without `socat`.
+
+## Installation
+
+There are no packages yet: build it from source. The build needs Go 1.25 or newer (with cgo), gcc, pkg-config, the
+GTK 4 and VTE development packages, git and Python 3. If the `golang` package of your distribution is older than
+1.25, install Go from [go.dev](https://go.dev/dl/).
+
+On Debian or Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config golang git python3 socat \
+    libgtk-4-dev libvte-2.91-gtk4-dev libgirepository1.0-dev
+```
+
+On Arch or Manjaro:
+
+```bash
+sudo pacman -S base-devel go git python socat gtk4 vte4
+```
+
+Then build it:
+
+```bash
+git clone https://github.com/nagylzs/runtree.git
+cd runtree
+python3 scripts/build.py
+```
+
+The first build takes several minutes (the GTK bindings are compiled once, then they are cached). The binaries are
+put into `dist/linux/amd64/`:
+
+| File | What it is |
+|------|------------|
+| `runtree` | the scheduler and its GUI |
+| `rtrunner` | the runner daemon, for [runners](runners.md) on other machines |
+| `runtree-lsp` | the language server for [editors](editors.md) |
+| `*_debug` | the same, with debug information |
+
+`dist/rtrunners/` has `rtrunner` for other platforms (Linux on x86_64, arm64 and 32 bit ARM, macOS). `runtree` has
+them inside too: it uploads the right one to the hosts of [ssh runners](runners.md#ssh-runners).
+
+`go build -o runtree ./cmd/runtree` builds it too, but without version information and without the `rtrunner`s for
+the uploads. See [Development](development.md) for the details of the build.
+
+Put `runtree` on your `PATH`, e.g. copy it to `~/bin` or `/usr/local/bin`.
+
+## The first tree
+
+A tree file is a YAML file with a top level `tree` object. Save this as `hello.rt.yaml`:
+
+```yaml
+tree:
+  title: "Hello"
+  seq:
+    - title: "Say hello"
+      args: [echo, "Hello from runtree!"]
+    - title: "Wait a bit"
+      args: [sleep, "3"]
+```
+
+Run it:
+
+```bash
+runtree hello.rt.yaml
+```
+
+The window shows the tree on the left. runtree starts the first step right away; when it finishes, it starts the
+second one. Click a node to see its terminal and its properties on the right. When both steps have finished, the tree
+is Success. Close the window to quit.
+
+Things to try next:
+
+- Make the first step fail: `args: [sh, -c, "echo failing; exit 1"]`. The seq node fails, and the second step is
+  not started. Fix the command and run the tree again, or select the failed step and click **Re-run**.
+- Change `seq` to `par`: both steps start at the same time.
+
+The [examples](../examples/README.md) show the features one by one, from `01-hello` to a rolling upgrade of
+web servers. They only run harmless commands, so you can run all of them:
+
+```bash
+runtree examples/03-parallel.rt.yaml
+```
+
+## Checking a tree
+
+`runtree --check` loads a tree file (and the files it includes) and reports the errors and warnings, without starting
+the GUI or any process:
+
+```
+$ runtree --check upgrade.rt.yaml
+upgrade.rt.yaml:5:7: unknown property "on_eror" (did you mean "on_error"?)
+  in node: upgrade › deploy
+upgrade.rt.yaml:8:41: invalid args: item 4 is a number, expected a string (put it in quotes)
+  in node: upgrade › reboot
+2 errors
+```
+
+The exit code is 1 when there is an error. A tree without errors prints `upgrade.rt.yaml: OK, 3 nodes`.
+
+See [Checking a tree file](tree-files.md#checking-a-tree-file). [Editors](editors.md) can show the same errors while
+you type.
+
+## Appearance
+
+runtree is designed for dark GTK themes:
+
+```bash
+GTK_THEME=Adwaita:dark runtree tree.rt.yaml
+```
+
+It works with light themes too, but some parts may still look dark. On a HiDPI screen, `GDK_SCALE=2` doubles the
+size. The application id is `com.github.nagylzs.runtree.gui`.
+
+## Next steps
+
+- [Writing tree files](tree-files.md): the structure of the tree
+- [How a tree runs](execution.md): what happens when a step fails
+- [Runners](runners.md): run the commands on other machines over ssh

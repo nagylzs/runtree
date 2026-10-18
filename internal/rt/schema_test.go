@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
-	"regexp"
-	"strings"
 	"testing"
 )
 
@@ -64,25 +62,3 @@ func TestSchemaHasAllProperties(t *testing.T) {
 }
 
 // Every property is documented in the README, and the README does not list unknown properties.
-func TestREADMEProperties(t *testing.T) {
-	b, err := os.ReadFile("../../README.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	readme := string(b)
-	for _, p := range NodeProperties {
-		if !strings.Contains(readme, "`"+p.Name+"`") {
-			t.Errorf("property %s is not documented in README.md", p.Name)
-		}
-	}
-	start := strings.Index(readme, "## General node properties")
-	end := strings.Index(readme, "Nodes also have the following read-only properties")
-	if start < 0 || end < start {
-		t.Fatal("the general node properties section is not found in README.md")
-	}
-	for _, m := range regexp.MustCompile("(?m)^- `([a-z_]+)`").FindAllStringSubmatch(readme[start:end], -1) {
-		if !ValidNodeConfigs.Contains(m[1]) {
-			t.Errorf("README.md lists an unknown property: %s", m[1])
-		}
-	}
-}
