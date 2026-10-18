@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -257,6 +258,34 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.Calculated = n2.Calculated
 	n.Calculated.Level, n.Calculated.Idx = lvl, idx
 	n.Status = n2.Status
+}
+
+// keepOwn sets the properties of a node that its single included object replaced (see loadFrom), but that the object
+// does not inherit: its own title and description, and its provides and requires (with the object's ones)
+func (n *Node) keepOwn(p Parsed, c Calculated) {
+	if p.Title != "" {
+		n.Parsed.Title, n.Calculated.Title = p.Title, c.Title
+	}
+	if p.Description != "" {
+		n.Parsed.Description, n.Calculated.Description = p.Description, c.Description
+	}
+	union := func(own, object *set.Set[string]) *set.Set[string] {
+		switch {
+		case own == nil:
+			return object
+		case object == nil:
+			return own.Clone()
+		}
+		return own.Union(object)
+	}
+	if len(p.Provides) > 0 {
+		n.Parsed.Provides = append(slices.Clone(p.Provides), n.Parsed.Provides...)
+		n.Calculated.Provides = union(c.Provides, n.Calculated.Provides)
+	}
+	if len(p.Requires) > 0 {
+		n.Parsed.Requires = append(slices.Clone(p.Requires), n.Parsed.Requires...)
+		n.Calculated.Requires = union(c.Requires, n.Calculated.Requires)
+	}
 }
 
 func (n *Node) DebugPath() string {

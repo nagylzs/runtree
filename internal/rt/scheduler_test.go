@@ -1,6 +1,8 @@
 package rt
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -431,4 +433,55 @@ tree:
 	if st := s.status("h2"); st != "Success" {
 		t.Errorf("h2 is %s", st)
 	}
+}
+
+// A node that includes one object becomes the object, but it keeps its own title, description, provides and
+// requires (the object does not inherit them)
+func TestIncludeKeepsOwnProperties(t *testing.T) {
+	s := newSchedTree(t, `
+tree:
+  id: root
+  par:
+    - id: build
+      title: "Build"
+      provides: [binary]
+      requires: [sources]
+      include: compile
+    - id: checkout
+      provides: [sources]
+      args: ["true"]
+    - id: deploy
+      requires: [binary]
+      args: ["true"]
+    - id: plain
+      vars: {what: docs}
+      include: compile
+
+compile:
+  title: "compile {what}"
+  description: "it compiles"
+  def_vars: {what: code}
+  provides: [objects]
+  args: ["true"]
+`)
+	s.tree.RLock("TestIncludeKeepsOwnProperties")
+	build, plain := s.tree.NodeById["build"], s.tree.NodeById["plain"]
+	provides := build.Calculated.Provides.List()
+	slices.Sort(provides)
+	got := fmt.Sprintf("%s, %s, %v, %v, %s %d | %s, %s %d", build.Calculated.Title, build.Calculated.Description,
+		provides, build.Calculated.Requires.List(), TypeName(build.Type), len(build.Nodes), plain.Calculated.Title,
+		TypeName(plain.Type), len(plain.Nodes))
+	s.tree.RUnlock()
+	if got != "Build, it compiles, [binary objects], [sources], Run 0 | compile docs, Run 0" {
+		t.Errorf("got %s", got)
+	}
+	s.expect("checkout") // build waits for sources
+	s.run("checkout")
+	s.expect("plain") // deploy waits for binary
+	s.run("plain")
+	s.finish(StatusSuccess, "checkout")
+	s.expect("build")
+	s.run("build")
+	s.finish(StatusSuccess, "build")
+	s.expect("deploy")
 }

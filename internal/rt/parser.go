@@ -341,7 +341,13 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	// if we want to load this node into another one, then we copy all props here
 	if loadInto != nil {
 		parent.sources = append(parent.sources, n.sources...)
+		// the object replaces the node, but the properties of the node that the object does not inherit stay
+		own := struct {
+			parsed     Parsed
+			calculated Calculated
+		}{parent.Parsed, parent.Calculated}
 		parent.loadFrom(n)
+		parent.keepOwn(own.parsed, own.calculated)
 		for k, src := range parent.Calculated.VarSources {
 			if src.Node == n {
 				parent.Calculated.VarSources[k] = VarSource{Node: parent, Prop: src.Prop}
