@@ -98,6 +98,9 @@ type NodeNavigator struct {
 	selected         *TreeNodeView
 	mode             NavMode
 	onlyShowRunNodes bool
+
+	viewport *gtk.Viewport // of the scrolled window that shows the navigator
+	scrollTo *TreeNodeView // ShowNode scrolls to it after the next layout (main gtk loop only)
 }
 
 func NewNodeNavigator() *NodeNavigator {
@@ -204,6 +207,30 @@ func (t *NodeNavigator) layoutItems() {
 	default:
 		t.layoutList(t.mode)
 	}
+	if nw := t.scrollTo; nw != nil && t.mode == NavModeTree && t.viewport != nil {
+		t.scrollTo = nil
+		// after the moved node views are allocated
+		glib.IdleAdd(func() {
+			t.viewport.ScrollTo(nw, nil)
+		})
+	}
+}
+
+// ShowNode selects the node in the tree view mode, expands its parents, and scrolls to it. It must be called from
+// the main gtk loop, with the tree unlocked, after the mode is set to NavModeTree.
+func (t *NodeNavigator) ShowNode(node *rt.Node) {
+	nw, ok := t.nodeViewById[node.Id]
+	if !ok {
+		return
+	}
+	RunTree.Lock("ShowNode")
+	for p := node.Parent; p != nil; p = p.Parent {
+		p.Expanded = true
+	}
+	RunTree.UnLock()
+	t.scrollTo = nw
+	t.selectView(nw)
+	t.EnqueueFullUpdate()
 }
 
 func (t *NodeNavigator) layoutList(mode NavMode) {
@@ -293,6 +320,12 @@ func (t *NodeNavigator) fullUpdate() {
 // afterNodeClicked is called from a gtk signal
 func (t *NodeNavigator) afterNodeClicked(nw *TreeNodeView, press int, x float64, y float64) {
 	defer recoverPanic("node selection")
+	t.selectView(nw)
+}
+
+// selectView selects the node view (nil: no selection), and shows the node on the right side. It must be called from
+// the main gtk loop, with the tree unlocked.
+func (t *NodeNavigator) selectView(nw *TreeNodeView) {
 	oldSel, changed := t.selected, false
 	func() {
 		RunTree.Lock("afterNodeClicked")

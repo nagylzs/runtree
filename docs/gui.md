@@ -18,6 +18,8 @@ Each row is a node: its title (or command line), its type (`Seq`, `Par`), its st
 
 The buttons above the tree are views: **Tree** shows the whole tree, the others (Waiting, Frozen, Running, Success,
 Failed, Skipped, Paused) list the nodes in that status, with their numbers. A check box limits the lists to run nodes.
+In a list, the location button of a node shows it in the tree: it switches to the Tree view, opens the parents of the
+node, selects it, and scrolls to it.
 
 Three properties control which nodes are shown opened: `expanded` (show the sub-nodes when the tree is loaded,
 `false` by default), `expand_on_active` (open the node when it becomes active, `true` by default) and
@@ -29,13 +31,14 @@ When the tree files have [warnings](tree-files.md#checking-a-tree-file), a banne
 ## The selected node
 
 The top of the right side shows the title and the path of the node, the operation buttons, and its status (its
-tooltip explains the status). Below them are the tabs:
+tooltip explains the status). The nodes of the path are links: a click shows that node in the tree. Below them are
+the tabs:
 
 | Tab | Shows |
 |-----|-------|
-| Properties | the calculated properties: pid, exit code, start and finish times, elapsed times, runner, command line, `max_proc`, `on_error`, `success_exit_codes`... |
+| Properties | the calculated properties: pid, exit code, start and finish times, elapsed times, runner, working directory (`cwd`), command line, `max_proc`, `on_error`, `success_exit_codes`... |
 | Dependencies | what the node requires and provides, its locks, and what it waits for |
-| Log | the [events](logging.md#events) of the node and the nodes below it (of the whole tree for the root) |
+| Log | the [events](logging.md#events) of the node and the nodes below it (of the whole tree for the root). It follows the end of the log; when it is scrolled up, the **End** button in its corner scrolls to the end and follows it again |
 | Description | the `description` of the node |
 | Vars | the variables of the node, and where each value comes from |
 | Envs | the environment variables that the node sets |

@@ -9,7 +9,6 @@
 * add extra actions for paused nodes to deal with siblings: cancel siblings, freeze siblings, thaw siblings, this is
   very low priority, you can do it on its parent...
 * command line switch to exit app when the root node succeeds or fails
-* display CWD in properties
 * runner sessions that survive the GUI: when the client disconnects (GUI closed or crashed, network error), keep
   the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
   runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol
@@ -109,14 +108,11 @@ connection still runs exactly one command, so a runner per run node needs no pro
 
 # GUI layout and navigation (from the user, 2026-10-17)
 
-* redesign the properties tab (`NodeFrameProperites`, `nodeframeproperties.go`), so that it fits narrower screens
-* the path of the selected node (in the header, `nodeframeheader.go`) should wrap as needed, and its elements should
-  be clickable: a click selects that node, and jumps to it in the tree
-* in the navigator (`nodenavigator.go`), when the view mode is not the tree (Waiting, Failed, ...), the node cards
-  should have a clickable "jump to" icon: it switches to the tree view mode, selects the node and makes it visible
-  (expands its parents, scrolls to it)
-* Log tab: a button in the top right corner that scrolls down to the end, and starts following the end of the log
-  again
+* redesign the properties tab (`NodeFrameProperites`, `nodeframeproperties.go`), so that it fits narrower screens.
+  The rows of operation buttons in the header (`nodeframeheader.go`) are the widest part: with a large font they
+  make the right side wider than the window (they could wrap, e.g. in a `gtk.FlowBox`).
+* Done: the path in the header wraps, its nodes are links that show the node in the tree; the lists of the navigator
+  have a "show in the tree" button; the Log tab has an End button.
 
 # Appearance (from the user, 2026-10-17)
 

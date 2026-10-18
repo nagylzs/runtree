@@ -7,6 +7,7 @@ import (
 
 	glib2 "github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/nagylzs/runtree/internal/rt"
 	"github.com/nagylzs/runtree/internal/signal"
 )
@@ -18,10 +19,11 @@ type NodeFrameHeader struct {
 	signalPopoverRecursive    *gtk.Popover
 	signalPopoverNonRecursive *gtk.Popover
 
-	title  *gtk.Label
-	path   *gtk.Label
-	status *gtk.Label
-	typ    *gtk.Label
+	title      *gtk.Label
+	path       *gtk.Label // the nodes of the path are links, see showPathNode
+	pathMarkup string     // set again only when it changes, so that a click on a link is not lost
+	status     *gtk.Label
+	typ        *gtk.Label
 
 	opButtonsRecursive    map[rt.NodeOp]*gtk.Button
 	opButtonsNonRecursive map[rt.NodeOp]*gtk.Button
@@ -41,6 +43,10 @@ func NewHeaderFrame() *NodeFrameHeader {
 	path.SetHExpand(true)
 	path.SetHAlign(gtk.AlignStart)
 	path.SetVAlign(gtk.AlignEnd)
+	path.SetXAlign(0)
+	path.SetWrap(true)
+	path.SetWrapMode(pango.WrapWordChar)
+	path.ConnectActivateLink(showPathNode)
 
 	typ := gtk.NewLabel("")
 	typ.SetHAlign(gtk.AlignStart)
@@ -178,7 +184,7 @@ func (w *NodeFrameHeader) updateGUI() {
 		return
 	}
 
-	path := make([]string, 0, 10)
+	var path []*rt.Node
 	node.RLockTree("NodeFrameTools.UpdateGUI")
 	defer node.RUnlockTree()
 
@@ -186,13 +192,8 @@ func (w *NodeFrameHeader) updateGUI() {
 	prevStatus := w.prevStatus
 	w.prevStatus = newStatus
 	displayLabel := node.DisplayLabel()
-	n := node
-	for ; n != nil; n = n.Parent {
-		if n.Calculated.Title == "" {
-			path = append(path, n.Id)
-		} else {
-			path = append(path, n.Calculated.Title)
-		}
+	for n := node; n != nil; n = n.Parent {
+		path = append(path, n)
 	}
 	st := rt.StatusName(newStatus)
 	if node.SchedulerMessage != "" {
@@ -206,7 +207,10 @@ func (w *NodeFrameHeader) updateGUI() {
 	typ := rt.TypeName(node.Type)
 
 	w.title.SetText(displayLabel)
-	w.path.SetMarkup("<b>Path:</b> " + glib2.MarkupEscapeText(w.breadCrumbs(path)) + " Id=" + node.Id)
+	if markup := "<b>Path:</b> " + breadCrumbs(path) + " Id=" + node.Id; markup != w.pathMarkup {
+		w.pathMarkup = markup
+		w.path.SetMarkup(markup)
+	}
 	w.typ.SetText(typ)
 
 	w.status.RemoveCSSClass("status-" + strings.ToLower(rt.StatusName(prevStatus)))
@@ -240,15 +244,39 @@ func (w *NodeFrameHeader) updateGUI() {
 	}
 }
 
-func (w *NodeFrameHeader) breadCrumbs(path []string) string {
-	pth := ""
+// pathLinkPrefix is the start of the links of the path, before the id of the node
+const pathLinkPrefix = "node:"
+
+// breadCrumbs returns the markup of the path of a node (from the node to the root): the title (or id) of each node is
+// a link to the node
+func breadCrumbs(path []*rt.Node) string {
+	var b strings.Builder
 	for i := len(path) - 1; i >= 0; i-- {
-		pth += path[i]
+		n := path[i]
+		label := n.Calculated.Title
+		if label == "" {
+			label = n.Id
+		}
+		fmt.Fprintf(&b, `<a href="%s%s" title="Show it in the tree">%s</a>`, pathLinkPrefix, n.Id,
+			glib2.MarkupEscapeText(label))
 		if i > 0 {
-			pth += " › "
+			b.WriteString(" › ")
 		}
 	}
-	return pth
+	return b.String()
+}
+
+// showPathNode is called when a node of the path is clicked: it shows the node in the tree
+func showPathNode(uri string) bool {
+	defer recoverPanic("show the node of the path")
+	id, ok := strings.CutPrefix(uri, pathLinkPrefix)
+	if !ok {
+		return false
+	}
+	if node, ok := RunTree.NodeById[id]; ok {
+		Application.pane.ShowInTree(node)
+	}
+	return true
 }
 
 func (w *NodeFrameHeader) onOp(op rt.NodeOp, recursive bool) {

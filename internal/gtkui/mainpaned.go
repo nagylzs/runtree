@@ -20,6 +20,7 @@ type MainPaned struct {
 
 	lastToggleButton *gtk.ToggleButton
 	navModeButtons   map[NavMode]*gtk.ToggleButton
+	cbRunOnly        *gtk.CheckButton
 }
 
 func NewMainPaned() *MainPaned {
@@ -36,7 +37,9 @@ func NewMainPaned() *MainPaned {
 	leftSide.Append(navScroll)
 
 	var nav = NewNodeNavigator()
-	navScroll.SetChild(nav)
+	nav.viewport = gtk.NewViewport(nil, nil)
+	nav.viewport.SetChild(nav)
+	navScroll.SetChild(nav.viewport)
 
 	cbRunOnly := gtk.NewCheckButton()
 	cbRunOnly.SetLabel("Run nodes only")
@@ -118,6 +121,7 @@ func NewMainPaned() *MainPaned {
 		termOverlay:    termOverlay,
 		termProbe:      termProbe,
 		navModeButtons: navModeButtons,
+		cbRunOnly:      cbRunOnly,
 	}
 	m.SetStartChild(leftSide)
 	m.SetEndChild(rightSide)
@@ -125,6 +129,15 @@ func NewMainPaned() *MainPaned {
 	m.SetWideHandle(true)
 
 	return m
+}
+
+// ShowInTree switches to the tree view mode, and selects the node there (see NodeNavigator.ShowNode). It must be
+// called from the main gtk loop, with the tree unlocked.
+func (m *MainPaned) ShowInTree(node *rt.Node) {
+	m.navModeButtons[NavModeTree].SetActive(true)
+	m.cbRunOnly.SetVisible(false)
+	m.navigator.SetMode(NavModeTree)
+	m.navigator.ShowNode(node)
 }
 
 func (m *MainPaned) SetTerminalWidget(child gtk.Widgetter) {

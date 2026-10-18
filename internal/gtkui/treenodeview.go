@@ -5,12 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/nagylzs/runtree/internal/rt"
 )
 
 const IconExpanded = "pan-down-symbolic"
 const IconCollapsed = "pan-end-symbolic"
+const IconShowInTree = "find-location-symbolic"
 
 // TreeNodeView is a widget that can display a Node.
 // You can create your composite widget and use it as a TreeNodeView.
@@ -19,6 +21,8 @@ type TreeNodeView struct {
 	hbox         *gtk.Box
 	treeView     *NodeNavigator
 	expander     *gtk.ToggleButton
+	toggled      glib.SignalHandle // of the expander, blocked while Update sets it
+	showInTree   *gtk.Button       // instead of the expander when the navigator shows a list
 	icon         *gtk.Image
 	titleLabel   *gtk.Label
 	typeLabel    *gtk.Label
@@ -80,11 +84,16 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 		exp.SetChild(icon)
 	}
 
+	show := gtk.NewButtonFromIconName(IconShowInTree)
+	show.SetTooltipText("Show it in the tree")
+	show.SetVisible(false)
+
 	bxExpanderAndRows := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	bxExpanderAndRows.SetHExpand(true)
 	bxExpanderAndRows.SetHAlign(gtk.AlignStart)
 	bxExpanderAndRows.SetVAlign(gtk.AlignCenter)
 	bxExpanderAndRows.Append(exp)
+	bxExpanderAndRows.Append(show)
 	bxExpanderAndRows.Append(bxRows)
 	bxExpanderAndRows.AddCSSClass("node")
 
@@ -93,6 +102,7 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 		hbox:         bxRows,
 		treeView:     tv,
 		expander:     exp,
+		showInTree:   show,
 		icon:         icon,
 		titleLabel:   tl,
 		typeLabel:    tyl,
@@ -101,9 +111,11 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 		Node:         node,
 		Selected:     false,
 	}
-	if exp != nil {
-		exp.ConnectToggled(nw.toggleExpanded)
-	}
+	nw.toggled = exp.ConnectToggled(nw.toggleExpanded)
+	show.ConnectClicked(func() {
+		defer recoverPanic("show in the tree")
+		Application.pane.ShowInTree(node)
+	})
 
 	gc := gtk.NewGestureClick()
 	nw.AddController(gc)
@@ -216,7 +228,16 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 		el.SetVisible(true)
 	}
 
+	inList := nw.treeView.Mode() != NavModeTree
+	nw.expander.SetVisible(!inList)
+	nw.showInTree.SetVisible(inList)
 	nw.expander.SetSensitive(hasChild)
+	// Expanded is also changed by the scheduler (expand_on_active, collapse_on_finished) and by ShowNode
+	if nw.expander.Active() != expanded {
+		nw.expander.HandlerBlock(nw.toggled)
+		nw.expander.SetActive(expanded)
+		nw.expander.HandlerUnblock(nw.toggled)
+	}
 	if hasChild {
 		if expanded {
 			nw.icon.SetFromIconName(IconExpanded)
