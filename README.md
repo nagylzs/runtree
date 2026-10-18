@@ -177,6 +177,9 @@ SELECT e.run_id, n.path, e.attrs ->> 'elapsed' AS seconds FROM events e JOIN nod
 WHERE e.event = 'exited' ORDER BY seconds DESC LIMIT 10;
 ```
 
+Several `runtree` processes can save to the same log database at the same time (each one is a run), when the file
+is on a local filesystem (SQLite WAL mode does not work on network filesystems).
+
 ## Running a tree once at a time
 
 `runtree --lock FILE tree.yaml` locks `FILE` while the tree runs. Another `runtree` with the same lock file does not

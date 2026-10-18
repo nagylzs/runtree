@@ -85,6 +85,10 @@ connection still runs exactly one command, so a runner per run node needs no pro
    runner keeps the process and a socket, and `rtrunner --attach ID` reattaches (like tmux/dtach). For the local
    runner it needs a detached runner process instead of the embedded one. Headless mode (below) can use the
    embedded runner, so a tree in CI is a single command.
+5. Later, not urgent: remote locks, held by an rtrunner on a host (like `--lock`, but there), so that runtrees on
+   different machines (e.g. on the laptops of several users) do not run the same tree, or use the same hosts, at the
+   same time. E.g. a `lock` property with a runner and a path; the rtrunner holds the flock while the connection is
+   open, so it is released when runtree or the connection is gone.
 
 # GUI layout and navigation (from the user, 2026-10-17)
 
