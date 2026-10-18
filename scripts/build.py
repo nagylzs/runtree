@@ -32,7 +32,7 @@ arch = platform.machine().lower()
 if arch=='x86_64':
 	arch = "amd64"
 if arch not in ["amd64", "i386"]:
-	raise SystemExit(f"unknown arch {ar}")
+	raise SystemExit(f"unknown arch {arch}")
 
 print(f"os={oss} arch={arch}")
 

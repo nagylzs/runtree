@@ -27,7 +27,9 @@ var exitCode int = 0
 
 func main() {
 	var args = config.CLIArgs{BaseArgs: config.BaseArgs{Verbose: false, Debug: false}, MaxDepth: config.DefaultMaxDepth}
-	posArgs, err := flags.ParseArgs(&args, os.Args)
+	parser := flags.NewParser(&args, flags.Default)
+	parser.Usage = "[OPTIONS] TREE_FILE"
+	posArgs, err := parser.ParseArgs(os.Args)
 	if err != nil {
 		// go-flags has printed the help or the error already
 		if flags.WroteHelp(err) {
@@ -61,7 +63,7 @@ func main() {
 	}
 
 	if len(posArgs) < 2 {
-		_, _ = fmt.Fprintf(os.Stderr, "Usage: runtree [options] <runtree_yaml_file>\n")
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: runtree [OPTIONS] TREE_FILE (runtree --help lists the options)\n")
 		os.Exit(1)
 	}
 	if _, err := runner.ParseAddress(args.Runner); err != nil {

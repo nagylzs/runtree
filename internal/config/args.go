@@ -5,13 +5,13 @@ type BaseArgs struct {
 	Debug       bool   `short:"d" long:"debug" description:"Show debug information"`
 	LogFormat   string `long:"log-format" choice:"text" choice:"json" default:"text" description:"Format of the log on stderr"`
 	ShowVersion bool   `long:"version" description:"Show version information and exit"`
-	CPUProfile  string `long:"cpu-profile" description:"Write CPU profile to file"`
-	MemProfile  string `long:"mem-profile" description:"Write MEM profile to file"`
-	NetProfile  uint16 `long:"net-profile-port" description:"Start profile http server on PORT"`
 }
 
 type CLIArgs struct {
 	BaseArgs
+	CPUProfile  string `long:"cpu-profile" value-name:"FILE" description:"Write a CPU profile to FILE (for developers)"`
+	MemProfile  string `long:"mem-profile" value-name:"FILE" description:"Write a memory profile to FILE when runtree exits (for developers)"`
+	NetProfile  uint16 `long:"net-profile-port" value-name:"PORT" description:"Serve live profiles on http://localhost:PORT/debug/pprof/ (for developers)"`
 	MaxDepth    uint   `long:"max-depth" description:"Maximum tree depth"`
 	Check       bool   `long:"check" description:"Only check the tree file (and the included files), then exit"`
 	Schema      bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
@@ -34,7 +34,7 @@ const DefaultMaxDepth = 30
 
 type RtRunnerCLIArgs struct {
 	BaseArgs
-	ListenAddress string `short:"l" long:"listen" description:"Listen address, defaults to :5000"`
+	ListenAddress string `short:"l" long:"listen" value-name:"ADDRESS" description:"Listen on ADDRESS (host:port, without a host on all interfaces; the connections are not authenticated)"`
 	Stdio         bool   `long:"stdio" description:"Serve one runtree connection on stdin and stdout, then exit (for runner: ssh://...)"`
 	CheckSHA256   string `long:"check-sha256" value-name:"HEX" description:"Check that the SHA-256 of this executable is HEX (after it is uploaded), then exit"`
 }

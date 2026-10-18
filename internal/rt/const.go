@@ -127,7 +127,7 @@ func StatusDescription(st Status) string {
 	case StatusFailed:
 		return "Failed, the node was not completed successfully."
 	case StatusSkipped:
-		return "Skipped, the node will never be stated by the scheduler."
+		return "Skipped, the node will never be started by the scheduler."
 	case StatusPaused:
 		return "Paused, the process(es) finished, but the next status must be chosen manually."
 	default:
