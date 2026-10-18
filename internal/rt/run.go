@@ -60,9 +60,16 @@ func (n *Node) connect(address string, args runner.CmdArgs, logger *slog.Logger,
 		if output != nil {
 			c.SetOutput(output)
 		}
+		if n.Tree.unattended {
+			c.SetNoTerminal()
+		}
 		if err = c.StartPty(ctx, args, n.procStateChanged); err != nil {
 			c.Close()
 		}
+	}
+	// the client closes the output at its end, but it was not started
+	if cl, ok := output.(io.Closer); ok && err != nil {
+		_ = cl.Close()
 	}
 
 	n.LockTree("Node.connect")

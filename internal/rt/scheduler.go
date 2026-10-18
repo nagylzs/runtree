@@ -68,6 +68,9 @@ func (t *Tree) schedule() {
 	// find a runnable node
 	n := t.findRunnable(t.Root)
 	if n == nil {
+		if t.unattended {
+			t.checkEnd()
+		}
 		return
 	}
 	started = n
@@ -78,6 +81,12 @@ func (t *Tree) schedule() {
 
 // findRunnable must be called locked
 func (t *Tree) findRunnable(n *Node) *Node {
+	return t.findRunnableHold(n, nil)
+}
+
+// findRunnableHold is findRunnable, and it calls hold (when it is not nil) for each unfinished node where it stops:
+// frozen, paused, blocked, or max_proc is reached
+func (t *Tree) findRunnableHold(n *Node, hold func(n *Node)) *Node {
 	if n == nil {
 		return nil
 	}
@@ -89,11 +98,17 @@ func (t *Tree) findRunnable(n *Node) *Node {
 
 	if n.Status == StatusFrozen {
 		n.SchedulerMessage = "won't schedule"
+		if hold != nil {
+			hold(n)
+		}
 		return nil
 	}
 
 	if n.Status == StatusPaused {
 		n.SchedulerMessage = "won't schedule"
+		if hold != nil {
+			hold(n)
+		}
 		return nil
 	}
 
@@ -101,11 +116,17 @@ func (t *Tree) findRunnable(n *Node) *Node {
 	// so maybe we should move this to findRunnableRun ? but then it won't be optimized that much
 	if n.MaxProc >= 0 && n.NProc >= n.MaxProc {
 		n.SchedulerMessage = "max proc reached"
+		if hold != nil {
+			hold(n)
+		}
 		return nil
 	}
 
 	if n.Blocked {
 		n.SchedulerMessage = "blocked"
+		if hold != nil {
+			hold(n)
+		}
 		return nil
 	}
 
@@ -113,9 +134,9 @@ func (t *Tree) findRunnable(n *Node) *Node {
 
 	switch n.Type {
 	case TypeSeq:
-		return t.findRunnableSeq(n)
+		return t.findRunnableSeq(n, hold)
 	case TypePar:
-		return t.findRunnablePar(n)
+		return t.findRunnablePar(n, hold)
 	case TypeRun:
 		return t.findRunnableRun(n)
 	}
@@ -123,11 +144,11 @@ func (t *Tree) findRunnable(n *Node) *Node {
 }
 
 // findRunnableSeq returns the first sub-node of a seq node that is runnable
-func (t *Tree) findRunnableSeq(n *Node) *Node {
+func (t *Tree) findRunnableSeq(n *Node, hold func(n *Node)) *Node {
 	for _, c := range n.Nodes {
 		// Even if c is active, it may contain par nodes that can have runnable items
 		// so we look for runnable items inside...
-		sn := t.findRunnable(c)
+		sn := t.findRunnableHold(c, hold)
 		if sn != nil {
 			return sn
 		}
@@ -140,12 +161,12 @@ func (t *Tree) findRunnableSeq(n *Node) *Node {
 }
 
 // findRunnablePar returns the first sub-node of a par node that is runnable
-func (t *Tree) findRunnablePar(n *Node) *Node {
+func (t *Tree) findRunnablePar(n *Node, hold func(n *Node)) *Node {
 	for _, c := range n.Nodes {
 		// we go over all items, and try to find any runnable
 		// please note that c might already be active, but it may contain other par nodes
 		// that are runnable
-		sn := t.findRunnable(c)
+		sn := t.findRunnableHold(c, hold)
 		if sn != nil {
 			return sn
 		}

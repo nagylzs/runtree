@@ -23,7 +23,8 @@ type TerminalHelper interface {
 
 // OutputRecorder gets a copy of the terminal output of the started nodes, e.g. to save it. NodeOutput is called when
 // a node is started (with the tree locked), start is Node.Starts. It returns nil when the output is not needed. The
-// writer is called by the goroutine that copies the output to the terminal, so it should not block for long.
+// writer is called by the goroutine that copies the output to the terminal, so it should not block for long. When it
+// is an io.Closer, it is closed at the end of the output, or when the node could not be started.
 type OutputRecorder interface {
 	NodeOutput(n *Node, start int) io.Writer
 }

@@ -47,6 +47,10 @@ type Tree struct {
 
 	defaultRunner string // the runner of the nodes that do not specify one, see Sources.DefaultRunner
 
+	unattended bool          // see SetUnattended
+	ended      chan struct{} // closed when an unattended run ends, see Ended
+	end        End
+
 	lastId int // the number of the last generated node id
 }
 

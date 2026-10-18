@@ -30,6 +30,7 @@ const (
 	EventLocked           = "locked"     // the xlocks and rlocks of the node are acquired
 	EventUnlocked         = "unlocked"
 	EventRunnerError      = "runner-error"
+	EventStopped          = "stopped" // an unattended run stopped: nothing runs, and nothing can be started
 )
 
 const (

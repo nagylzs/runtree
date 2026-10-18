@@ -284,7 +284,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	if st == "waiting" {
 		n.Status = StatusWaiting
 	} else if st == "frozen" {
-		n.Status = StatusFrozen
+		n.Status, n.frozenInFile = StatusFrozen, true
 		if n.Type != TypeRun {
 			n.held = StatusFrozen
 		}

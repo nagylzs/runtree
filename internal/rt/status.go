@@ -83,8 +83,12 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 			n.StartError == "" {
 			n.logExit(n.Client.LastState())
 		}
-		n.log().Log(context.Background(), statusLevel(s), StatusName(prevStatus)+" → "+StatusName(s),
-			attrEvent, EventStatus, "from", StatusName(prevStatus), "to", StatusName(s))
+		msg := StatusName(prevStatus) + " → " + StatusName(s)
+		if oe && s == StatusFailed && n.OnError.Status == StatusPaused {
+			msg += " (on_error is paused, but nobody can decide: the tree runs unattended)"
+		}
+		n.log().Log(context.Background(), statusLevel(s), msg, attrEvent, EventStatus, "from", StatusName(prevStatus),
+			"to", StatusName(s))
 	}
 
 	// After a manual node restart, we return to auto status updates. Manual success and failed are final decisions,
@@ -212,7 +216,16 @@ func (n *Node) errorStatus() (Status, bool) {
 		// manually restarted
 		return n.Status, false
 	}
-	return n.OnError.Status, true
+	return n.onErrorStatus(), true
+}
+
+// onErrorStatus is the status of the node when its process or a sub-node fails (see on_error). An unattended tree has
+// nobody to decide what happens to a paused node, so it fails instead.
+func (n *Node) onErrorStatus() Status {
+	if n.OnError.Status == StatusPaused && n.Tree.unattended {
+		return StatusFailed
+	}
+	return n.OnError.Status
 }
 
 // ExitedSuccessfully tells if the process exited normally (not by a signal), with one of the success exit codes.
@@ -258,7 +271,7 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 	// A seq node stops at a failed sub-node: it gets its on_error status right away, so the scheduler does not start
 	// the next sub-node. (A sub-node that is allowed to fail should have "on_error: success".)
 	if n.Type == TypeSeq && hasError && !hasActive {
-		return n.OnError.Status, true
+		return n.onErrorStatus(), true
 	}
 	// If the par node is already running, then it will stay that way until all sub-nodes are finished.
 	// This ensures that the par node holds its acquired locks until its sub-nodes are all finished.
@@ -271,7 +284,7 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 		return StatusRunning, false
 	}
 	if hasError {
-		return n.OnError.Status, true
+		return n.onErrorStatus(), true
 	}
 	if hasNotFinished {
 		// a node that is not started yet, and whose unfinished sub-nodes are all frozen (e.g. by the on_error freeze

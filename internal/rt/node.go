@@ -46,6 +46,8 @@ type Node struct {
 	// sub-nodes: StatusFrozen (status: frozen) until it is thawed, StatusSkipped (Skip) until it is reset;
 	// StatusWaiting when there is none.
 	held Status
+	// frozenInFile: the node is frozen by "status: frozen" in the tree file (its own, or inherited)
+	frozenInFile bool
 
 	WantManualStatus bool   // Node.PerformOp sets this to true when it wants to manually set status
 	ManualStatus     Status // Node.PerformOp sets this to the desired manual status
@@ -263,6 +265,7 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.Calculated.Level, n.Calculated.Idx = lvl, idx
 	n.Status = n2.Status
 	n.held = n2.held
+	n.frozenInFile = n2.frozenInFile
 }
 
 // keepOwn sets the properties of a node that its single included object replaced (see loadFrom), but that the object
