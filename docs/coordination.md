@@ -75,6 +75,8 @@ tree:
 - Lock names can use variables, e.g. `rlocks: ["{host}"]`.
 - `xlocks` are not inherited. `rlocks` are inherited (the sub-nodes share the lock of their parent); a node's own
   `rlocks` replace the inherited ones.
+- A name cannot be in both the `xlocks` and the `rlocks` of a node, also not in an inherited `rlocks`: the node would
+  wait for the lock of its own group. It is an error when the tree is loaded.
 - Locks can deadlock too (two nodes that wait for the lock that the other one holds): runtree does not detect it.
 
 The [locks example](../examples/08-locks.rt.yaml) shows both kinds.

@@ -130,7 +130,7 @@ Value: boolean, default: `true`. See [the guide](../variables.md#environment).
 
 ## xlocks
 
-Names of resources that are locked exclusively while the node is running or paused: no other node can lock them meanwhile. It is not inherited.
+Names of resources that are locked exclusively while the node is running or paused: no other node can lock them meanwhile. A name cannot be in the rlocks of the node too (also inherited ones). It is not inherited.
 
 Value: list of strings. See [the guide](../coordination.md#locks).
 

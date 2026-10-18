@@ -79,7 +79,8 @@ var NodeProperties = []Property{
 		Description: "Inherit the environment variables (envs) of the parent node."},
 	{Name: "xlocks", Kind: KindStringList,
 		Description: "Names of resources that are locked exclusively while the node is running or paused: no other " +
-			"node can lock them meanwhile. It is not inherited."},
+			"node can lock them meanwhile. A name cannot be in the rlocks of the node too (also inherited ones). " +
+			"It is not inherited."},
 	{Name: "rlocks", Kind: KindStringList, Inherited: true,
 		Description: "Names of resources that are locked while the node is running or paused. The topmost node " +
 			"that lists a name holds it, its subtree shares it, other nodes cannot lock it meanwhile. It " +

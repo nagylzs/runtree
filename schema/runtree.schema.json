@@ -402,7 +402,7 @@
           "type": "object"
         },
         "xlocks": {
-          "description": "Names of resources that are locked exclusively while the node is running or paused: no other node can lock them meanwhile. It is not inherited.",
+          "description": "Names of resources that are locked exclusively while the node is running or paused: no other node can lock them meanwhile. A name cannot be in the rlocks of the node too (also inherited ones). It is not inherited.",
           "items": {
             "type": "string"
           },

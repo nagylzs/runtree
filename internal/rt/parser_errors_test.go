@@ -125,6 +125,43 @@ func TestPropertyValueErrors(t *testing.T) {
 	}
 }
 
+// A name in both xlocks and rlocks of a node (also an inherited rlock) is an error: the node would be blocked by its
+// own lock
+func TestLockKindErrors(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"own.yaml": `tree:
+  seq:
+    - title: job
+      rlocks: [db, net]
+      xlocks: [net]
+      args: ["true"]
+`, "inherited.yaml": `tree:
+  title: window
+  rlocks: ["{host}"]
+  vars: {host: db01}
+  par:
+    - {title: migrate, args: ["true"]}
+    - title: backup
+      xlocks: ["{host}"]
+      args: ["true"]
+`, "fine.yaml": `tree:
+  title: window
+  rlocks: [db01]
+  par:
+    - {title: migrate, args: ["true"]}
+    - {title: backup, rlocks: [backup], xlocks: [db02], args: ["true"]}
+`})
+	pe := parseError(t, filepath.Join(dir, "own.yaml"))
+	checkPos(t, pe.Pos, "own.yaml", 5, 15)
+	checkContains(t, pe.Message, `"net" is in rlocks too`)
+	pe = parseError(t, filepath.Join(dir, "inherited.yaml"))
+	checkPos(t, pe.Pos, "inherited.yaml", 8, 15)
+	checkContains(t, pe.Message, `"db01" is in the rlocks that the node inherits from "window"`)
+	checkContains(t, pe.Node, "backup")
+	if _, err := loadFile(filepath.Join(dir, "fine.yaml")); err != nil {
+		t.Errorf("fine.yaml: %v", err)
+	}
+}
+
 func TestIncludeErrors(t *testing.T) {
 	dir := writeFiles(t, map[string]string{
 		"main.yaml":  "tree:\n  seq:\n    - include: [\"other.yaml|nothere\"]\n    - include: [\"missing.yaml|x\"]\n",

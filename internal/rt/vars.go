@@ -231,6 +231,9 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 			return false, err
 		}
 	}
+	if err := checkLockKinds(n, c); err != nil {
+		return false, err
+	}
 	// provides must not be inherited: a node provides its resources when the node itself succeeds
 	c.Provides, err = evalSet("provides", n.Parsed.Provides)
 	if err != nil {
@@ -550,3 +553,22 @@ func varEvalStringToString(v string, values map[string]string) string {
 	return v
 }
 */
+
+// checkLockKinds reports a name that is in both the xlocks and the rlocks of a node: the node would be blocked by its
+// own rlock (or by the rlock of its parent) when another node of the rlock subtree started first
+func checkLockKinds(n *Node, c *Calculated) error {
+	both := c.XLocks.Intersection(c.RLocks).List()
+	if len(both) == 0 {
+		return nil
+	}
+	slices.Sort(both)
+	if n.Parsed.RLocks != nil {
+		return propErrorf("xlocks", "%q is in rlocks too: a node locks a name either exclusively or shared", both[0])
+	}
+	from := n.Parent
+	for from.Parsed.RLocks == nil && from.Parent != nil {
+		from = from.Parent
+	}
+	return propErrorf("xlocks", "%q is in the rlocks that the node inherits from %q: it would wait for the lock of "+
+		"its own parent", both[0], nodeLabel(from))
+}

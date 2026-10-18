@@ -1,5 +1,4 @@
 * implement "if" node type
-* a seq/par node whose sub-nodes are all frozen (e.g. by on_error freeze) shows Waiting, not Frozen
 * implement NavBlocked navmode
 * document "include" property, explain include/reduce
 * possibly show a progress bar for each node, that shows the percentage of finished nodes
@@ -48,12 +47,9 @@ attributes. Terminal input is never logged (passwords). A handler sends every re
 
 The README was checked against the code when the documentation was moved to docs/. Fixed since then: the on_error
 sibling operation stopped running siblings in the middle, a single include lost the title, provides and requires of
-the including node, the descriptions of several properties. Still open:
+the including node, the descriptions of several properties, Skip and Skip all of a frozen seq/par node, a seq/par node
+whose sub-nodes are all frozen showed Waiting, a name in both `rlocks` and `xlocks` was not an error. Still open:
 
-* the non-recursive Skip of a frozen seq/par node is offered in the GUI, but it does nothing (`op.go`)
-* "Skip all" (and on_error skip) skips the run nodes below a frozen seq/par node, but the seq/par node itself stays
-  Frozen, so its parent never finishes
-* listing the same name in `rlocks` and `xlocks` of a node is not an error (the old README said it was)
 * `~` is not expanded in `cwd` (expand it, or report it as an error?)
 * the exit code of runtree does not depend on the result of the tree (see headless mode)
 
