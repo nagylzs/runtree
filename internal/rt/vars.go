@@ -389,8 +389,9 @@ func calcMapValues(raw map[string]interface{}, rawProp string, vars map[string]i
 	return res, nil
 }
 
-// calcEnvs calculates the envs of a node: their values can use the inherited envs and the variables (that override
-// the envs with the same name). on is called for the references to undefined variables.
+// calcEnvs calculates the envs of a node: the inherited ones, updated with its own envs. Their values can use the
+// inherited envs and the variables (that override the envs with the same name). on is called for the references to
+// undefined variables.
 func calcEnvs(envs map[string]string, vars map[string]interface{}, inherited map[string]string, on undefinedFunc) (
 	map[string]string, error) {
 	values := make(map[string]interface{}, len(inherited)+len(vars))
@@ -400,7 +401,10 @@ func calcEnvs(envs map[string]string, vars map[string]interface{}, inherited map
 	for k, v := range vars {
 		values[k] = v
 	}
-	res := make(map[string]string, len(envs))
+	res := make(map[string]string, len(inherited)+len(envs))
+	for k, v := range inherited {
+		res[k] = v
+	}
 	for k, v := range envs {
 		sv, err := varEvalUndefined(v, values, k, -1, on)
 		if err != nil {

@@ -2,6 +2,7 @@ package rt
 
 import (
 	"errors"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -116,6 +117,49 @@ tree:
 	} {
 		if got := tree.NodeById[id].Calculated.Runner; got != want {
 			t.Errorf("%s runner is %q, want %q", id, got, want)
+		}
+	}
+}
+
+// The envs are inherited (also through nodes without envs), and they are updated with the envs of the node, unless
+// inherit_envs is false
+func TestEnvsInherited(t *testing.T) {
+	tree := loadTestTree(t, `
+tree:
+  id: root
+  envs:
+    TERM: xterm-256color
+    MODE: a
+  seq:
+    - id: plain
+      args: ["true"]
+    - id: group
+      envs:
+        MODE: b
+        EXTRA: "{TERM}-x"
+      seq:
+        - id: deep
+          args: ["true"]
+    - id: clean
+      inherit_envs: false
+      envs:
+        ONLY: "1"
+      args: ["true"]
+`)
+	for id, want := range map[string]string{
+		"root":  "MODE=a TERM=xterm-256color",
+		"plain": "MODE=a TERM=xterm-256color",
+		"group": "EXTRA=xterm-256color-x MODE=b TERM=xterm-256color",
+		"deep":  "EXTRA=xterm-256color-x MODE=b TERM=xterm-256color",
+		"clean": "ONLY=1",
+	} {
+		envs := tree.NodeById[id].Calculated.Envs
+		var got []string
+		for _, k := range slices.Sorted(maps.Keys(envs)) {
+			got = append(got, k+"="+envs[k])
+		}
+		if strings.Join(got, " ") != want {
+			t.Errorf("%s envs: %s, want %s", id, strings.Join(got, " "), want)
 		}
 	}
 }
