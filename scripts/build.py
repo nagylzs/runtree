@@ -4,6 +4,8 @@ import re
 import platform
 import copy
 import datetime
+import gzip
+import shutil
 import subprocess as sp
 
 targets=["rtrunner", "runtree", "runtree-lsp"]
@@ -75,6 +77,31 @@ if not os.path.isdir(ddir):
 os.chdir(DIR)
 print("go mod tidy")
 run(["go", "mod", "tidy"])
+
+# The rtrunner binaries that runtree uploads to the hosts of managed ssh runners (ssh://host without a path): they are
+# embedded in runtree (-tags rtrunners), and they are in dist/rtrunners too (for manual installs, or --rtrunner-dir).
+rtrunner_platforms = [
+	("linux", "amd64"), ("linux", "arm64"), ("linux", "arm"),
+	("darwin", "amd64"), ("darwin", "arm64"),
+]
+embed_dir = os.path.join(DIR, "cmd", "runtree", "rtrunners")
+rtrunners_dist = os.path.join(DIR, "dist", "rtrunners")
+for d in (embed_dir, rtrunners_dist):
+	shutil.rmtree(d, ignore_errors=True)
+	os.makedirs(d)
+for goos, goarch in rtrunner_platforms:
+	name = f"rtrunner-{goos}-{goarch}"
+	out = os.path.join(rtrunners_dist, name)
+	cmd = ["go", "build", "-ldflags", " ".join(ldflags_debug + ["-s", "-w"]), "-o", out, "./cmd/rtrunner"]
+	print(f"GOOS={goos} GOARCH={goarch} " + " ".join(cmd))
+	# GOARM=6 runs on every 32 bit ARM Linux (Raspberry Pi 1 too)
+	ret = sp.call(cmd, env=dict(os.environ, GOOS=goos, GOARCH=goarch, GOARM="6", CGO_ENABLED="0"))
+	if ret != 0:
+		raise SystemExit(ret)
+	with open(out, "rb") as f, open(os.path.join(embed_dir, name + ".gz"), "wb") as raw, \
+			gzip.GzipFile(filename="", mode="wb", compresslevel=9, fileobj=raw, mtime=0) as g:
+		shutil.copyfileobj(f, g)
+
 for target in targets:
 	targetdir = os.path.join(DIR, "cmd", target)
 	if not os.path.isdir(targetdir):
@@ -91,7 +118,9 @@ for target in targets:
 		sldflags = " ".join(ldflags_gui)
 	else:
 		sldflags = " ".join(ldflags)
-	cmd = ["go", "build", "-ldflags", sldflags, "-o", binary, src]
+	# runtree embeds the rtrunner binaries
+	tags = ["-tags", "rtrunners"] if target == "runtree" else []
+	cmd = ["go", "build"] + tags + ["-ldflags", sldflags, "-o", binary, src]
 	print(" ".join(cmd))
 	run(cmd)
 	if is_gui and oss=="windows":
@@ -100,7 +129,7 @@ for target in targets:
 
 	binary = os.path.join(ddir, target + "_debug" + ext)
 	sldflags = " ".join(ldflags_debug)
-	cmd = ["go", "build", "-ldflags", sldflags, "-o", binary, src]
+	cmd = ["go", "build"] + tags + ["-ldflags", sldflags, "-o", binary, src]
 	print(" ".join(cmd))
 	run(cmd)
 	if is_gui and oss=="windows":

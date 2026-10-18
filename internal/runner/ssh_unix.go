@@ -16,13 +16,19 @@ func startSSH(name string, args []string, stderr io.Writer) (net.Conn, *exec.Cmd
 		return nil, nil, err
 	}
 	defer f.Close() // ssh has its copy
-	cmd := exec.Command(name, args...)
+	cmd := sshCmd(name, args)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = f, f, stderr
-	// its own session: Ctrl+C in the terminal of runtree does not reach it, and it has no terminal to ask for passwords
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		_ = conn.Close()
 		return nil, nil, err
 	}
 	return conn, cmd, nil
+}
+
+// sshCmd returns the command of ssh. It runs in its own session: Ctrl+C in the terminal of runtree does not reach it,
+// and it has no terminal to ask for passwords.
+func sshCmd(name string, args []string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return cmd
 }

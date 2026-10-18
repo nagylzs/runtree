@@ -12,13 +12,19 @@ import (
 	"testing"
 )
 
-const fakeSSHEnv = "RUNNER_TEST_FAKE_SSH"
+const asRtrunnerEnv = "RUNNER_TEST_AS_RTRUNNER"
 
-// When the test binary is started as a fake ssh (by setSSH), it ignores the arguments, and it serves the connection
-// like rtrunner --stdio on the host.
+// When the test binary is started with asRtrunnerEnv, it works as rtrunner: with --check-sha256 HEX it checks itself,
+// otherwise it serves the connection like rtrunner --stdio (it ignores the arguments of ssh when it is the fake ssh).
 func TestMain(m *testing.M) {
-	if os.Getenv(fakeSSHEnv) == "1" {
-		if err := ServeStdio(context.Background(), slog.New(slog.DiscardHandler)); err != nil {
+	if os.Getenv(asRtrunnerEnv) == "1" {
+		var err error
+		if i := slices.Index(os.Args, "--check-sha256"); i > 0 && i+1 < len(os.Args) {
+			err = CheckOwnSHA256(os.Args[i+1])
+		} else {
+			err = ServeStdio(context.Background(), slog.New(slog.DiscardHandler))
+		}
+		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -36,15 +42,15 @@ func setSSH(t *testing.T, command ...string) {
 
 func TestParseSSHAddress(t *testing.T) {
 	for s, want := range map[string]string{
-		"ssh://server01":                     "host=server01 user= port= path=rtrunner",
-		"ssh://root@server01":                "host=server01 user=root port= path=rtrunner",
-		"ssh://root@server01:2222":           "host=server01 user=root port=2222 path=rtrunner",
-		"ssh://root@server01/":               "host=server01 user=root port= path=rtrunner",
+		"ssh://server01":                     "host=server01 user= port= path=",
+		"ssh://root@server01":                "host=server01 user=root port= path=",
+		"ssh://root@server01:2222":           "host=server01 user=root port=2222 path=",
+		"ssh://root@server01/":               "host=server01 user=root port= path=",
 		"ssh://server01/usr/local/bin/rtr":   "host=server01 user= port= path=/usr/local/bin/rtr",
 		"ssh://server01/~/bin/rtrunner":      "host=server01 user= port= path=~/bin/rtrunner",
-		"ssh://[::1]:22":                     "host=::1 user= port=22 path=rtrunner",
-		"ssh://root:secret@server01":         "error: invalid runner \"ssh://root:secret@server01\": passwords are not supported",
-		"ssh://-oProxyCommand=x":             "error: invalid runner \"ssh://-oProxyCommand=x\": the user and the host cannot",
+		"ssh://[::1]:22":                     "host=::1 user= port=22 path=",
+		"ssh://root:secret@server01":         "error: invalid runner \"ssh://root:secret@server01\": passwords",
+		"ssh://-oProxyCommand=x":             "error: invalid runner \"ssh://-oProxyCommand=x\": the user and",
 		"ssh://-l@server01":                  "error: invalid runner \"ssh://-l@server01\": the user and the host cannot",
 		"ssh://server01:":                    "error: invalid runner \"ssh://server01:\": the port is missing",
 		"ssh://server01:x":                   "error: invalid runner",
@@ -77,17 +83,18 @@ func TestParseSSHAddress(t *testing.T) {
 
 func TestSSHArgs(t *testing.T) {
 	for s, want := range map[string]string{
-		"ssh://server01":                  "-T -o BatchMode=yes -- server01 rtrunner --stdio",
-		"ssh://root@server01:2222":        "-T -o BatchMode=yes -p 2222 -- root@server01 rtrunner --stdio",
-		"ssh://server01/~/bin/rtrunner":   "-T -o BatchMode=yes -- server01 ~/bin/rtrunner --stdio",
-		"ssh://server01/opt/it's/rtrun":   `-T -o BatchMode=yes -- server01 '/opt/it'\''s/rtrun' --stdio`,
-		"ssh://server01/opt/a b/rtrunner": "-T -o BatchMode=yes -- server01 '/opt/a b/rtrunner' --stdio",
+		"ssh://server01/usr/bin/rtrunner":     "-T -o BatchMode=yes -- server01 /usr/bin/rtrunner --stdio",
+		"ssh://root@server01:2222/x/rtrunner": "-T -o BatchMode=yes -p 2222 -- root@server01 /x/rtrunner --stdio",
+		"ssh://server01/~/bin/rtrunner":       "-T -o BatchMode=yes -- server01 ~/bin/rtrunner --stdio",
+		"ssh://server01/opt/it's/rtrun":       `-T -o BatchMode=yes -- server01 '/opt/it'\''s/rtrun' --stdio`,
+		"ssh://server01/opt/a b/rtrunner":     "-T -o BatchMode=yes -- server01 '/opt/a b/rtrunner' --stdio",
 	} {
 		a, err := ParseAddress(s)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := strings.Join(sshArgs(a), " "); got != want {
+		args := append(sshOptions(a), "--", sshDest(a), remoteCommand(a))
+		if got := strings.Join(args, " "); got != want {
 			t.Errorf("%s: got %s, want %s", s, got, want)
 		}
 	}
@@ -95,10 +102,10 @@ func TestSSHArgs(t *testing.T) {
 
 // A process on an ssh runner: ssh is the test binary, that serves the connection like rtrunner --stdio
 func TestSSHRunner(t *testing.T) {
-	t.Setenv(fakeSSHEnv, "1")
+	t.Setenv(asRtrunnerEnv, "1")
 	setSSH(t, os.Args[0])
 	logger := slog.New(slog.DiscardHandler)
-	c, err := NewClient(context.Background(), "ssh://tester@fakehost:2222", logger, nil)
+	c, err := NewClient(context.Background(), "ssh://tester@fakehost:2222/opt/rtrunner", logger, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

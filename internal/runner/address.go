@@ -18,9 +18,6 @@ const (
 	NetworkSSH   = "ssh"   // rtrunner --stdio, started by ssh for each connection
 )
 
-// DefaultRemoteRunner is the command that an ssh runner starts on the host, when its address has no path
-const DefaultRemoteRunner = "rtrunner"
-
 const addressHelp = "the runner is local, host:port, tcp://host:port or ssh://[user@]host[:port][/path/to/rtrunner]"
 
 // Address is a parsed runner address (the runner property of a node)
@@ -29,12 +26,18 @@ type Address struct {
 	Host    string // host:port for NetworkTCP, the host for NetworkSSH
 	User    string // NetworkSSH: the user on the host, empty for the default of ssh
 	Port    string // NetworkSSH: empty for the default of ssh
-	Path    string // NetworkSSH: the rtrunner command on the host
+	Path    string // NetworkSSH: the rtrunner command on the host, empty when it is managed (see Managed)
+}
+
+// Managed tells if runtree uploads rtrunner to the host of the ssh runner when it is not there (the address has no
+// path), see upload.go
+func (a Address) Managed() bool {
+	return a.Network == NetworkSSH && a.Path == ""
 }
 
 // ParseAddress parses a runner address: "local" (or empty) for the embedded runner, "host:port" or
 // "tcp://host:port" for an rtrunner daemon, and ssh://[user@]host[:port][/path/to/rtrunner] for an rtrunner that is
-// started with ssh (the path is DefaultRemoteRunner by default, /~/ is the home directory of the user).
+// started with ssh (/~/ is the home directory of the user). Without a path, runtree uploads rtrunner (Managed).
 func ParseAddress(s string) (Address, error) {
 	if s == "" || s == LocalAddress {
 		return Address{Network: NetworkLocal}, nil
@@ -83,8 +86,8 @@ func parseSSHAddress(s string) (Address, error) {
 		return invalid("the port is missing after :")
 	}
 	switch {
-	case a.Path == "" || a.Path == "/":
-		a.Path = DefaultRemoteRunner
+	case a.Path == "/":
+		a.Path = ""
 	case strings.HasPrefix(a.Path, "/~/"):
 		a.Path = a.Path[1:] // in the home directory
 	}
@@ -104,12 +107,10 @@ func (a Address) String() string {
 		if a.Port != "" {
 			s += ":" + a.Port
 		}
-		if a.Path != DefaultRemoteRunner {
-			if strings.HasPrefix(a.Path, "~/") {
-				s += "/"
-			}
-			s += a.Path
+		if strings.HasPrefix(a.Path, "~/") {
+			s += "/"
 		}
+		s += a.Path
 		return s
 	}
 	return a.Network + "://" + a.Host

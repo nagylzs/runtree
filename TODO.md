@@ -70,9 +70,17 @@ connection still runs exactly one command, so a runner per run node needs no pro
    Still to do: when runtree exits, terminate the processes of the ssh and TCP runners through the protocol and wait
    for them (like the local ones), so their exits are logged too; now the rtrunner terminates them when runtree is
    gone, without logging.
-3. Share one SSH connection per host (`ControlMaster`/`ControlPath`/`ControlPersist`; note sshd's `MaxSessions`,
-   10 by default). Upload a matching `rtrunner` to the host on first use (`uname -m`, a versioned path under
-   `~/.cache/runtree`), so nothing needs to be deployed.
+3. Done: managed ssh runners (`ssh://host` without a path): runtree uploads its own `rtrunner` for the platform of
+   the host (`uname`) to `~/.cache/runtree/rtrunner-<sha256>`, once for parallel starts, checked by its hash before
+   it is renamed; the binaries are embedded (`build.py`, `-tags rtrunners`), `--rtrunner-dir` overrides them.
+   Still to do:
+   * share one SSH connection per host (`ControlMaster`/`ControlPath`/`ControlPersist`; note sshd's `MaxSessions`, 10
+     by default): a start costs an SSH login now (0.3 s on localhost)
+   * test the macOS binaries on a Mac (darwin amd64/arm64 are embedded but not tested; Gatekeeper, the ad-hoc
+     signature of darwin/arm64, `uname -m` under Rosetta)
+   * Windows hosts: the OpenSSH server of Windows starts `cmd.exe` (or PowerShell), not `sh`, so the start and upload
+     scripts do not work there (sftp for the upload?), and the protocol over the stdin/stdout of a Windows ssh session
+     needs testing. A manually installed `rtrunner.exe` with a path may work already: test it.
 4. Later: runner sessions that survive the GUI (below) with a runner per node: when the connection drops, the
    runner keeps the process and a socket, and `rtrunner --attach ID` reattaches (like tmux/dtach). For the local
    runner it needs a detached runner process instead of the embedded one. Headless mode (below) can use the

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -38,6 +39,14 @@ func main() {
 	}
 
 	logging.Setup(args.Verbose, args.Debug, args.LogFormat)
+
+	if args.CheckSHA256 != "" {
+		if err := runner.CheckOwnSHA256(args.CheckSHA256); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	if args.Stdio {
 		// started by ssh for one node, it exits when the node's process has exited, or the connection is gone

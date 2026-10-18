@@ -122,6 +122,7 @@ attribute (the id of the node) when they are about a node:
 | `locked`            | info          | a node acquires its `xlocks` and `rlocks`                                    |
 | `unlocked`          | info          | it releases them                                                             |
 | `runner-error`      | error         | a runner reports an error (`code`)                                           |
+| `runner-upload`     | info          | `rtrunner` is uploaded to a host (`platform`, `sha256`, `bytes`, `elapsed`)  |
 
 - (1) `start` is 1 for the first start of the node, 2 for the first re-run, and so on.
 - (2) warn when the process failed (it did not exit with a success exit code).
@@ -275,10 +276,19 @@ The `runner` property of the nodes chooses the runner:
   ones of the process, not of `ssh`. A failed login is a start error of the node, with the message of `ssh`.
   - `ssh` uses `~/.ssh/config`, the keys and `ssh-agent`, but it cannot ask for passwords or passphrases (`BatchMode`),
     and the host key must be known already (connect with `ssh` once).
-  - `rtrunner` must be installed on the host. It is a static binary, copy it from `dist/linux/amd64/`, built with
-    `runtree` (an `rtrunner` with another protocol version is a start error). Without a path, it is started from the
-    `PATH` of the user, which is short in an `ssh` command (e.g. `/usr/local/bin:/usr/bin`);
-    `ssh://root@host/~/bin/rtrunner` starts `~/bin/rtrunner`.
+  - Without a path (`ssh://root@host`), `runtree` manages `rtrunner` on the host: it starts
+    `~/.cache/runtree/rtrunner-<sha256>` for the platform of the host (`uname`), and uploads it first when it is not
+    there. Nodes that start at the same time on the same host wait for one upload (a `runner-upload` event). The file
+    is named by its hash, so a new `runtree` build uploads its own one, and the file is only renamed to that name after
+    it checked its own hash, so it is never incomplete. The ones that were not used for 30 days are deleted after an
+    upload. Only `sh`, `cat`, `mkdir`, `mv` and `find` are needed on the host.
+  - With a path (`ssh://root@host/usr/local/bin/rtrunner`, or `/~/bin/rtrunner` in the home directory), that
+    `rtrunner` is started, and nothing is uploaded (an `rtrunner` with another protocol version is a start error).
+  - The binaries for the uploads are in `runtree` when it is built with `scripts/build.py`: Linux (amd64, arm64, and
+    32 bit ARM, e.g. a Raspberry Pi) and macOS (amd64, arm64; not tested yet). They are in `dist/rtrunners/` too,
+    for manual installs. `--rtrunner-dir DIR` (or `RUNTREE_RTRUNNER_DIR`) is a directory of
+    `rtrunner-<goos>-<goarch>` files that are uploaded instead (e.g. for other platforms). A `runtree` that is built
+    with `go build` has no binaries to upload.
 - `host:port` or `tcp://host:port`: an `rtrunner` daemon, that listens on a TCP port (`rtrunner -l :5000`). The
   connection is neither authenticated nor encrypted: anyone who can connect to the port can run commands as the user
   of `rtrunner`, so use it on trusted networks only.
@@ -287,8 +297,8 @@ Without an `ssh://` runner, commands can also use `ssh` themselves on the local 
 "root@{host}"]`), but then `envs` and `cwd` apply to the local `ssh` process, the signals reach `ssh`, and a failed
 login is exit code 255, like any other failure of the command.
 
-A node connects to its runner in the background (the GUI shows "Running, connecting"), so a slow login does not hold up
-the scheduler or the GUI, and the nodes of a `par` node connect at the same time.
+A node connects to its runner (and uploads `rtrunner`) in the background (the GUI shows "Running, connecting"), so a
+slow login does not hold up the scheduler or the GUI, and the nodes of a `par` node connect at the same time.
 
 The nodes that do not specify a runner (and their parents do not either) use the local runner, or the one given to
 `runtree`: `runtree --runner testvm:5000 tree.yaml` runs them on another machine, without changing the tree file. The

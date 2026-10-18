@@ -43,14 +43,25 @@ func NewClient(ctx context.Context, address string, logger *slog.Logger, onError
 		return nil, err
 	}
 	var conn net.Conn
-	var ssh *sshConn
-	timeout := HandshakeTimeout
 	switch a.Network {
 	case NetworkLocal:
 		conn, err = local.dial()
 	case NetworkSSH:
-		ssh, err = dialSSH(a, logger)
-		conn, timeout = ssh, SSHHandshakeTimeout
+		handshake := func(conn *sshConn) (*Client, error) {
+			c, err := newClient(ctx, conn, SSHHandshakeTimeout, logger, onError)
+			if err != nil {
+				err = conn.failure(err)
+			}
+			return c, err
+		}
+		if a.Managed() {
+			return dialManaged(a, logger, handshake)
+		}
+		ssh, err := dialSSH(a, remoteCommand(a), logger)
+		if err != nil {
+			return nil, err
+		}
+		return handshake(ssh)
 	default:
 		d := net.Dialer{Timeout: HandshakeTimeout}
 		conn, err = d.DialContext(ctx, "tcp", a.Host)
@@ -58,11 +69,7 @@ func NewClient(ctx context.Context, address string, logger *slog.Logger, onError
 	if err != nil {
 		return nil, err
 	}
-	c, err := newClient(ctx, conn, timeout, logger, onError)
-	if err != nil && ssh != nil {
-		err = ssh.failure(err)
-	}
-	return c, err
+	return newClient(ctx, conn, HandshakeTimeout, logger, onError)
 }
 
 // HandshakeTimeout is the time for a TCP runner to connect and answer the protocol handshake

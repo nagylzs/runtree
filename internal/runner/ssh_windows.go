@@ -11,3 +11,7 @@ import (
 func startSSH(string, []string, io.Writer) (net.Conn, *exec.Cmd, error) {
 	return nil, nil, errors.New("the ssh runner is not available on Windows")
 }
+
+func sshCmd(name string, args []string) *exec.Cmd {
+	return exec.Command(name, args...)
+}

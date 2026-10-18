@@ -135,6 +135,7 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		return fmt.Errorf("could open input file %v: %w", fullFilePath, err)
 	}
 
+	runner.SetBinaryDir(args.RtrunnerDir)
 	sources := rt.NewSources()
 	sources.DefaultRunner = args.Runner
 	_, filename, err := rt.AddTree(fullFilePath, sources)

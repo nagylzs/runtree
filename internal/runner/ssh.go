@@ -20,14 +20,19 @@ var sshCommand = []string{"ssh"}
 // SSHHandshakeTimeout is the time for an ssh runner to connect, log in and answer the protocol handshake
 const SSHHandshakeTimeout = 2 * time.Minute
 
-// sshArgs returns the arguments of ssh that start rtrunner --stdio for the address
-func sshArgs(a Address) []string {
+// sshOptions returns the options of ssh for the address
+func sshOptions(a Address) []string {
 	args := []string{"-T", "-o", "BatchMode=yes"}
 	if a.Port != "" {
 		args = append(args, "-p", a.Port)
 	}
-	// ssh passes the command to the shell of the user
-	return append(args, "--", sshDest(a), shellQuote(a.Path), "--stdio")
+	return args
+}
+
+// remoteCommand returns the command that starts rtrunner --stdio on the host, for an address with a path (ssh passes
+// it to the shell of the user)
+func remoteCommand(a Address) string {
+	return shellQuote(a.Path) + " --stdio"
 }
 
 // sshDest is the destination of ssh: [user@]host
@@ -57,9 +62,10 @@ type sshConn struct {
 	state  *os.ProcessState // the exit status of ssh, after exited is closed
 }
 
-// dialSSH starts ssh, and returns the connection to rtrunner
-func dialSSH(a Address, logger *slog.Logger) (*sshConn, error) {
-	args := append(sshCommand[1:len(sshCommand):len(sshCommand)], sshArgs(a)...)
+// dialSSH starts ssh with the command (that starts rtrunner --stdio), and returns the connection to rtrunner
+func dialSSH(a Address, command string, logger *slog.Logger) (*sshConn, error) {
+	args := append(sshCommand[1:len(sshCommand):len(sshCommand)], sshOptions(a)...)
+	args = append(args, "--", sshDest(a), command)
 	stderr := &tailWriter{max: 4096, logger: logger}
 	conn, cmd, err := startSSH(sshCommand[0], args, stderr)
 	if err != nil {
@@ -81,16 +87,25 @@ func (c *sshConn) failure(err error) error {
 	case <-c.exited:
 	case <-time.After(5 * time.Second):
 	}
+	exitCode := -1
+	select {
+	case <-c.exited:
+		if c.state != nil {
+			exitCode = c.state.ExitCode()
+		}
+	default:
+	}
+	if exitCode == exitNotUploaded {
+		if e := notUploaded(c.stderr.String()); e != nil {
+			return e
+		}
+	}
 	msg := c.stderr.lastLines(3)
 	if msg == "" {
 		return fmt.Errorf("ssh %s: %w", c.dest, err)
 	}
-	select {
-	case <-c.exited:
-		if c.state != nil && c.state.ExitCode() == 127 {
-			msg += " (is rtrunner installed on the host? Its path can be given: ssh://host/path/to/rtrunner)"
-		}
-	default:
+	if exitCode == 127 {
+		msg += " (is rtrunner installed on the host? Its path can be given: ssh://host/path/to/rtrunner)"
 	}
 	return fmt.Errorf("ssh %s: %s", c.dest, msg)
 }
@@ -112,6 +127,12 @@ func (w *tailWriter) Write(p []byte) (int, error) {
 		w.buf = w.buf[len(w.buf)-w.max:]
 	}
 	return len(p), nil
+}
+
+func (w *tailWriter) String() string {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	return string(w.buf)
 }
 
 // lastLines returns the last n non-empty lines, separated by "; "
