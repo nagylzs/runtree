@@ -69,6 +69,14 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 	}
 	statusChanged = prevStatus != s
 	n.Status = s
+	if n.Type == TypeRun && StatusActive(prevStatus) != StatusActive(s) {
+		// a running node uses a process, also while it is starting
+		if StatusActive(s) {
+			n.IncProc(true)
+		} else {
+			n.DecProc(true)
+		}
+	}
 	if statusChanged {
 		// the exit of the process, unless it could not be started (that is logged already)
 		if n.Type == TypeRun && StatusActive(prevStatus) && !StatusActive(s) && n.Client != nil &&
@@ -159,6 +167,9 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 func (n *Node) calcRunStatus() (Status, bool) {
 	if n.WantManualStatus {
 		return n.ManualStatus, false
+	}
+	if n.starting {
+		return StatusRunning, false
 	}
 
 	if n.Status == StatusSkipped || n.Status == StatusFrozen {

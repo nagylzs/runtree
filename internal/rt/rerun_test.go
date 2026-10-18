@@ -118,7 +118,14 @@ func TestRerunStartFailed(t *testing.T) {
 
 	tree := succeededBuild(t, addr)
 	build := tree.NodeById["build"]
-	if _, err := build.PerformOp(OpRun, true, false, true, nil); err == nil {
+	tree.Lock("TestRerunStartFailed")
+	_, err = build.PerformOp(OpRun, true, false, true, nil)
+	tree.UnLock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStarted(t, build)
+	if build.StartError == "" {
 		t.Fatal("the start did not fail")
 	}
 	// the node failed (even though its success was manual), it does not provide binary anymore

@@ -298,6 +298,9 @@ func (w *NodeFrameHeader) sendSignal(name string, recursive bool) {
 	defer node.UnLockTree()
 
 	if !recursive && node.Client == nil {
+		if node.Starting(true) {
+			ShowToast(node.Id + " is still connecting to its runner")
+		}
 		return
 	}
 

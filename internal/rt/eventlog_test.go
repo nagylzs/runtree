@@ -241,7 +241,14 @@ func TestStartFailedEvents(t *testing.T) {
 
 	b := tree.NodeById["b"]
 	b.Calculated.Runner = addr
-	if err := b.Start(true); err == nil {
+	tree.Lock("TestStartFailedEvents")
+	err = b.Start(true)
+	tree.UnLock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitStarted(t, b)
+	if b.StartError == "" {
 		t.Fatal("the start did not fail")
 	}
 	entries := tree.EventLog().Since(0)
@@ -251,9 +258,11 @@ func TestStartFailedEvents(t *testing.T) {
 	}
 	want := []string{
 		fmt.Sprintf(`b start INFO starting on %s: echo "hello world"`, addr),
+		"b status INFO Waiting → Running", // while it connects to the runner
+		"root status INFO Waiting → Running",
 		"b start-failed ERROR failed to start: " + b.StartError,
-		"b status WARN Waiting → Failed",
-		"root status WARN Waiting → Failed",
+		"b status WARN Running → Failed",
+		"root status WARN Running → Failed",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("the events are\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

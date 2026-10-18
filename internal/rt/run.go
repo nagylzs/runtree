@@ -3,14 +3,17 @@ package rt
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
 	"github.com/nagylzs/runtree/internal/runner"
 )
 
-// Start calculates command arguments, environment runner etc. from variables and starts the command on the runner
-// It can return an error, but only so that the caller can display it to the user.
+// Start calculates command arguments, environment runner etc. from variables and starts the command on the runner.
+// Connecting to the runner and starting the process happens in the background (see connect), without the tree lock:
+// it can take a while (e.g. an SSH login). Meanwhile the node is starting: its status is running, without a client.
+// A failure to connect or start is a start error of the node, logged as a start-failed event.
 func (n *Node) Start(locked bool) error {
 	if !locked {
 		panic("must be called in locked state")
@@ -36,29 +39,50 @@ func (n *Node) Start(locked bool) error {
 	logger.Info(fmt.Sprintf("starting%s: %s", on, quoteArgs(n.Calculated.Args)),
 		attrEvent, EventStart, "start", n.Starts, "runner", n.Calculated.Runner, "args", n.Calculated.Args,
 		"cwd", n.Calculated.CWD)
-	ctx := context.Background()
 
-	c, err := runner.NewClient(ctx, n.Calculated.Runner, logger, n.onError)
-	if err != nil {
-		n.startFailed(err.Error())
-		n.updateStatusesUp(true)
-		return fmt.Errorf("failed to start: %w", err)
-	}
+	var output io.Writer
 	if r := n.Tree.outputRecorder; r != nil {
-		if w := r.NodeOutput(n, n.Starts); w != nil {
-			c.SetOutput(w)
+		output = r.NodeOutput(n, n.Starts)
+	}
+	n.Client = nil // the client of the previous start, its process has exited
+	n.StartError = ""
+	n.starting = true // running from now on, see calcRunStatus
+	go n.connect(n.Calculated.Runner, *n.ClientArgs, logger, output)
+	return nil
+}
+
+// connect connects to the runner and starts the process of the node, see Start. It is called in unlocked state.
+func (n *Node) connect(address string, args runner.CmdArgs, logger *slog.Logger, output io.Writer) {
+	defer n.Tree.recoverPanic("start of " + n.Id)
+	ctx := context.Background()
+	c, err := runner.NewClient(ctx, address, logger, n.onError)
+	if err == nil {
+		if output != nil {
+			c.SetOutput(output)
+		}
+		if err = c.StartPty(ctx, args, n.procStateChanged); err != nil {
+			c.Close()
 		}
 	}
-	err = c.StartPty(ctx, *n.ClientArgs, n.procStateChanged)
+
+	n.LockTree("Node.connect")
+	defer n.UnLockTree()
+	n.starting = false
 	if err != nil {
 		n.startFailed(err.Error())
-		return fmt.Errorf("failed to start: %w", err)
+	} else {
+		n.Client = c
+		n.Tree.terminalHelper.AfterPtyStarted(n)
 	}
+	n.updateStatusesUp(true)
+}
 
-	n.Client = c
-	n.Tree.terminalHelper.AfterPtyStarted(n)
-	n.IncProc(true)
-	return nil
+// Starting tells if the node is connecting to its runner to start its process, see Start
+func (n *Node) Starting(locked bool) bool {
+	if !locked {
+		panic("must be called in locked state")
+	}
+	return n.starting
 }
 
 // TerminalFailed must be called by the TerminalHelper, in unlocked state, when it could not connect the pty of a
@@ -84,10 +108,6 @@ func (n *Node) procStateChanged(state runner.ProcState) {
 	defer n.Tree.recoverPanic("process state change of " + n.Id)
 	n.LockTree("Node.procStateChanged")
 	defer n.UnLockTree()
-	// process exited, node's old state is alive -> will decrease the number of processes
-	if !state.Alive() && StatusActive(n.Status) {
-		n.DecProc(true)
-	}
 	n.updateStatusesUp(true)
 	if n.Tree.terminalHelper != nil {
 		n.Tree.terminalHelper.ProcStateChanged(n, state)
@@ -111,7 +131,8 @@ func (n *Node) calcClientArgs() {
 	}
 }
 
-// IncProc increases Node.NProc for the node, and all of its parents.
+// IncProc increases Node.NProc for the node, and all of its parents. updateStatus calls it when a run node starts
+// running, and DecProc when it stops.
 func (n *Node) IncProc(locked bool) {
 	if !locked {
 		panic("node must be locked")

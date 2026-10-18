@@ -160,6 +160,7 @@ func (h *ptyTerminalHelper) AfterPtyStarted(n *Node) {
 // in its own session).
 func killNode(t *testing.T, n *Node) {
 	t.Helper()
+	waitStarted(t, n)
 	n.LockTree("killNode")
 	c := n.Client
 	_, err := n.SendSignal(true, "SIGKILL")
@@ -177,6 +178,23 @@ func killNode(t *testing.T, n *Node) {
 		if time.Now().After(deadline) {
 			t.Errorf("%s did not exit", n.Id)
 			return
+		}
+	}
+}
+
+// waitStarted waits until the node is not starting anymore: it is connected to its runner and its process is started,
+// or its start failed (see Node.Start)
+func waitStarted(t *testing.T, n *Node) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+		n.Tree.RLock("waitStarted")
+		starting := n.starting
+		n.Tree.RUnlock()
+		if !starting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s is still starting", n.Id)
 		}
 	}
 }

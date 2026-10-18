@@ -145,6 +145,7 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 		pid = node.Client.LastState().Pid
 		hasTerm = pid != 0
 	}
+	connecting := typ == rt.TypeRun && node.Starting(true)
 	sm := node.SchedulerMessage
 	hasChild := node.HasChild()
 	expanded := node.Expanded
@@ -167,6 +168,9 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	icons := ""
 	if hasTerm {
 		icons += rt.TermEmoji
+	}
+	if connecting {
+		sn += ", connecting"
 	}
 	if sm != "" {
 		sn += ", " + sm

@@ -38,6 +38,7 @@ type Node struct {
 
 	ClientArgs *runner.CmdArgs
 	Client     *runner.Client
+	starting   bool   // connecting to the runner, see Start
 	StartError string // Only used when the client cannot be started, it indicates an error without a client state
 	Status     Status // This **must** be updated from Node.updateStatus!
 
