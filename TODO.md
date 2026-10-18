@@ -21,6 +21,10 @@
     `brew install pkgconf gtk4 vte3 socat`. Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift on
     macOS), middle click paste (macOS has no primary selection), the close confirmation on Cmd+Q.
   * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
+* test on Windows: `runtree-headless`, `rtrunner` and `runtree-lsp` from `dist/windows/amd64/` on a real Windows (only
+  tested under wine so far): the local runner (ConPTY), the output, exit codes, `--lock`, Ctrl+C.
+* test on macOS: `rtrunner`, `runtree-headless` (`GOOS=darwin go build ./cmd/runtree-headless`) and the GUI (see macOS
+  support above) on a real Mac.
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
