@@ -42,6 +42,10 @@ type Node struct {
 	starting   bool   // connecting to the runner, see Start
 	StartError string // Only used when the client cannot be started, it indicates an error without a client state
 	Status     Status // This **must** be updated from Node.updateStatus!
+	// held is the status of a seq/par node that is set on the node itself, instead of being calculated from its
+	// sub-nodes: StatusFrozen (status: frozen) until it is thawed, StatusSkipped (Skip) until it is reset;
+	// StatusWaiting when there is none.
+	held Status
 
 	WantManualStatus bool   // Node.PerformOp sets this to true when it wants to manually set status
 	ManualStatus     Status // Node.PerformOp sets this to the desired manual status
@@ -258,6 +262,7 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.Calculated = n2.Calculated
 	n.Calculated.Level, n.Calculated.Idx = lvl, idx
 	n.Status = n2.Status
+	n.held = n2.held
 }
 
 // keepOwn sets the properties of a node that its single included object replaced (see loadFrom), but that the object

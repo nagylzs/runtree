@@ -285,6 +285,9 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		n.Status = StatusWaiting
 	} else if st == "frozen" {
 		n.Status = StatusFrozen
+		if n.Type != TypeRun {
+			n.held = StatusFrozen
+		}
 	} else {
 		report(propErrorf("status", "invalid status: %q (it can only be waiting or frozen)", st))
 		n.Status = StatusWaiting

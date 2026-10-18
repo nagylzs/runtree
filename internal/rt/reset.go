@@ -86,8 +86,7 @@ func (n *Node) PlanResetToWaiting(locked bool, recursive bool) UnprovidePlan {
 			return false
 		}
 		// run nodes are always reset when allowed, seq/par nodes only change by themselves in these statuses
-		ownReset := node.Type == TypeRun ||
-			node.Status == StatusFrozen || node.Status == StatusPaused || node.Status == StatusSkipped
+		ownReset := node.Type == TypeRun || node.held != StatusWaiting || node.Status == StatusPaused
 		subReset := false
 		if recursive {
 			for _, sub := range node.Nodes {

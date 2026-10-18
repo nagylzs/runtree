@@ -70,9 +70,15 @@ on every node of the subtree where they are allowed (e.g. **Freeze all** freezes
 | Skip | Waiting, Frozen | the node is Skipped: finished without error, it is not started |
 | ResetToWaiting | Frozen, Paused, finished | the node is Waiting again, the scheduler starts it again when it can |
 
-For seq and par nodes: **Thaw** and **ResetToWaiting** for a frozen node, **ResetToWaiting** for a skipped one,
-**Fail** / **Success** for a paused one; the "all" versions for the rest. A status that is set on a paused seq or par
-node by hand lasts until an operation is performed on the node or below it.
+For seq and par nodes:
+
+- **Skip** for a node that is not started yet (Waiting or Frozen): the node is Skipped, its sub-nodes are not started.
+  **Skip all** skips the sub-nodes too; on a running node it only skips the sub-nodes that are not started.
+- **Thaw** and **ResetToWaiting** for a node frozen by `status: frozen`, **ResetToWaiting** for a skipped one: the
+  status of the node is calculated from its sub-nodes again. A node that is frozen because its sub-nodes are frozen is
+  thawed with **Thaw all**.
+- **Fail** / **Success** for a paused one. This status lasts until an operation is performed on the node or below it.
+- The "all" versions for the rest.
 
 **Re-run** and **ResetToWaiting** unprovide the resources that the node (and its parents that become unfinished)
 provided, so the nodes that require them wait for the new run. When there are such resources, a dialog lists them:

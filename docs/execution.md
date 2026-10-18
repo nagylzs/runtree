@@ -59,6 +59,8 @@ A seq or par node gets its status from its sub-nodes:
   intentional: a seq or par node holds its locks for the whole group of its sub-nodes.
 - When all of its sub-nodes are finished, it is Success if none of them has an error, otherwise it gets the status of
   its `on_error` (Failed by default).
+- Before it starts, it is Frozen when its unfinished sub-nodes are all frozen (e.g. by the `freeze` sibling operation
+  of [`on_error`](#errors)): nothing below it starts until they are thawed (**Thaw all**).
 - A **seq** node stops at its first failed sub-node: it gets its `on_error` status right away, and its next
   sub-nodes are not started. A sub-node that is allowed to fail should have `on_error: success`.
 - A **par** node keeps running its other sub-nodes when one of them fails (they are usually independent), and it gets
@@ -66,7 +68,8 @@ A seq or par node gets its status from its sub-nodes:
   (e.g. `Running (2), 1 failed`). To stop starting new sub-nodes after a failure, use the sibling operation of
   [`on_error`](#errors).
 - Its status can also be set by hand: a paused seq or par node can be set to Success or Failed (this status lasts until
-  an operation is performed on the node or below it).
+  an operation is performed on the node or below it), and one that is not started yet can be skipped (it is Skipped
+  until it is reset, and its sub-nodes are not started).
 
 ## Errors
 
@@ -159,9 +162,10 @@ subtree.
   args: [echo, approved]
 ```
 
-`status` is inherited, so the sub-nodes of a frozen seq or par node are frozen too (use **Thaw all** for them). A
-frozen node can also be started by hand with **Run**. The possible initial statuses are `waiting` (the default) and
-`frozen`.
+`status` is inherited, so the sub-nodes of a frozen seq or par node are frozen too: use **Thaw all** for them.
+**Thaw** only thaws the seq or par node itself, so it is still Frozen while its sub-nodes are (it only starts the
+sub-nodes that have `status: waiting`). **Skip** skips the whole group. A frozen run node can also be started by hand
+with **Run**. The possible initial statuses are `waiting` (the default) and `frozen`.
 
 ## Blocking
 

@@ -34,10 +34,16 @@ func (n *Node) AllowedManualOps(locked bool, recursive bool) map[int]struct{} {
 
 	// non-recursive operations, node does not have children
 	if n.HasChild() {
-		if n.Status == StatusFrozen {
-			addOps(OpThaw, OpSkip, OpResetToWaiting)
+		// a seq/par node that is not started yet can be skipped
+		if n.Status == StatusWaiting || n.Status == StatusFrozen {
+			addOps(OpSkip)
 		}
-		if n.Status == StatusSkipped {
+		// Frozen and Skipped are only changed when they are set on the node itself (see Node.held): a node that is
+		// frozen because its sub-nodes are frozen is thawed with "Thaw all"
+		if n.held == StatusFrozen {
+			addOps(OpThaw, OpResetToWaiting)
+		}
+		if n.held == StatusSkipped {
 			addOps(OpResetToWaiting)
 		}
 		if n.Status == StatusPaused {
@@ -207,13 +213,20 @@ func (n *Node) performOp(op NodeOp, locked bool, recursive bool, manual bool) (b
 			n.SchedulerMessage = ""
 			changed = true
 		}
-		// Set waiting / thaw frozen seq/par node, reset skipped seq/par node
-		// This is **not** manual status, so later calcParStatus/calSeqStatus can change it.
-		// However, calcParStatus/calSeqStatus will refrain from changing it from frozen or skipped to anything.
-		if (n.Status == StatusFrozen && (op == OpResetToWaiting || op == OpThaw)) ||
-			(n.Status == StatusSkipped && op == OpResetToWaiting) {
+		// Thaw / reset a frozen seq/par node, reset a skipped one: its status is calculated from its sub-nodes again
+		// (by updateStatus, that logs the change).
+		if (n.held == StatusFrozen && (op == OpResetToWaiting || op == OpThaw)) ||
+			(n.held == StatusSkipped && op == OpResetToWaiting) {
 			n.WantManualStatus = false
-			n.Status = StatusWaiting
+			n.held = StatusWaiting
+			n.SchedulerMessage = ""
+			changed = true
+		}
+		// Skip (and Skip all) a seq/par node that is not started yet: it is skipped, its sub-nodes are not started.
+		// A running one goes on, Skip all only skips its sub-nodes that are not started.
+		if op == OpSkip && (n.Status == StatusWaiting || n.Status == StatusFrozen) {
+			n.WantManualStatus = false
+			n.held = StatusSkipped
 			n.SchedulerMessage = ""
 			changed = true
 		}

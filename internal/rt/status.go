@@ -236,11 +236,11 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 		return n.ManualStatus, false
 	}
 
-	if n.Status == StatusSkipped || n.Status == StatusFrozen {
-		return n.Status, false
+	if n.held != StatusWaiting {
+		return n.held, false
 	}
 
-	hasActive, hasError, hasNotFinished := false, false, false
+	hasActive, hasError, hasNotFinished, hasNotFrozen := false, false, false, false
 	for _, c := range n.Nodes {
 		if StatusActive(c.Status) {
 			hasActive = true
@@ -250,6 +250,9 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 		}
 		if !StatusFinished(c.Status) {
 			hasNotFinished = true
+			if c.Status != StatusFrozen {
+				hasNotFrozen = true
+			}
 		}
 	}
 	// A seq node stops at a failed sub-node: it gets its on_error status right away, so the scheduler does not start
@@ -271,6 +274,11 @@ func (n *Node) calcParSeqStatus() (Status, bool) {
 		return n.OnError.Status, true
 	}
 	if hasNotFinished {
+		// a node that is not started yet, and whose unfinished sub-nodes are all frozen (e.g. by the on_error freeze
+		// of a sibling): nothing below it is started until they are thawed
+		if !hasNotFrozen {
+			return StatusFrozen, false
+		}
 		return StatusWaiting, false
 	}
 	return StatusSuccess, false
