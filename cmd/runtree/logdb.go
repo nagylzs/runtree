@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/user"
 
 	"github.com/nagylzs/runtree/internal/config"
 	"github.com/nagylzs/runtree/internal/logdb"
@@ -17,11 +16,7 @@ import (
 
 // openLogDB starts a run in the log database, and makes the tree save its events and the terminal output there
 func openLogDB(path string, treeFile string, tree *rt.Tree) (*logdb.DB, error) {
-	host, _ := os.Hostname()
-	userName := ""
-	if u, err := user.Current(); err == nil {
-		userName = u.Username
-	}
+	userName, host := currentUser()
 	db, err := logdb.Open(path, logdb.RunInfo{TreeFile: treeFile, Host: host, User: userName, Pid: os.Getpid(),
 		Version: version.LocalVersion()})
 	if err != nil {

@@ -107,6 +107,8 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
 - `internal/logdb` — `--log-db`: saves the events (a slog handler, combined with stderr by `logging.Multi`) and the
   terminal output (`rt.OutputRecorder`, fed by `runner.Client.SetOutput`) in SQLite, in batches from a goroutine;
   the reader and the `--show-*` printing are there too. Bump `schemaVersion` when changing the tables.
+- `internal/lockfile` — `--lock FILE`: an `flock` lock that the kernel releases when runtree exits; the file has the
+  pid and the holder (`cmd/runtree/lock.go`, exit code 75 when it is locked).
 
 ### Locking convention
 The whole tree is guarded by one `sync.RWMutex` (`Tree.Lock/RLock`, with a `who` string for debugging deadlocks —

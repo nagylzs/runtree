@@ -177,6 +177,27 @@ SELECT e.run_id, n.path, e.attrs ->> 'elapsed' AS seconds FROM events e JOIN nod
 WHERE e.event = 'exited' ORDER BY seconds DESC LIMIT 10;
 ```
 
+## Running a tree once at a time
+
+`runtree --lock FILE tree.yaml` locks `FILE` while the tree runs. Another `runtree` with the same lock file does not
+start: it prints who holds the lock, and exits with 75 (`EX_TEMPFAIL`, so a script can try again later):
+
+```
+the tree cannot be run now: /srv/runtree/upgrade.lock is locked, the lock file says: pid 12345,
+admin@deploy01 since 2026-10-18 10:30:00 +0200, tree /srv/runtree/upgrade.rt.yaml
+```
+
+- It is a lock of the kernel (`flock`), not only a pid file: it is released when `runtree` exits in any way, also
+  when it is killed or crashes, so a lock is never left behind. (It is held until the processes of the local runner
+  have exited, see [Components](#components).) The file is not deleted, and it can be the same for several trees.
+- The first line of the file is the pid of the `runtree` that holds the lock, the second one is who started it,
+  from where, when, and the tree file.
+- For several users: they must be able to open the file. Reading is enough to lock it, writing is needed to record
+  who holds it (otherwise the file says who held it before). E.g. create it once for a group:
+  `touch /srv/runtree/upgrade.lock; chgrp ops /srv/runtree/upgrade.lock; chmod 664 /srv/runtree/upgrade.lock`.
+- It works between the `runtree` processes of the same machine (e.g. users who log in to a deploy host with `ssh`
+  and run the tree there). Locks on network filesystems (NFS) may not work between machines.
+
 ## Editor support
 
 Name tree files `*.rt.yaml` (e.g. `upgrade_servers.rt.yaml`), so that editors can recognize them. runtree itself

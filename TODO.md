@@ -160,7 +160,9 @@ Ordered by impact:
 * SSH transport for runners, instead of the unauthenticated TCP daemon on :5000: see "Runners" above.
 * TUI frontend (non-GTK), so runtree works headless, over SSH, and on macOS/Windows.
   GTK4+VTE+cgo is the biggest install/build barrier.
-* Headless mode: exit with root node's status (already listed above), so it can double as a CI step.
+* Headless mode: exit with root node's status (already listed above), so it can double as a CI step. With `--lock`
+  (done), users who run the same tree on a deploy host over ssh do not run it twice. Maybe: a `lock` property of the
+  root node, so that a tree is always locked without `--lock`; `--lock-wait` to wait for the lock instead of exit 75.
 * Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
   substitution, the operations, reset / re-run and unprovide, the events, and starting processes on an in-process
   runner. Still thin: the scheduler loop (`findRunnable`, `max_proc`), lock/deps semantics, and the runner package.

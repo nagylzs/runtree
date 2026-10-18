@@ -19,6 +19,7 @@ type CLIArgs struct {
 	NoSSHShare  bool   `long:"no-ssh-share" description:"Do not share one ssh connection for each host (ssh:// runners)"`
 	Runner      string `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port, tcp://host:port or ssh://[user@]host[:port][/path/to/rtrunner] (default: local)"`
 
+	Lock       string `long:"lock" value-name:"FILE" description:"Lock FILE while the tree runs, another runtree with the same lock file exits (with 75) instead of running"`
 	LogDB      string `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`
 	ShowRuns   bool   `long:"show-runs" description:"List the runs of the --log-db database, then exit"`
 	ShowEvents bool   `long:"show-events" description:"Print the events of a run from the --log-db database, then exit"`

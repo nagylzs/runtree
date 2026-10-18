@@ -15,6 +15,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/nagylzs/runtree/internal/config"
 	"github.com/nagylzs/runtree/internal/gtkui"
+	"github.com/nagylzs/runtree/internal/lockfile"
 	"github.com/nagylzs/runtree/internal/logdb"
 	"github.com/nagylzs/runtree/internal/logging"
 	"github.com/nagylzs/runtree/internal/rt"
@@ -95,6 +96,7 @@ func main() {
 	err = runMain(args, posArgs)
 	var parseErrs rt.ParseErrors
 	var parseErr *rt.ParseError
+	var lockedErr *lockfile.LockedError
 	if errors.As(err, &parseErrs) {
 		// file:line:col: message lines, and their details on separate lines
 		_, _ = fmt.Fprintln(os.Stderr, parseErrs.Error())
@@ -102,6 +104,9 @@ func main() {
 			_, _ = fmt.Fprintf(os.Stderr, "%d errors\n", len(parseErrs))
 		}
 		os.Exit(1)
+	} else if errors.As(err, &lockedErr) {
+		_, _ = fmt.Fprintln(os.Stderr, "the tree cannot be run now: "+lockedErr.Error())
+		os.Exit(exitLocked)
 	} else if errors.As(err, &parseErr) {
 		_, _ = fmt.Fprintln(os.Stderr, parseErr.Error())
 		os.Exit(1)
@@ -156,6 +161,14 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		_, _ = fmt.Fprintf(os.Stderr, "%s: OK, %d nodes%s\n", posArgs[1], len(runTree.Nodes),
 			plural(", %d warning", len(warnings)))
 		return nil
+	}
+
+	if args.Lock != "" {
+		lock, err := lockTree(args.Lock, fullFilePath)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = lock.Release() }()
 	}
 
 	var db *logdb.DB
