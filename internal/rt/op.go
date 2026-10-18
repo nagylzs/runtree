@@ -247,7 +247,9 @@ func (n *Node) performOnErrorSiblings(locked bool) {
 	n.log().Info(fmt.Sprintf("on_error: %s the siblings", strings.ToLower(OpName(op))), attrEvent, EventOnError,
 		"op", OpName(op))
 	for _, sib := range n.Parent.Nodes {
-		if sib == n {
+		// only the siblings that are not started yet: the running ones go on (e.g. the other hosts of a rolling
+		// upgrade finish their steps, instead of stopping in the middle)
+		if sib == n || (sib.Status != StatusWaiting && sib.Status != StatusFrozen) {
 			continue
 		}
 		// Here we ignore all errors, because the only reason that it can fail is because the operation is not allowed

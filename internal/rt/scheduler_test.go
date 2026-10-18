@@ -394,3 +394,41 @@ tree:
 		t.Errorf("at most %d nodes were running at the same time, want 2", maxRunning)
 	}
 }
+
+// The sibling operation of on_error (freeze, skip) is performed on the siblings that are not started yet; the running
+// ones go on (e.g. in a rolling upgrade, the hosts that are being upgraded finish their steps)
+func TestOnErrorSiblingsNotStarted(t *testing.T) {
+	s := newSchedTree(t, `
+tree:
+  id: root
+  children_on_error: [failed, freeze]
+  par:
+    - id: h1
+      seq:
+        - {id: h1a, args: ["true"]}
+        - {id: h1b, args: ["true"]}
+    - id: h2
+      seq:
+        - {id: h2a, args: ["true"]}
+        - {id: h2b, args: ["true"]}
+    - id: h3
+      seq:
+        - {id: h3a, args: ["true"]}
+        - {id: h3b, args: ["true"]}
+`)
+	s.expect("h1a")
+	s.run("h1a")
+	s.expect("h2a")
+	s.run("h2a")
+	s.finish(StatusFailed, "h1a") // h1 fails, h3 is frozen, h2 goes on
+	if st := s.status("h1") + " " + s.status("h3a") + " " + s.status("h3b"); st != "Failed Frozen Frozen" {
+		t.Errorf("the statuses are %s", st)
+	}
+	s.finish(StatusSuccess, "h2a")
+	s.expect("h2b")
+	s.run("h2b")
+	s.finish(StatusSuccess, "h2b")
+	if st := s.status("h2"); st != "Success" {
+		t.Errorf("h2 is %s", st)
+	}
+}

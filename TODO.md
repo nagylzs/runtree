@@ -1,4 +1,5 @@
 * implement "if" node type
+* a seq/par node whose sub-nodes are all frozen (e.g. by on_error freeze) shows Waiting, not Frozen
 * implement NavBlocked navmode
 * document "include" property, explain include/reduce
 * show requires/provides on the dependencies tab
