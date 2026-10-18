@@ -57,6 +57,9 @@ type Sources struct {
 	// Overlay has the contents of the files that are used instead of the files on the disk (e.g. the unsaved
 	// documents of an editor), by absolute path
 	Overlay map[string][]byte
+	// DefaultRunner is the runner of the nodes that do not specify one, not even their parents (runtree --runner).
+	// Empty means the local runner. It must be a valid runner address (runner.ParseAddress).
+	DefaultRunner string
 
 	maps  map[uintptr]*mapPositions              // by map identity
 	lists map[uintptr][]Pos                      // item positions by list identity

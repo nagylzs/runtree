@@ -2,6 +2,7 @@ package rt
 
 import (
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -67,6 +68,51 @@ tree:
 		"middle": "10.0.0.1:5001",
 		"deep":   "10.0.0.1:5001",
 		"own":    "10.0.0.2:5002",
+	} {
+		if got := tree.NodeById[id].Calculated.Runner; got != want {
+			t.Errorf("%s runner is %q, want %q", id, got, want)
+		}
+	}
+}
+
+// The default runner (runtree --runner) is used by the nodes that do not specify a runner, not even their parents.
+// An explicit local runner is local.
+func TestDefaultRunner(t *testing.T) {
+	dir := writeFiles(t, map[string]string{"tree.yaml": `
+tree:
+  id: root
+  seq:
+    - id: plain
+      args: ["true"]
+    - id: empty
+      runner: ""
+      args: ["true"]
+    - id: here
+      runner: local
+      seq:
+        - id: inherited
+          args: ["true"]
+    - id: own
+      runner: "10.0.0.2:5002"
+      args: ["true"]
+`})
+	sources := NewSources()
+	sources.DefaultRunner = "tcp://10.0.0.9:5000"
+	_, filename, err := AddTree(filepath.Join(dir, "tree.yaml"), sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := ParseToDom(sources, filename, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{
+		"root":      "tcp://10.0.0.9:5000",
+		"plain":     "tcp://10.0.0.9:5000",
+		"empty":     "tcp://10.0.0.9:5000",
+		"here":      runner.LocalAddress,
+		"inherited": runner.LocalAddress,
+		"own":       "10.0.0.2:5002",
 	} {
 		if got := tree.NodeById[id].Calculated.Runner; got != want {
 			t.Errorf("%s runner is %q, want %q", id, got, want)

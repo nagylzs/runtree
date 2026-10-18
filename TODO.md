@@ -61,6 +61,8 @@ connection still runs exactly one command, so a runner per run node needs no pro
 1. Done: the embedded runner, the default: each client gets one end of a socket pair, a goroutine serves the other end.
    No `rtrunner` to start, no open port. When runtree exits (also on SIGTERM), it stops the scheduler, terminates the
    local processes as `rtrunner` does when its client is gone (SIGINT, SIGTERM, SIGKILL), and waits for them.
+   `runtree --runner ADDRESS` changes the default runner (of the nodes that do not specify one); `runner: local` is
+   always local.
 2. `rtrunner --stdio` serves one connection on stdin/stdout, and the `ssh://` runner starts it with the system `ssh`
    (`~/.ssh/config`, keys, agent, ProxyJump). A failed ssh connection is a start failure, not exit code 255; `envs`
    and `cwd` apply on the remote host; signals reach the remote process; the exit events have the remote exit code

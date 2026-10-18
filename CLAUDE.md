@@ -58,7 +58,8 @@ Three binaries; `runtree` and `rtrunner` share the runner protocol:
   `editors/vscode/extension.js` starts it.
 - `cmd/runtree` → `internal/rt` (tree model + scheduler) + `internal/gtkui` (GTK4 GUI). Each started node opens its
   own `runner.Client` connection; `runner.ParseAddress` parses the `runner` property (`local`, `host:port`,
-  `tcp://host:port`). TODO.md "Runners" has the plan for `ssh://` runners.
+  `tcp://host:port`); `runtree --runner` sets the default (`Sources.DefaultRunner`). TODO.md "Runners" has the plan
+  for `ssh://` runners.
 
 ### Runner protocol (`internal/runner`)
 After a version handshake (`proto.go`, `runner.Version` must match on both ends — bump it when changing the wire

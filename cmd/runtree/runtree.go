@@ -18,6 +18,7 @@ import (
 	"github.com/nagylzs/runtree/internal/logdb"
 	"github.com/nagylzs/runtree/internal/logging"
 	"github.com/nagylzs/runtree/internal/rt"
+	"github.com/nagylzs/runtree/internal/runner"
 	"github.com/nagylzs/runtree/internal/version"
 )
 
@@ -60,6 +61,10 @@ func main() {
 
 	if len(posArgs) < 2 {
 		_, _ = fmt.Fprintf(os.Stderr, "Usage: runtree [options] <runtree_yaml_file>\n")
+		os.Exit(1)
+	}
+	if _, err := runner.ParseAddress(args.Runner); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "--runner: "+err.Error())
 		os.Exit(1)
 	}
 
@@ -131,6 +136,7 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 	}
 
 	sources := rt.NewSources()
+	sources.DefaultRunner = args.Runner
 	_, filename, err := rt.AddTree(fullFilePath, sources)
 	if err != nil {
 		return err

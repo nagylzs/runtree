@@ -12,9 +12,10 @@ type BaseArgs struct {
 
 type CLIArgs struct {
 	BaseArgs
-	MaxDepth uint `long:"max-depth" description:"Maximum tree depth"`
-	Check    bool `long:"check" description:"Only check the tree file (and the included files), then exit"`
-	Schema   bool `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
+	MaxDepth uint   `long:"max-depth" description:"Maximum tree depth"`
+	Check    bool   `long:"check" description:"Only check the tree file (and the included files), then exit"`
+	Schema   bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
+	Runner   string `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port or tcp://host:port (default: local)"`
 
 	LogDB      string `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`
 	ShowRuns   bool   `long:"show-runs" description:"List the runs of the --log-db database, then exit"`

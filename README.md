@@ -274,6 +274,10 @@ The `runner` property of the nodes chooses the runner:
   :5000`). The connection is neither authenticated nor encrypted: anyone who can connect to the port can run commands
   as the user of `rtrunner`, so use it on trusted networks only.
 
+The nodes that do not specify a runner (and their parents do not either) use the local runner, or the one given to
+`runtree`: `runtree --runner testvm:5000 tree.yaml` runs them on another machine, without changing the tree file. The
+nodes that must run on the machine of `runtree` (e.g. waiting for a host with `ping`) should say `runner: local`.
+
 When `runtree` exits (the main window is closed, or it gets `SIGTERM`), it stops starting nodes, and terminates the
 processes of the local runner that are still running: `SIGINT`, then `SIGTERM` after 10 seconds and `SIGKILL` after 10
 more, and it waits until they exit. An `rtrunner` does the same when `runtree` disconnects. If `runtree` is killed
@@ -370,7 +374,8 @@ Every node can have the following general read-write properties. They can be spe
   inherited from the parent, and it is useful when there are lots of sub-nodes with the same argument prefixes.
 - `runner` - the runner that runs the processes of the node: `local` (the runner in `runtree`), or the address of an
   `rtrunner` (`host:port` or `tcp://host:port`), see [Components](#components). Variables can be used. When not
-  specified, then it is inherited from the parent node, or `local` (for the root node).
+  specified, then it is inherited from the parent node. The root node uses `local`, or the `--runner` option of
+  `runtree`.
 - `on_error` - this determines what to do when the underlying process or a subnode fails. It is a string, or a list of
    two strings, containing the following values:
       - `failed`, `paused`, `success`: what should be the status of the node. The default is `failed`.

@@ -55,7 +55,8 @@ var NodeProperties = []Property{
 			"the runner is used (runtree's own for the local runner)."},
 	{Name: "runner", Kind: KindString, Inherited: true, Default: "local",
 		Description: "The runner that runs the processes of the node: local (runtree runs them itself), or the " +
-			"address (host:port or tcp://host:port) of an rtrunner."},
+			"address (host:port or tcp://host:port) of an rtrunner. When it is not set, it is inherited from the " +
+			"parent; the default of the root is local, or the --runner option of runtree."},
 	{Name: "vars", Kind: KindVarMap, Inherited: true,
 		Description: "Variables (name: value) for this node and its subtree. Values are strings or lists of " +
 			"strings, and can be used as {name} in other properties."},

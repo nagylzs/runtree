@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nagylzs/runtree/internal/events"
+	"github.com/nagylzs/runtree/internal/runner"
 	"github.com/nagylzs/set"
 )
 
@@ -43,6 +44,8 @@ type Tree struct {
 
 	terminalHelper TerminalHelper
 	outputRecorder OutputRecorder
+
+	defaultRunner string // the runner of the nodes that do not specify one, see Sources.DefaultRunner
 
 	lastId int // the number of the last generated node id
 }
@@ -138,6 +141,10 @@ func loadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tre
 		xAcquiredBy:      make(map[string]*Node),
 		rAcquired:        set.NewSet[string](),
 		xAcquired:        set.NewSet[string](),
+		defaultRunner:    sources.DefaultRunner,
+	}
+	if tree.defaultRunner == "" {
+		tree.defaultRunner = runner.LocalAddress
 	}
 	tree.SetLogHandler(slog.Default().Handler())
 	tree.awaker = events.NewDebouncer(tree.debouncedSchedule, true)

@@ -206,7 +206,7 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 			return false, err
 		}
 		if c.Runner == "" {
-			c.Runner = runner.LocalAddress
+			c.Runner = n.Tree.defaultRunner
 		}
 		if _, err := runner.ParseAddress(c.Runner); err != nil {
 			return false, propErrorf("runner", "%s", err)
