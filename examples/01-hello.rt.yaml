@@ -1,0 +1,15 @@
+# 01 - Hello: the smallest tree
+#
+# A tree file has a top level `tree` object: the root node. A node with `args` is a run node, it runs that command
+# (the program and its arguments, no shell) in a terminal.
+#
+#   runtree examples/01-hello.rt.yaml
+#
+# Select the node to see its terminal and its properties. When the process exits, the node is Success (exit code 0)
+# or Failed. Run it again with the Re-run button.
+tree:
+  title: "Hello"
+  description: |
+    The description of a node is shown in the GUI when the node is selected.
+    It can be several lines long.
+  args: ["sh", "-c", "echo 'Hello from runtree!'; sleep 3"]

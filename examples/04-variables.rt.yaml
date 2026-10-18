@@ -1,0 +1,40 @@
+# 04 - Variables, environment and working directory
+#
+# - `vars` sets variables for the node and the nodes below it. `{name}` in a string is replaced by the value of the
+#   variable (in args, args_prefix, title, description, cwd, envs, runner, locks, provides, requires and vars).
+#   `${name}` and `$name` are left for the shell.
+# - `envs` sets environment variables, `cwd` the working directory of the processes (both are inherited).
+# - `args_prefix` is put before the args of the run nodes below it (it is inherited too).
+# - A `vars` block can use its own variables, in any order; in its own value a variable means the inherited value.
+# - A string tagged `!raw` is used as it is, without substitution.
+#
+#   runtree --check examples/04-variables.rt.yaml   # checks the tree without running it
+#   runtree examples/04-variables.rt.yaml
+#
+# The Vars and Envs tabs of the GUI show the values of the selected node, and where they come from.
+tree:
+  title: "Variables in {project}"
+  vars:
+    project: "demo"
+    workdir: "/tmp"
+  cwd: "{workdir}"
+  envs:
+    PROJECT: "{project}"
+  seq:
+    - title: "args with variables"
+      args: [echo, "project {project}, files in {workdir}"]
+    - title: "environment and working directory"
+      args: [sh, -c, 'echo "PROJECT=$PROJECT, working directory: $(pwd)"']
+    - title: "a common command prefix"
+      args_prefix: [echo, "[{project}]"]
+      seq:
+        - [step, one]
+        - [step, two]
+    - title: "variables that use each other"
+      vars:
+        greeting: "Hello {name}, welcome to {project}"
+        name: "world"
+        project: "{project}-v2" # the inherited value, extended
+      args: [echo, "{greeting}"]
+    - title: "a raw string"
+      args: [echo, !raw "{project} is not replaced here"]

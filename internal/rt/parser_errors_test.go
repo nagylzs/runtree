@@ -234,23 +234,44 @@ func TestShorthandRunNodeError(t *testing.T) {
 }
 
 // The example trees in test/ (hand-run examples) must load.
+// The examples load without errors and warnings (examples/README.md lists them)
 func TestExampleTrees(t *testing.T) {
-	files, err := filepath.Glob("../../test/*.rt.yaml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no example trees found: %v", err)
+	files, err := filepath.Glob("../../examples/*.rt.yaml")
+	if err != nil {
+		t.Fatal(err)
 	}
-	nodes := map[string]int{"test01.rt.yaml": 12, "test04.rt.yaml": 7, "test05.rt.yaml": 7, "test06.rt.yaml": 8,
-		"test07.rt.yaml": 13, "test08.rt.yaml": 17, "test09.rt.yaml": 7}
+	nodes := map[string]int{"01-hello.rt.yaml": 1, "02-steps.rt.yaml": 4, "03-parallel.rt.yaml": 12,
+		"04-variables.rt.yaml": 8, "05-errors.rt.yaml": 16, "06-reuse.rt.yaml": 19, "07-dependencies.rt.yaml": 7,
+		"08-locks.rt.yaml": 10, "09-breakpoints.rt.yaml": 6, "10-runners.rt.yaml": 6, "11-rolling-upgrade.rt.yaml": 44}
+	if len(files) != len(nodes) {
+		t.Errorf("%d examples, want %d", len(files), len(nodes))
+	}
+	readme, err := os.ReadFile("../../examples/README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, f := range files {
 		abs, _ := filepath.Abs(f)
 		name := filepath.Base(f)
-		tree, err := loadFile(abs)
+		sources := NewSources()
+		_, filename, err := AddTree(abs, sources)
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
 		}
-		if want, ok := nodes[name]; ok && len(tree.Nodes) != want {
+		tree, err := ParseToDom(sources, filename, 30)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if w := sources.Warnings(); len(w) > 0 {
+			t.Errorf("%s: %v", name, w)
+		}
+		if want, ok := nodes[name]; !ok || len(tree.Nodes) != want {
 			t.Errorf("%s: %d nodes, want %d", name, len(tree.Nodes), want)
+		}
+		if !strings.Contains(string(readme), "("+name+")") {
+			t.Errorf("%s is not in examples/README.md", name)
 		}
 	}
 }

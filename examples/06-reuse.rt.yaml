@@ -1,0 +1,40 @@
+# 06 - Reuse: include, for_vars, def_vars, ifeq / ifneq
+#
+# - `include` loads top level objects of this file ("name") or of another file ("file|name") as sub-nodes. A node
+#   that only includes one object becomes that object, with the variables of the including node.
+# - `for_vars` repeats the sub-nodes for every combination of the values (the first variable changes the slowest).
+# - `def_vars` give defaults for the variables that are not set where the object is included.
+# - `ifeq` / `ifneq` keep a node only when the variables have (or do not have) the given values.
+#
+#   runtree --check examples/06-reuse.rt.yaml
+#   runtree examples/06-reuse.rt.yaml
+tree:
+  title: "Release {version}"
+  vars:
+    version: "1.4.2"
+  seq:
+    - include: build
+    - title: "Deploy"
+      for_vars:
+        env: [dev, uat]
+        server: [app01, app02]
+      par:
+        - include: deploy
+
+build:
+  title: "build {version}"
+  args: [sh, -c, "echo building {version}; sleep 2"]
+
+deploy:
+  title: "{server} ({env})"
+  seq:
+    - [sh, -c, "echo copy {version} to {server} in {env}; sleep 1"]
+    - title: "migrate the database (uat only)"
+      ifeq:
+        env: uat
+      args: [sh, -c, "echo migrating {env}; sleep 1"]
+    - title: "restart"
+      ifneq:
+        env: dev
+      args: [sh, -c, "echo restarting {server}; sleep 1"]
+    - include: "lib/deploy.rt.yaml|smoke_test"

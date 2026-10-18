@@ -1,0 +1,18 @@
+# 02 - Steps: a seq node runs its sub-nodes one after the other
+#
+# - `seq:` lists the sub-nodes in order: each one starts when the previous one finished successfully.
+# - A sub-node is an object (with a title, for example), or only the list of the command and its arguments.
+# - A step that fails makes the seq node fail, and the next steps are not started. Try it:
+#
+#     FAIL=1 runtree examples/02-steps.rt.yaml
+#
+#   (The processes get the environment of runtree, so $FAIL reaches the test step.)
+tree:
+  title: "Build, test and package"
+  seq:
+    - title: "Build"
+      args: [sh, -c, "echo compiling...; sleep 2; echo done"]
+    - title: "Test"
+      args: [sh, -c, 'echo running the tests...; sleep 2; if [ -n "$FAIL" ]; then echo "a test failed"; exit 1; fi']
+    # the shortest form of a run node: its title is the command line
+    - [sh, -c, "echo packaging...; sleep 2"]

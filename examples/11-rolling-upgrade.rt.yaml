@@ -1,0 +1,55 @@
+# 11 - A rolling upgrade
+#
+# A realistic tree that combines the features of the other examples (the commands only simulate the work):
+#
+# - for_vars generates the per-host steps from one included object; max_proc upgrades 2 hosts at a time.
+# - children_on_error [paused, freeze]: a failed host pauses (look at it, re-run its failed step, or set it to
+#   Success / Fail), and the hosts that are not started yet are frozen, so the rollout stops.
+# - An optional reboot: "is a reboot needed?" exits with 1 when it is not, then on_error [success, skip] skips the
+#   reboot steps.
+# - The waits run on the local runner, the rest on the host's runner (here: local too; use runner: ssh://root@{host}
+#   for real hosts). xlocks on the load balancer: one host leaves or joins the pool at a time.
+#
+#   runtree examples/11-rolling-upgrade.rt.yaml
+#   FAIL_HOST=web03 runtree examples/11-rolling-upgrade.rt.yaml   # web03 fails
+tree:
+  title: "Rolling upgrade of the web servers"
+  vars:
+    domain: example.com
+  seq:
+    - title: "pre-flight checks"
+      args: [sh, -c, "echo checking the monitoring and the backups; sleep 1"]
+    - title: "upgrade the hosts"
+      max_proc: 2
+      children_on_error: [paused, freeze]
+      for_vars:
+        host: [web01, web02, web03, web04, web05]
+      par:
+        - include: upgrade_host
+    - title: "post-flight checks"
+      args: [sh, -c, "echo all hosts upgraded; sleep 1"]
+
+# The host node inherits [paused, freeze] from the children_on_error of the hosts, its steps only fail
+upgrade_host:
+  title: "{host}.{domain}"
+  children_on_error: failed
+  seq:
+    - title: "remove {host} from the load balancer"
+      xlocks: [load-balancer]
+      args: [sh, -c, "echo draining {host}; sleep 1"]
+    - title: "upgrade the packages"
+      args: [sh, -c, 'echo apt-get dist-upgrade on {host}; sleep 3; if [ "$FAIL_HOST" = {host} ]; then echo "E: broken package"; exit 100; fi']
+    - title: "reboot if needed"
+      seq:
+        - title: "is a reboot needed?"
+          on_error: [success, skip]
+          # here: the odd hosts need a reboot (on a real host: test -f /var/run/reboot-required)
+          args: [sh, -c, 'case {host} in web01|web03|web05) echo "reboot required";; *) echo "no reboot"; exit 1;; esac']
+        - title: "reboot"
+          args: [sh, -c, "echo rebooting {host}; sleep 1"]
+        - title: "wait until it is back"
+          runner: local
+          args: [sh, -c, "i=0; while [ $i -lt 3 ]; do echo waiting for {host}...; sleep 1; i=$((i+1)); done"]
+    - title: "add {host} back to the load balancer"
+      xlocks: [load-balancer]
+      args: [sh, -c, "echo enabling {host}; sleep 1"]

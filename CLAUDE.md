@@ -31,11 +31,12 @@ go build ./... && go vet ./...    # compile/vet everything (first GTK build take
 The default runner is the local one, embedded in `runtree`, so no `rtrunner` is needed for local trees:
 
 ```bash
-./runtree -v test/test01.rt.yaml  # GUI; --max-depth, --cpu-profile, --mem-profile, --net-profile-port also available
+./runtree -v examples/03-parallel.rt.yaml  # GUI; --max-depth, --cpu-profile, --mem-profile, --net-profile-port also available
 ./rtrunner -v                     # only for runner: host:port; listens on :5000 (-l to change); -d for debug logs
 ```
 
-`test/*.rt.yaml` are hand-run example trees, not automated tests. Unit tests are `internal/rt/*_test.go`; shared helpers
+`examples/*.rt.yaml` are example trees from simple to complex (examples/README.md lists them, `TestExampleTrees` loads
+them). Unit tests are `internal/rt/*_test.go`; shared helpers
 are in `internal/rt/helpers_test.go` (`loadTestTree` builds a tree from YAML with the scheduler disabled, `setStatus`
 sets a node status; `ptyTerminalHelper` attaches to the ptys, for tests that start real processes, on the local runner
 by default, or on `startTestRunner`, an in-process TCP runner on a free port; `killNode` stops them). Run them with

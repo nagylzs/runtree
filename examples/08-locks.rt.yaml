@@ -1,0 +1,28 @@
+# 08 - Locks: xlocks and rlocks
+#
+# - `xlocks` are exclusive: two nodes that list the same name do not run at the same time (e.g. one build server).
+# - `rlocks` are held by a subtree: the topmost node that lists the name holds it while it runs, its sub-nodes share
+#   it, other nodes cannot lock it (with xlocks or rlocks) meanwhile.
+# - A node acquires all of its locks at once, when it starts running, and releases them when it stops.
+#
+#   runtree examples/08-locks.rt.yaml
+#
+# The builds run one after the other (build-server). The "maintenance window of db01" holds db01 for all of its steps,
+# so the backup, which xlocks db01, waits until the whole window has finished.
+tree:
+  title: "Locks"
+  par:
+    - title: "builds"
+      par:
+        - {title: "build a", xlocks: [build-server], args: [sleep, "2"]}
+        - {title: "build b", xlocks: [build-server], args: [sleep, "2"]}
+        - {title: "build c", xlocks: [build-server], args: [sleep, "2"]}
+    - title: "maintenance window of db01"
+      rlocks: [db01]
+      seq:
+        - {title: "stop the app", args: [sleep, "1"]}
+        - {title: "upgrade the database", args: [sleep, "3"]}
+        - {title: "start the app", args: [sleep, "1"]}
+    - title: "backup of db01"
+      xlocks: [db01]
+      args: [sh, -c, "sleep 0.5; echo backing up db01; sleep 1"]

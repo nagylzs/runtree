@@ -1,0 +1,25 @@
+# 09 - Breakpoints and manual steps
+#
+# - `status: frozen` makes a breakpoint: the scheduler does not start the node until you Thaw it (or Skip it).
+# - The terminals are interactive: a step can ask a question, type the answer into its terminal.
+# - The GUI operations: Freeze / Thaw, Skip, Run / Re-run, Signal (e.g. Ctrl+C), Success / Fail (of a paused node),
+#   ResetToWaiting. "all" versions work on the whole subtree.
+# - `expanded`, `expand_on_active`, `collapse_on_finished` control which nodes the tree view shows opened.
+#
+#   runtree examples/09-breakpoints.rt.yaml
+tree:
+  title: "Release with approvals"
+  expanded: true
+  seq:
+    - title: "prepare"
+      args: [sh, -c, "echo preparing the release; sleep 2"]
+    - title: "approve: Thaw this node to go on"
+      status: frozen
+      args: [echo, "approved"]
+    - title: "answer in the terminal"
+      args: [sh, -c, 'printf "Type yes to continue: "; read answer; [ "$answer" = yes ] || { echo "not yes"; exit 1; }']
+    - title: "a long step: send it SIGINT (Ctrl+C) from the Signal button"
+      on_error: success
+      args: [sh, -c, "echo sleeping for a minute; sleep 60"]
+    - title: "done"
+      args: [echo, "the release is done"]

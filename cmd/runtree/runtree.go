@@ -158,7 +158,7 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		return err
 	}
 	if args.Check {
-		_, _ = fmt.Fprintf(os.Stderr, "%s: OK, %d nodes%s\n", posArgs[1], len(runTree.Nodes),
+		_, _ = fmt.Fprintf(os.Stderr, "%s: OK%s%s\n", posArgs[1], plural(", %d node", len(runTree.Nodes)),
 			plural(", %d warning", len(warnings)))
 		return nil
 	}

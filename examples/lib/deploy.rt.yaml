@@ -1,0 +1,10 @@
+# Objects that 06-reuse.rt.yaml includes from this file ("lib/deploy.rt.yaml|smoke_test"). A file of objects has no
+# `tree` object, runtree --check checks it through the trees that include it.
+
+# def_vars are the defaults of the variables that are not set where the object is included
+smoke_test:
+  def_vars:
+    port: "8080"
+    path: "/health"
+  title: "smoke test http://{server}:{port}{path}"
+  args: [sh, -c, "echo GET http://{server}:{port}{path}; sleep 1; echo 200 OK"]

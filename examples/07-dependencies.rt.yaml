@@ -1,0 +1,34 @@
+# 07 - Dependencies: provides and requires
+#
+# A node that `requires` a resource (a name) is not started until a node that `provides` it has finished
+# successfully. The tree can be structured by what it does (here: per component), and the dependencies order the
+# steps across the branches.
+#
+# - The names can have variables, e.g. "binary-{component}".
+# - A failed node does not provide. Re-running a node, or resetting it to waiting, unprovides its resources again
+#   (the GUI asks which ones), so the nodes that require them wait for the new run.
+#
+#   runtree examples/07-dependencies.rt.yaml
+#
+# The Dependencies tab shows what the selected node requires and provides, and what it waits for.
+tree:
+  title: "Build and deploy two components"
+  par:
+    - title: "api"
+      vars: {component: api}
+      seq:
+        - title: "build {component}"
+          provides: ["binary-{component}"]
+          args: [sh, -c, "echo building {component}; sleep 3"]
+        - title: "deploy {component}"
+          requires: ["binary-{component}", "schema"]
+          provides: ["deployed-{component}"]
+          args: [sh, -c, "echo deploying {component}; sleep 1"]
+    - title: "database"
+      seq:
+        - title: "migrate the schema"
+          provides: [schema]
+          args: [sh, -c, "echo migrating; sleep 5"]
+    - title: "integration tests"
+      requires: [deployed-api]
+      args: [sh, -c, "echo testing the deployed api; sleep 2"]

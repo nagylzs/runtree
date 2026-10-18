@@ -1,0 +1,27 @@
+# 03 - Parallel: a par node runs its sub-nodes at the same time
+#
+# - `par:` starts all of its sub-nodes as soon as possible. It finishes when all of them finished.
+# - `max_proc` limits the number of processes that run at the same time in a subtree (here: 2 downloads at a time).
+# - seq and par nodes can be nested in any way: here a seq of two par nodes, the second one waits for the first one.
+#
+#   runtree examples/03-parallel.rt.yaml
+#
+# The tree shows how many processes run in a subtree, and the elapsed and total process time ("x2.0" is the speedup).
+tree:
+  title: "Download and convert"
+  seq:
+    - title: "Download (2 at a time)"
+      max_proc: 2
+      par:
+        - {title: "file 1", args: [sleep, "2"]}
+        - {title: "file 2", args: [sleep, "3"]}
+        - {title: "file 3", args: [sleep, "2"]}
+        - {title: "file 4", args: [sleep, "1"]}
+    - title: "Convert all at once"
+      par:
+        - {title: "convert 1", args: [sleep, "2"]}
+        - {title: "convert 2", args: [sleep, "2"]}
+        - {title: "convert 3", args: [sleep, "2"]}
+        - {title: "convert 4", args: [sleep, "2"]}
+    - title: "Merge"
+      args: [sh, -c, "echo merging 4 files; sleep 1"]

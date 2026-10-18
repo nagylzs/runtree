@@ -1,0 +1,51 @@
+# 05 - Errors: what happens when a process fails
+#
+# `on_error` tells what a node does when its process (or one of its sub-nodes) fails. It is a status, an operation
+# on the siblings, or both:
+#
+# - status: `failed` (the default), `paused` (it waits for you: Re-run, Success or Fail in the GUI) or `success`
+#   (the failure is allowed, the scheduler goes on)
+# - siblings: `none` (the default), `freeze` (the not yet started siblings are frozen, Thaw them to go on) or `skip`
+#
+# `on_error` is inherited; `children_on_error` sets it for the sub-nodes only. `success_exit_codes` lists the exit
+# codes that mean success (the default is [0]).
+#
+#   runtree examples/05-errors.rt.yaml
+#
+# The root keeps running: it waits for you to decide about the paused branch (Re-run its failed step, or Success /
+# Fail), and about the frozen servers (Thaw or Skip them).
+tree:
+  title: "Error handling"
+  par:
+    - title: "a failed step fails its seq (the default)"
+      seq:
+        - [sh, -c, "echo failing with exit code 3; exit 3"]
+        - [echo, "never started"]
+
+    - title: "a paused seq waits for you"
+      on_error: paused
+      children_on_error: failed
+      seq:
+        - title: "fails, re-run it after you fixed the problem"
+          args: [sh, -c, 'echo "fix me"; exit 1']
+        - [echo, "started after the failed step succeeds"]
+
+    - title: "an allowed failure"
+      seq:
+        - title: "cleanup, it may fail"
+          on_error: success
+          args: [sh, -c, "echo nothing to clean; exit 1"]
+        - [echo, "it goes on"]
+
+    - title: "exit code 2 also means success"
+      success_exit_codes: [0, 2]
+      args: [sh, -c, "echo grep found nothing; exit 2"]
+
+    - title: "stop at the first failure, one at a time"
+      max_proc: 1
+      children_on_error: [failed, freeze]
+      par:
+        - [sh, -c, "echo server 1 ok; sleep 1"]
+        - [sh, -c, "echo server 2 fails; sleep 1; exit 1"]
+        - [sh, -c, "echo server 3: frozen, thaw it to go on"]
+        - [sh, -c, "echo server 4: frozen, thaw it to go on"]

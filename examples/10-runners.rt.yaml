@@ -1,0 +1,33 @@
+# 10 - Runners: where the processes run
+#
+# - `runner: local` (the default): runtree runs the processes itself.
+# - `runner: ssh://user@host`: an rtrunner on the host, started by ssh for each process. runtree uploads its own
+#   rtrunner to ~/.cache/runtree on the host when needed (with a path, ssh://host/path/to/rtrunner is used instead).
+#   envs and cwd apply on the host, the signals reach the process there. ssh needs keys or ssh-agent (no password
+#   prompts) and a known host key.
+# - `runner: host:port`: an rtrunner daemon (rtrunner -l :5000), unauthenticated, for trusted networks only.
+#
+# This example uses ssh to localhost, so it needs an ssh server. The remote part is frozen: Thaw it to run it.
+#
+#   runtree examples/10-runners.rt.yaml
+#   runtree --runner ssh://deploy@test-vm examples/10-runners.rt.yaml   # the nodes without a runner go to test-vm
+tree:
+  title: "Runners"
+  seq:
+    - title: "on the machine of runtree"
+      runner: local
+      args: [sh, -c, 'echo "local: $(hostname), user $(id -un)"']
+    - title: "on a host through ssh (thaw it)"
+      status: frozen
+      vars:
+        host: localhost
+      runner: "ssh://{host}"
+      envs:
+        GREETING: "set by runtree"
+      seq:
+        - [sh, -c, 'echo "remote: $(hostname), in $(pwd), GREETING=$GREETING"']
+        - title: "this one stays local (e.g. a ping check)"
+          runner: local
+          args: [sh, -c, "echo checking {host} from here"]
+    - title: "on the default runner (local, or the one given with --runner)"
+      args: [sh, -c, 'echo "default runner: $(hostname)"']
