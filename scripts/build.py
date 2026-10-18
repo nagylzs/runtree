@@ -77,11 +77,11 @@ print("go mod tidy")
 run(["go", "mod", "tidy"])
 for target in targets:
 	targetdir = os.path.join(DIR, "cmd", target)
-	os.chdir(targetdir) 
-	src = os.path.join(targetdir, target+".go")
-	if not os.path.isfile(src):
-		print(f"source file {src} not found")
+	if not os.path.isdir(targetdir):
+		print(f"package directory {targetdir} not found")
 		raise SystemExit(1)
+	os.chdir(targetdir)
+	src = "." # the package, all of its files
 	binary = os.path.join(ddir, target + ext)
 	winres = os.path.join(targetdir, "winres", "winres.json")
 	is_gui = os.path.isfile(winres)
