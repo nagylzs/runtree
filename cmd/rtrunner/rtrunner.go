@@ -39,6 +39,15 @@ func main() {
 
 	logging.Setup(args.Verbose, args.Debug, args.LogFormat)
 
+	if args.Stdio {
+		// started by ssh for one node, it exits when the node's process has exited, or the connection is gone
+		if err := runner.ServeStdio(context.Background(), slog.Default()); err != nil {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	signal.SetupSignalHandler()
 
 	go func() {

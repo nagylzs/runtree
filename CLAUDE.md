@@ -52,14 +52,15 @@ Three binaries; `runtree` and `rtrunner` share the runner protocol:
   `Server` that runs exactly one command in a pty (`server_unix.go` via creack/pty, `server_windows.go` via conpty).
   The same `Server` is the local runner in `runtree` (`local.go`): each connection is a socket pair, the server is a
   goroutine. When `runtree` exits (`cmd/runtree/exit.go`, also on SIGTERM), it stops the scheduler and terminates the
-  local processes like `rtrunner` does when its client is gone (`runner.StopLocal`).
+  local processes like `rtrunner` does when its client is gone (`runner.StopLocal`). `rtrunner --stdio` serves one
+  connection on stdin/stdout: the `ssh://` runner (`ssh.go`) starts it with the system `ssh` for each connection.
 - `cmd/runtree-lsp` → `internal/lsp`: language server for editors (stdio JSON-RPC, no dependencies, no GTK/cgo). It
   loads the trees with `rt` (open documents through `Sources.Overlay`) and publishes `ParseError`s as diagnostics;
   `editors/vscode/extension.js` starts it.
 - `cmd/runtree` → `internal/rt` (tree model + scheduler) + `internal/gtkui` (GTK4 GUI). Each started node opens its
   own `runner.Client` connection; `runner.ParseAddress` parses the `runner` property (`local`, `host:port`,
-  `tcp://host:port`); `runtree --runner` sets the default (`Sources.DefaultRunner`). TODO.md "Runners" has the plan
-  for `ssh://` runners.
+  `tcp://host:port`, `ssh://[user@]host[:port][/path]`); `runtree --runner` sets the default (`Sources.DefaultRunner`).
+  TODO.md "Runners" has the plan.
 
 ### Runner protocol (`internal/runner`)
 After a version handshake (`proto.go`, `runner.Version` must match on both ends — bump it when changing the wire
@@ -83,6 +84,9 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
   `allTrees` map keyed by absolute path; `ParseToDom` builds the tree from the top-level `tree` object.
 - `vars.go` — `Node.calculate` performs variable substitution (`{name}` templates) producing `Node.Calculated` from
   `Node.Parsed`. Inheritance rules for `vars`/`def_vars`/`envs`/`args_prefix`/`cwd`/`runner` live here.
+- `run.go` — `Node.Start` connects to the runner in the background (`connect`, without the tree lock); meanwhile the
+  node is starting (`Starting`): Running without a client. `NProc` is counted by `updateStatus`, when a run node starts
+  or stops running.
 - `scheduler.go` — `Tree.Run` loop (ticks every `HZ`=1s or when `Awake()` is called; debounced via
   `internal/events.Debouncer`). Each cycle: commit elapsed times → `updateStatusesDown` → `updateBlockedAll` →
   `findRunnable` (depth-first; `seq` stops at the first unfinished child, `par` scans all) → `Node.Start`.

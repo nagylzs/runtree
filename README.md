@@ -268,11 +268,27 @@ provide an interface where the user can intervene.
 The `runner` property of the nodes chooses the runner:
 
 - `local` (the default): the runner that is built into `runtree`. Nothing else needs to be started, and the processes
-  run on the machine of `runtree`, as the user who started it. To run commands on other machines, use `ssh` in the
-  commands (e.g. `args_prefix: [ssh, -t, "root@{host}"]`).
-- `host:port` or `tcp://host:port`: an `rtrunner` daemon, a CLI program that listens on a TCP port (`rtrunner -l
-  :5000`). The connection is neither authenticated nor encrypted: anyone who can connect to the port can run commands
-  as the user of `rtrunner`, so use it on trusted networks only.
+  run on the machine of `runtree`, as the user who started it.
+- `ssh://[user@]host[:port][/path/to/rtrunner]`: for each process, `runtree` starts `ssh -T user@host rtrunner --stdio`,
+  and the process runs on the host, in a terminal of `rtrunner`. Its `envs` and `cwd` apply on the host (the default
+  `cwd` is the home directory of the user), the signals of the GUI reach it, and its exit code and CPU times are the
+  ones of the process, not of `ssh`. A failed login is a start error of the node, with the message of `ssh`.
+  - `ssh` uses `~/.ssh/config`, the keys and `ssh-agent`, but it cannot ask for passwords or passphrases (`BatchMode`),
+    and the host key must be known already (connect with `ssh` once).
+  - `rtrunner` must be installed on the host. It is a static binary, copy it from `dist/linux/amd64/`, built with
+    `runtree` (an `rtrunner` with another protocol version is a start error). Without a path, it is started from the
+    `PATH` of the user, which is short in an `ssh` command (e.g. `/usr/local/bin:/usr/bin`);
+    `ssh://root@host/~/bin/rtrunner` starts `~/bin/rtrunner`.
+- `host:port` or `tcp://host:port`: an `rtrunner` daemon, that listens on a TCP port (`rtrunner -l :5000`). The
+  connection is neither authenticated nor encrypted: anyone who can connect to the port can run commands as the user
+  of `rtrunner`, so use it on trusted networks only.
+
+Without an `ssh://` runner, commands can also use `ssh` themselves on the local runner (e.g. `args_prefix: [ssh, -t,
+"root@{host}"]`), but then `envs` and `cwd` apply to the local `ssh` process, the signals reach `ssh`, and a failed
+login is exit code 255, like any other failure of the command.
+
+A node connects to its runner in the background (the GUI shows "Running, connecting"), so a slow login does not hold up
+the scheduler or the GUI, and the nodes of a `par` node connect at the same time.
 
 The nodes that do not specify a runner (and their parents do not either) use the local runner, or the one given to
 `runtree`: `runtree --runner testvm:5000 tree.yaml` runs them on another machine, without changing the tree file. The
@@ -280,8 +296,9 @@ nodes that must run on the machine of `runtree` (e.g. waiting for a host with `p
 
 When `runtree` exits (the main window is closed, or it gets `SIGTERM`), it stops starting nodes, and terminates the
 processes of the local runner that are still running: `SIGINT`, then `SIGTERM` after 10 seconds and `SIGKILL` after 10
-more, and it waits until they exit. An `rtrunner` does the same when `runtree` disconnects. If `runtree` is killed
-(`SIGKILL`), the processes of the local runner get `SIGHUP` when their terminals are closed.
+more, and it waits until they exit. An `rtrunner` (also the one started by `ssh`) does the same when `runtree`
+disconnects, but `runtree` does not wait for it, so those exits are not logged. If `runtree` is killed (`SIGKILL`), the
+processes of the local runner get `SIGHUP` when their terminals are closed.
 
 ## Runtree and nodes
 
@@ -372,8 +389,9 @@ Every node can have the following general read-write properties. They can be spe
   to calculate the command line arguments that will be executed with `os.Exec`. The value of `args` cannot be inherited.
 - `args_prefix` - a list of strings, this will be prepended to `args` to form the command line arguments. This can be 
   inherited from the parent, and it is useful when there are lots of sub-nodes with the same argument prefixes.
-- `runner` - the runner that runs the processes of the node: `local` (the runner in `runtree`), or the address of an
-  `rtrunner` (`host:port` or `tcp://host:port`), see [Components](#components). Variables can be used. When not
+- `runner` - the runner that runs the processes of the node: `local` (the runner in `runtree`), an `rtrunner` started by
+  `ssh` (`ssh://[user@]host[:port][/path/to/rtrunner]`), or the address of an `rtrunner` daemon (`host:port` or
+  `tcp://host:port`), see [Components](#components). Variables can be used. When not
   specified, then it is inherited from the parent node. The root node uses `local`, or the `--runner` option of
   `runtree`.
 - `on_error` - this determines what to do when the underlying process or a subnode fails. It is a string, or a list of
@@ -886,7 +904,8 @@ can directly be started by launching an underlying process (either manually, or 
 * `args` - all "run command" nodes must have this property. It is
   a list of strings (they will be escaped to arguments even if they contain special characters). The
   actual arguments will be generated from this value, using variable substitution.
-* `runner` - the runner that starts the process: `local` (the default), or the `host:port` of an `rtrunner`
+* `runner` - the runner that starts the process: `local` (the default), `ssh://[user@]host`, or the `host:port` of an
+  `rtrunner`
 
 ### Syntax
 

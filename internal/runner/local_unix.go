@@ -10,6 +10,21 @@ import (
 
 // socketPair returns the two ends of a connected unix socket pair
 func socketPair() (net.Conn, net.Conn, error) {
+	c1, f, err := socketPairFile()
+	if err != nil {
+		return nil, nil, err
+	}
+	c2, err := fileConn(f)
+	if err != nil {
+		_ = c1.Close()
+		return nil, nil, err
+	}
+	return c1, c2, nil
+}
+
+// socketPairFile returns the two ends of a connected unix socket pair, the second one as a file, e.g. for the standard
+// input and output of a process
+func socketPairFile() (net.Conn, *os.File, error) {
 	// like os/exec, so that the processes started meanwhile do not inherit them
 	syscall.ForkLock.RLock()
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
@@ -21,22 +36,17 @@ func socketPair() (net.Conn, net.Conn, error) {
 	if err != nil {
 		return nil, nil, os.NewSyscallError("socketpair", err)
 	}
-	c1, err := fileConn(fds[0], "runner-client")
+	f := os.NewFile(uintptr(fds[1]), "runner-server")
+	c, err := fileConn(os.NewFile(uintptr(fds[0]), "runner-client"))
 	if err != nil {
-		_ = syscall.Close(fds[1])
+		_ = f.Close()
 		return nil, nil, err
 	}
-	c2, err := fileConn(fds[1], "runner-server")
-	if err != nil {
-		_ = c1.Close()
-		return nil, nil, err
-	}
-	return c1, c2, nil
+	return c, f, nil
 }
 
-// fileConn returns a net.Conn for the socket fd, and closes fd (net.FileConn uses a copy of it)
-func fileConn(fd int, name string) (net.Conn, error) {
-	f := os.NewFile(uintptr(fd), name)
+// fileConn returns a net.Conn for the socket file, and closes the file (net.FileConn uses a copy of it)
+func fileConn(f *os.File) (net.Conn, error) {
 	defer f.Close()
 	return net.FileConn(f)
 }

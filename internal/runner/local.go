@@ -26,6 +26,7 @@ type localRunner struct {
 	sessions uint64
 	servers  map[*Server]struct{} // the servers that have not returned yet
 	wg       sync.WaitGroup       // the servers that have not returned yet
+	handler  slog.Handler         // of the servers' logs, nil for the default logger
 }
 
 var local = newLocalRunner()
@@ -47,8 +48,11 @@ func (l *localRunner) dial() (net.Conn, error) {
 	}
 	l.sessions++
 	// "started" and "exited" are debug messages here: the node's events tell them already
-	logger := slog.New(logging.InfoAsDebug(slog.Default().Handler())).With("runner", LocalAddress,
-		"session", l.sessions)
+	h := l.handler
+	if h == nil {
+		h = slog.Default().Handler()
+	}
+	logger := slog.New(logging.InfoAsDebug(h)).With("runner", LocalAddress, "session", l.sessions)
 	srv := newServer(serverConn, logger)
 	l.servers[srv] = struct{}{}
 	l.wg.Add(1)

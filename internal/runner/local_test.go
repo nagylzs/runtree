@@ -23,10 +23,12 @@ func TestParseAddress(t *testing.T) {
 		"server01":               "error: invalid runner",
 		":5000":                  "error: invalid runner",
 		"server01:":              "error: invalid runner",
-		"ssh://root@server01":    "error: unknown runner",
 		"tcp://server01":         "error: invalid runner",
 		"Local":                  "error: invalid runner",
 		"udp://server01:5000:22": "error: unknown runner",
+		"server01:ssh":           "error: invalid runner",
+		"server01:0":             "error: invalid runner",
+		"server01:65536":         "error: invalid runner",
 	} {
 		a, err := ParseAddress(s)
 		got := a.String()
@@ -37,6 +39,12 @@ func TestParseAddress(t *testing.T) {
 			t.Errorf("%q: got %q, want %q", s, got, want)
 		}
 	}
+}
+
+func newTestLocalRunner() *localRunner {
+	l := newLocalRunner()
+	l.handler = slog.DiscardHandler
+	return l
 }
 
 var testArgs = CmdArgs{InheritSysEnvs: true, InitialPtySize: WinSize{Rows: 24, Cols: 80}}
@@ -55,7 +63,7 @@ func startLocal(t *testing.T, l *localRunner, args ...string) (*Client, <-chan s
 func startOn(t *testing.T, conn net.Conn, args ...string) (*Client, <-chan string, <-chan ProcState) {
 	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
-	c, err := newClient(context.Background(), conn, logger, nil)
+	c, err := newClient(context.Background(), conn, HandshakeTimeout, logger, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +81,12 @@ func startOn(t *testing.T, conn net.Conn, args ...string) (*Client, <-chan strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	// the terminal of the GUI
+	return c, attach(t, c), exited
+}
+
+// attach connects to the pty of the client like the terminal of the GUI, and returns its output when it is closed
+func attach(t *testing.T, c *Client) <-chan string {
+	t.Helper()
 	term, err := net.Dial("unix", c.PtyPath)
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +97,18 @@ func startOn(t *testing.T, conn net.Conn, args ...string) (*Client, <-chan strin
 		output <- string(b)
 	}()
 	t.Cleanup(func() { _ = term.Close() })
-	return c, output, exited
+	return output
+}
+
+func waitOutput(t *testing.T, output <-chan string) string {
+	t.Helper()
+	select {
+	case out := <-output:
+		return out
+	case <-time.After(10 * time.Second):
+		t.Fatal("the terminal was not closed")
+	}
+	return ""
 }
 
 func waitExit(t *testing.T, exited <-chan ProcState) ProcState {
@@ -108,19 +132,14 @@ func waitServers(t *testing.T, l *localRunner) {
 }
 
 func TestLocalRunner(t *testing.T) {
-	l := newLocalRunner()
+	l := newTestLocalRunner()
 	_, output, exited := startLocal(t, l, "sh", "-c", "echo hello; exit 3")
 	ps := waitExit(t, exited)
 	if !ps.Exited || ps.ExitCode != 3 || ps.Pid == 0 {
 		t.Errorf("the process state is %s", ps.String())
 	}
-	select {
-	case out := <-output:
-		if out != "hello\r\n" {
-			t.Errorf("the output is %q", out)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("the terminal was not closed")
+	if out := waitOutput(t, output); out != "hello\r\n" {
+		t.Errorf("the output is %q", out)
 	}
 	// the server returns when the client disconnects
 	waitServers(t, l)
@@ -128,7 +147,7 @@ func TestLocalRunner(t *testing.T) {
 
 // StopLocal terminates the processes, the clients get their exit status, and nothing can be started afterwards
 func TestStopLocal(t *testing.T) {
-	l := newLocalRunner()
+	l := newTestLocalRunner()
 	_, _, exited1 := startLocal(t, l, "sleep", "100")
 	_, _, exited2 := startLocal(t, l, "sh", "-c", "sleep 100")
 	for deadline := time.Now().Add(5 * time.Second); l.processes() < 2; time.Sleep(20 * time.Millisecond) {
@@ -192,7 +211,7 @@ func TestVersionMismatch(t *testing.T) {
 		_, _ = RecvCmdCode(context.Background(), serverConn)
 		_, _ = RecvString(context.Background(), serverConn)
 	}()
-	_, err = newClient(context.Background(), clientConn, slog.New(slog.DiscardHandler), nil)
+	_, err = newClient(context.Background(), clientConn, HandshakeTimeout, slog.New(slog.DiscardHandler), nil)
 	if err == nil || err.Error() != "incompatible versions, local="+Version+" remote=0.0.1" {
 		t.Errorf("the error is %v", err)
 	}

@@ -82,6 +82,8 @@ for target in targets:
 		raise SystemExit(1)
 	os.chdir(targetdir)
 	src = "." # the package, all of its files
+	# only the GUI needs cgo; the others are static, so they run on other distributions too (e.g. rtrunner on a host)
+	os.environ["CGO_ENABLED"] = "1" if target == "runtree" else "0"
 	binary = os.path.join(ddir, target + ext)
 	winres = os.path.join(targetdir, "winres", "winres.json")
 	is_gui = os.path.isfile(winres)

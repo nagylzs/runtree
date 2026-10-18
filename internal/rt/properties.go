@@ -54,8 +54,9 @@ var NodeProperties = []Property{
 		Description: "The directory where the processes are started. When it is empty, the current directory of " +
 			"the runner is used (runtree's own for the local runner)."},
 	{Name: "runner", Kind: KindString, Inherited: true, Default: "local",
-		Description: "The runner that runs the processes of the node: local (runtree runs them itself), or the " +
-			"address (host:port or tcp://host:port) of an rtrunner. When it is not set, it is inherited from the " +
+		Description: "The runner that runs the processes of the node: local (runtree runs them itself), the " +
+			"address (host:port or tcp://host:port) of an rtrunner, or ssh://[user@]host[:port][/path/to/rtrunner] " +
+			"(ssh starts rtrunner on the host for each process). When it is not set, it is inherited from the " +
 			"parent; the default of the root is local, or the --runner option of runtree."},
 	{Name: "vars", Kind: KindVarMap, Inherited: true,
 		Description: "Variables (name: value) for this node and its subtree. Values are strings or lists of " +

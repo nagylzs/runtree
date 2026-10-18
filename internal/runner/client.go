@@ -43,26 +43,41 @@ func NewClient(ctx context.Context, address string, logger *slog.Logger, onError
 		return nil, err
 	}
 	var conn net.Conn
+	var ssh *sshConn
+	timeout := HandshakeTimeout
 	switch a.Network {
 	case NetworkLocal:
 		conn, err = local.dial()
+	case NetworkSSH:
+		ssh, err = dialSSH(a, logger)
+		conn, timeout = ssh, SSHHandshakeTimeout
 	default:
-		var d net.Dialer
+		d := net.Dialer{Timeout: HandshakeTimeout}
 		conn, err = d.DialContext(ctx, "tcp", a.Host)
 	}
 	if err != nil {
 		return nil, err
 	}
-	return newClient(ctx, conn, logger, onError)
+	c, err := newClient(ctx, conn, timeout, logger, onError)
+	if err != nil && ssh != nil {
+		err = ssh.failure(err)
+	}
+	return c, err
 }
 
+// HandshakeTimeout is the time for a TCP runner to connect and answer the protocol handshake
+const HandshakeTimeout = 30 * time.Second
+
 // newClient negotiates the protocol version on conn, and closes it when that fails
-func newClient(ctx context.Context, conn net.Conn, logger *slog.Logger, onError func(Error)) (*Client, error) {
+func newClient(ctx context.Context, conn net.Conn, timeout time.Duration, logger *slog.Logger,
+	onError func(Error)) (*Client, error) {
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 	err := negotiateVersion(ctx, conn)
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
+	_ = conn.SetDeadline(time.Time{})
 
 	c := &Client{
 		conn:            conn,

@@ -15,7 +15,7 @@ type CLIArgs struct {
 	MaxDepth uint   `long:"max-depth" description:"Maximum tree depth"`
 	Check    bool   `long:"check" description:"Only check the tree file (and the included files), then exit"`
 	Schema   bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
-	Runner   string `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port or tcp://host:port (default: local)"`
+	Runner   string `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port, tcp://host:port or ssh://[user@]host[:port][/path/to/rtrunner] (default: local)"`
 
 	LogDB      string `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`
 	ShowRuns   bool   `long:"show-runs" description:"List the runs of the --log-db database, then exit"`
@@ -32,4 +32,5 @@ const DefaultMaxDepth = 30
 type RtRunnerCLIArgs struct {
 	BaseArgs
 	ListenAddress string `short:"l" long:"listen" description:"Listen address, defaults to :5000"`
+	Stdio         bool   `long:"stdio" description:"Serve one runtree connection on stdin and stdout, then exit (for runner: ssh://...)"`
 }

@@ -63,10 +63,13 @@ connection still runs exactly one command, so a runner per run node needs no pro
    local processes as `rtrunner` does when its client is gone (SIGINT, SIGTERM, SIGKILL), and waits for them.
    `runtree --runner ADDRESS` changes the default runner (of the nodes that do not specify one); `runner: local` is
    always local.
-2. `rtrunner --stdio` serves one connection on stdin/stdout, and the `ssh://` runner starts it with the system `ssh`
-   (`~/.ssh/config`, keys, agent, ProxyJump). A failed ssh connection is a start failure, not exit code 255; `envs`
-   and `cwd` apply on the remote host; signals reach the remote process; the exit events have the remote exit code
-   and CPU times.
+2. Done: `rtrunner --stdio` serves one connection on stdin/stdout, and the `ssh://` runner starts it with the system
+   `ssh` (`~/.ssh/config`, keys, agent, ProxyJump). A failed ssh connection is a start failure, not exit code 255;
+   `envs` and `cwd` apply on the remote host; signals reach the remote process; the exit events have the remote exit
+   code and CPU times. The nodes connect in the background (`Node.Start`, "Running, connecting" in the GUI).
+   Still to do: when runtree exits, terminate the processes of the ssh and TCP runners through the protocol and wait
+   for them (like the local ones), so their exits are logged too; now the rtrunner terminates them when runtree is
+   gone, without logging.
 3. Share one SSH connection per host (`ControlMaster`/`ControlPath`/`ControlPersist`; note sshd's `MaxSessions`,
    10 by default). Upload a matching `rtrunner` to the host on first use (`uname -m`, a versioned path under
    `~/.cache/runtree`), so nothing needs to be deployed.

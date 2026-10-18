@@ -317,7 +317,7 @@
           "type": "array"
         },
         "runner": {
-          "description": "The runner that runs the processes of the node: local (runtree runs them itself), or the address (host:port or tcp://host:port) of an rtrunner. When it is not set, it is inherited from the parent; the default of the root is local, or the --runner option of runtree. Inherited from the parent node. Default: local.",
+          "description": "The runner that runs the processes of the node: local (runtree runs them itself), the address (host:port or tcp://host:port) of an rtrunner, or ssh://[user@]host[:port][/path/to/rtrunner] (ssh starts rtrunner on the host for each process). When it is not set, it is inherited from the parent; the default of the root is local, or the --runner option of runtree. Inherited from the parent node. Default: local.",
           "type": "string"
         },
         "seq": {
