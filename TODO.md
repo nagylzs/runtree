@@ -183,8 +183,8 @@ Ordered by impact:
 * Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
   substitution, the operations, reset / re-run and unprovide, the events, the scheduler (seq/par order, max_proc,
   frozen/skipped, requires, xlocks/rlocks, with real processes too), the runners (local, TCP, ssh with a fake ssh,
-  uploads), the log database and the lock file. Still thin: the GUI (no tests), on_error sibling operations in
-  depth, and the language server's edge cases.
+  uploads), the log database, the lock file and the on_error sibling operations. Still thin: the GUI (no tests),
+  and the language server's edge cases.
 * Reduce DSL friction: avoid duplicating inventory via per-node `runner`; make it easy for
   a leaf node to call an existing Ansible playbook / script.
 * Pitch: "`make -j` for ops, where every job is a terminal you can step into".
