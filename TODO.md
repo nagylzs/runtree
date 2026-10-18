@@ -47,17 +47,18 @@ attributes. Terminal input is never logged (passwords). A handler sends every re
 The README was checked against the code when the documentation was moved to docs/. Fixed since then: the on_error
 sibling operation stopped running siblings in the middle, a single include lost the title, provides and requires of
 the including node, the descriptions of several properties, Skip and Skip all of a frozen seq/par node, a seq/par node
-whose sub-nodes are all frozen showed Waiting, a name in both `rlocks` and `xlocks` was not an error. Still open:
+whose sub-nodes are all frozen showed Waiting, a name in both `rlocks` and `xlocks` was not an error, the exit code
+did not depend on the result of the tree (`runtree-headless` has one now). Still open:
 
 * `~` is not expanded in `cwd` (expand it, or report it as an error?)
-* the exit code of runtree does not depend on the result of the tree (see headless mode)
 
 # Ideas (from the old README)
 
 * an expression language for conditions (e.g. https://expr-lang.org/)
 * a strict mode: an option to make the undefined variable warnings errors
-* deadlock detectors for locks and for dependencies
-* the default of on_error from a command line option (e.g. paused when interactive, failed when unattended)
+* deadlock detectors for locks and for dependencies (`runtree-headless` stops when nothing can go on; the GUI could
+  tell it too, e.g. "nothing can be started: these nodes are frozen / blocked")
+* the default of on_error from a command line option (runtree-headless already fails the nodes that would pause)
 * signals for a subtree with different runners (which signals can be sent?)
 * a conditional node: run a condition node first, and the other sub-nodes depending on its result
 * `load` nodes, custom nodes (create, change and delete sub-nodes on the fly)
@@ -175,17 +176,29 @@ pause-on-error -> manual fix -> resume automation, remote execution. No mainstre
 Ordered by impact:
 
 * SSH transport for runners, instead of the unauthenticated TCP daemon on :5000: see "Runners" above.
-* TUI frontend (non-GTK), so runtree works headless, over SSH, and on macOS/Windows.
+* TUI frontend (non-GTK), so runtree works interactively over SSH, and on macOS/Windows (`runtree-headless` covers
+  the unattended runs, the TUI would be its interactive sibling).
   GTK4+VTE+cgo is the biggest install/build barrier.
-* Headless mode: exit with root node's status (already listed above), so it can double as a CI step. With `--lock`
-  (done), users who run the same tree on a deploy host over ssh do not run it twice. Maybe: a `lock` property of the
-  root node, so that a tree is always locked without `--lock`; `--lock-wait` to wait for the lock instead of exit 75.
+* Headless mode: done, `runtree-headless` (docs/headless.md, `internal/headless`, `rt.Tree.SetUnattended`): the
+  output on stdout with the labels of the nodes, the events on stderr, on_error paused fails, the run stops when
+  nothing runs and nothing can be started, exit codes 0 / 1 / 2 / 3 / 75 / 130 / 143. It also builds for Windows (the
+  local runner works there: a loopback TCP pair instead of a socket pair; ConPTY finds the programs in the PATH, gets
+  the whole command line, and is closed after the exit; tested under wine only). Next:
+  * a `timeout` property for the nodes: a process that waits for input (nobody types) or never exits holds up the run
+    forever;
+  * ssh runners on Windows (`startSSH` with the pipes of `ssh.exe`; Windows OpenSSH has no ControlMaster, so no
+    connection sharing);
+  * test it on a real Windows (and macOS);
+  * maybe: `--thaw ID` to thaw approval gates from the command line; a `lock` property of the root node, so that a
+    tree is always locked without `--lock`; `--lock-wait` to wait for the lock instead of exit 75; `--output none`
+    (only the events, with `--log-db`).
 * Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
   substitution, the operations, reset / re-run and unprovide, the events, the scheduler (seq/par order, max_proc,
   frozen/skipped, requires, xlocks/rlocks, with real processes too), the runners (local, TCP, ssh with a fake ssh,
-  uploads), the log database, the lock file, the on_error sibling operations and the language server (also its
-  edge cases: unknown methods, invalid params, unsaved and non-file documents, encoded paths). Still thin: the GUI
-  (no tests).
+  uploads, a client without a terminal), the log database, the lock file (also the Windows one, under wine), the
+  on_error sibling operations, the language server (also its edge cases: unknown methods, invalid params, unsaved and
+  non-file documents, encoded paths), unattended trees and runtree-headless (the end of the run, its output, exit
+  codes). Still thin: the GUI (no tests).
 * Reduce DSL friction: avoid duplicating inventory via per-node `runner`; make it easy for
   a leaf node to call an existing Ansible playbook / script.
 * Pitch: "`make -j` for ops, where every job is a terminal you can step into".

@@ -7,25 +7,36 @@ type BaseArgs struct {
 	ShowVersion bool   `long:"version" description:"Show version information and exit"`
 }
 
-type CLIArgs struct {
-	BaseArgs
-	CPUProfile  string `long:"cpu-profile" value-name:"FILE" description:"Write a CPU profile to FILE (for developers)"`
-	MemProfile  string `long:"mem-profile" value-name:"FILE" description:"Write a memory profile to FILE when runtree exits (for developers)"`
-	NetProfile  uint16 `long:"net-profile-port" value-name:"PORT" description:"Serve live profiles on http://localhost:PORT/debug/pprof/ (for developers)"`
+// RunArgs are the options of runtree and runtree-headless for loading and running a tree
+type RunArgs struct {
 	MaxDepth    uint   `long:"max-depth" description:"Maximum tree depth"`
 	Check       bool   `long:"check" description:"Only check the tree file (and the included files), then exit"`
-	Schema      bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
 	RtrunnerDir string `long:"rtrunner-dir" value-name:"DIR" env:"RUNTREE_RTRUNNER_DIR" description:"A directory with rtrunner-<goos>-<goarch> binaries, to upload them to the hosts of ssh runners instead of the embedded ones"`
 	NoSSHShare  bool   `long:"no-ssh-share" description:"Do not share one ssh connection for each host (ssh:// runners)"`
 	Runner      string `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port, tcp://host:port or ssh://[user@]host[:port][/path/to/rtrunner] (default: local)"`
+	Lock        string `long:"lock" value-name:"FILE" description:"Lock FILE while the tree runs, another runtree with the same lock file exits (with 75) instead of running"`
+	LogDB       string `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`
+}
 
-	Lock       string `long:"lock" value-name:"FILE" description:"Lock FILE while the tree runs, another runtree with the same lock file exits (with 75) instead of running"`
-	LogDB      string `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`
+type CLIArgs struct {
+	BaseArgs
+	RunArgs
+	CPUProfile string `long:"cpu-profile" value-name:"FILE" description:"Write a CPU profile to FILE (for developers)"`
+	MemProfile string `long:"mem-profile" value-name:"FILE" description:"Write a memory profile to FILE when runtree exits (for developers)"`
+	NetProfile uint16 `long:"net-profile-port" value-name:"PORT" description:"Serve live profiles on http://localhost:PORT/debug/pprof/ (for developers)"`
+	Schema     bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
+
 	ShowRuns   bool   `long:"show-runs" description:"List the runs of the --log-db database, then exit"`
 	ShowEvents bool   `long:"show-events" description:"Print the events of a run from the --log-db database, then exit"`
 	ShowOutput string `long:"show-output" value-name:"NODE" description:"Print the terminal output of a node (id, title or path) from the --log-db database, then exit"`
 	Run        int64  `long:"run" value-name:"ID" description:"The run for --show-events and --show-output (default: the last one)"`
 	Start      int    `long:"start" value-name:"N" description:"The start of the node for --show-output, 2 for the first re-run... (default: the last one)"`
+}
+
+// HeadlessCLIArgs are the options of runtree-headless
+type HeadlessCLIArgs struct {
+	BaseArgs
+	RunArgs
 }
 
 const DefaultListenAddress = ":5000"

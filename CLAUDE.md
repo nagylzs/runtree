@@ -6,14 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `runtree` is a process scheduler: a YAML file defines a tree of nodes (`run` / `seq` / `par`), and a GTK4 GUI
 (`runtree`) schedules the leaf commands on runners, which execute them in pseudo-terminals and stream the ptys back
-so they can be shown/interacted with in the GUI. The default runner is embedded in `runtree` (`runner: local`); an
+so they can be shown/interacted with in the GUI. `runtree-headless` runs the same trees without the GUI (CI, cron). The default runner is embedded in `runtree` (`runner: local`); an
 `rtrunner` daemon (`runner: host:port`) runs them on another machine. `docs/` is the user documentation (README.md
 is the overview): the YAML format, node properties, statuses, operations, runners — consult it before changing parser
 or scheduler semantics, and update it with the change. TODO.md lists planned work.
 
 Go module: `github.com/nagylzs/runtree` (Go 1.25+, cgo required for the GUI). Linux is the primary target;
-`rtrunner` also builds on Windows and cross-compiles for macOS, `runtree` (GUI) does not build on Windows (VTE
-dependency); see TODO.md for macOS.
+`rtrunner`, `runtree-headless` and `runtree-lsp` also build for Windows (`build.py` cross-builds them into
+`dist/windows/amd64/`; tested under wine only, with a separate `WINEPREFIX`) and macOS, `runtree` (GUI) does not build
+on Windows (VTE dependency); see TODO.md for macOS.
 
 ## Build / run
 
@@ -22,7 +23,7 @@ plus `bash` and `socat` at runtime for the GUI (it spawns `socat` inside each VT
 forwarded pty socket).
 
 ```bash
-python3 scripts/build.py          # official build: go mod tidy + both binaries (+ _debug variants) into dist/<os>/<arch>/, with version ldflags
+python3 scripts/build.py          # official build: go mod tidy + all binaries (+ _debug variants) into dist/<os>/<arch>/, with version ldflags
 go build -o runtree ./cmd/runtree # quick build without version info
 go build -o rtrunner ./cmd/rtrunner
 go build ./... && go vet ./...    # compile/vet everything (first GTK build takes several minutes)
@@ -33,6 +34,7 @@ The default runner is the local one, embedded in `runtree`, so no `rtrunner` is 
 ```bash
 ./runtree -v examples/03-parallel.rt.yaml  # GUI; --max-depth, --cpu-profile, --mem-profile, --net-profile-port also available
 ./rtrunner -v                     # only for runner: host:port; listens on :5000 (-l to change); -d for debug logs
+go build -o runtree-headless ./cmd/runtree-headless  # no GTK; exit code 0 success, 2 failed, 3 stopped (docs/headless.md)
 ```
 
 `examples/*.rt.yaml` are example trees from simple to complex (examples/README.md lists them, `TestExampleTrees` loads
@@ -47,22 +49,27 @@ Dark GTK theme is the design target: `GTK_THEME=Adwaita:dark`.
 
 ## Architecture
 
-Three binaries; `runtree` and `rtrunner` share the runner protocol:
+Four binaries; `runtree`, `runtree-headless` and `rtrunner` share the runner protocol:
 
 - `cmd/rtrunner` → `internal/runner` (server side). Accepts TCP connections; each connection becomes one
   `Server` that runs exactly one command in a pty (`server_unix.go` via creack/pty, `server_windows.go` via conpty).
   The same `Server` is the local runner in `runtree` (`local.go`): each connection is a socket pair, the server is a
-  goroutine. When `runtree` exits (`cmd/runtree/exit.go`, also on SIGTERM), it stops the scheduler and terminates the
-  local processes like `rtrunner` does when its client is gone (`runner.StopLocal`), and the remote ones through their
-  connections (`Tree.TerminateRemote`). `rtrunner --stdio` serves one
+  goroutine (on Windows: a loopback TCP pair). When `runtree` exits (`app.StopRunning`, also on SIGTERM), it stops the
+  scheduler and terminates the local processes like `rtrunner` does when its client is gone (`runner.StopLocal`), and
+  the remote ones through their connections (`Tree.TerminateRemote`). `rtrunner --stdio` serves one
   connection on stdin/stdout: the `ssh://` runner (`ssh.go`) starts it with the system `ssh` for each connection.
   Without a path the ssh runner is managed (`upload.go`, `binaries.go`): a start script runs the uploaded
   `rtrunner-<sha256>` for the platform of the host, or runtree uploads it first. The binaries are embedded only with
-  `-tags rtrunners` (`cmd/runtree/rtrunners.go`, `scripts/build.py` builds them into `cmd/runtree/rtrunners/`). The
+  `-tags rtrunners` (`internal/rtrunners`, `scripts/build.py` builds them into `internal/rtrunners/bin/`). The
   connections to a host share one ssh master (`sshOptions`, `controlDir`); the tests turn it off (`SetSSHShare`).
 - `cmd/runtree-lsp` → `internal/lsp`: language server for editors (stdio JSON-RPC, no dependencies, no GTK/cgo). It
   loads the trees with `rt` (open documents through `Sources.Overlay`) and publishes `ParseError`s as diagnostics;
   `editors/vscode/extension.js` starts it.
+- `cmd/runtree-headless` → `internal/headless`: runs the tree unattended (`rt.Tree.SetUnattended`, `unattended.go`: a
+  node that would pause fails, the clients have no terminal (`Client.SetNoTerminal`), the run ends when the root is
+  finished or when nothing runs and nothing can be started, `checkEnd`). The output of the nodes goes to stdout with
+  their labels (`output.go`), the events to stderr (`events.go`). `internal/app` is what it shares with `runtree`
+  (loading the tree, `--lock`, `--log-db`, `StopRunning`).
 - `cmd/runtree` → `internal/rt` (tree model + scheduler) + `internal/gtkui` (GTK4 GUI). Each started node opens its
   own `runner.Client` connection; `runner.ParseAddress` parses the `runner` property (`local`, `host:port`,
   `tcp://host:port`, `ssh://[user@]host[:port][/path]`); `runtree --runner` sets the default (`Sources.DefaultRunner`).
@@ -109,8 +116,8 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
 - `internal/logdb` — `--log-db`: saves the events (a slog handler, combined with stderr by `logging.Multi`) and the
   terminal output (`rt.OutputRecorder`, fed by `runner.Client.SetOutput`) in SQLite, in batches from a goroutine;
   the reader and the `--show-*` printing are there too. Bump `schemaVersion` when changing the tables.
-- `internal/lockfile` — `--lock FILE`: an `flock` lock that the kernel releases when runtree exits; the file has the
-  pid and the holder (`cmd/runtree/lock.go`, exit code 75 when it is locked).
+- `internal/lockfile` — `--lock FILE`: an `flock` lock (`LockFileEx` on Windows) that the kernel releases when runtree
+  exits; the file has the pid and the holder (`app.LockTree`, exit code 75 when it is locked).
 
 ### Locking convention
 The whole tree is guarded by one `sync.RWMutex` (`Tree.Lock/RLock`, with a `who` string for debugging deadlocks —

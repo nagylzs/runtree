@@ -30,6 +30,7 @@ about a node. Their message is complete for humans; the other attributes are for
 | `unlocked` | info | it releases them |
 | `runner-error` | error | a runner reports an error (`code`) |
 | `runner-upload` | info | `rtrunner` is uploaded to a host (`platform`, `sha256`, `bytes`, `elapsed`) |
+| `stopped` | warn | a [headless run](headless.md#when-the-run-ends) stopped: nothing runs, and nothing can be started |
 
 - (1) `start` is 1 for the first start of the node, 2 for the first re-run, and so on.
 - (2) warn when the process failed (it did not exit with a success exit code). The times are durations.

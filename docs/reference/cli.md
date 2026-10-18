@@ -35,6 +35,34 @@ Loads the tree file and runs it in the GUI. Without errors in the tree, the wind
 Exit codes: 0 when the window was closed, 1 when the tree or the command line has errors, 75 when the lock file is
 locked, 143 on SIGTERM.
 
+## runtree-headless
+
+```
+runtree-headless [OPTIONS] TREE_FILE
+```
+
+Runs the tree without the GUI, unattended (see [running without the GUI](../headless.md)): the terminal output of the
+nodes goes to stdout, the events and the summary at the end to stderr.
+
+| Option | Description |
+|--------|-------------|
+| `-v`, `--verbose` | log the information messages of runtree-headless itself too (the events of the tree are always logged) |
+| `-d`, `--debug` | log the debug messages too, also the ones of the tree |
+| `--log-format=text\|json` | the format of the events and of the log on stderr (`text` by default) |
+| `--version` | print the version, and exit |
+| `--check` | only check the tree file and the files it includes, and exit |
+| `--max-depth=N` | the maximum depth of the tree, and of the includes (30 by default) |
+| `--runner=ADDRESS` | the runner of the nodes that do not specify one (`local` by default) |
+| `--rtrunner-dir=DIR` | a directory of `rtrunner-<goos>-<goarch>` binaries to upload to the hosts of ssh runners (also `RUNTREE_RTRUNNER_DIR`) |
+| `--no-ssh-share` | do not share one ssh connection for each host |
+| `--lock=FILE` | lock FILE while the tree runs; another runtree with the same lock file exits with 75 |
+| `--log-db=FILE` | save the events and the terminal output in an SQLite database (`runtree --show-*` reads it) |
+| `-h`, `--help` | show the options |
+
+Exit codes: 0 when the root node is Success, 1 when the tree or the command line has errors, 2 when the root node is
+Failed, 3 when the run stopped (nothing runs, and nothing can be started), 75 when the lock file is locked, 130 on
+SIGINT, 143 on SIGTERM (see [exit codes](../headless.md#exit-codes)).
+
 ## rtrunner
 
 ```

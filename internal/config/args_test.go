@@ -31,8 +31,9 @@ func TestOptionsDocumented(t *testing.T) {
 	}
 	doc := string(b)
 	sections := map[string]reflect.Type{
-		"## runtree\n":  reflect.TypeOf(CLIArgs{}),
-		"## rtrunner\n": reflect.TypeOf(RtRunnerCLIArgs{}),
+		"## runtree\n":          reflect.TypeOf(CLIArgs{}),
+		"## runtree-headless\n": reflect.TypeOf(HeadlessCLIArgs{}),
+		"## rtrunner\n":         reflect.TypeOf(RtRunnerCLIArgs{}),
 	}
 	for heading, typ := range sections {
 		start := strings.Index(doc, heading)

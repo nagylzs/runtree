@@ -37,8 +37,9 @@ the ones that wait for a host with `ping`) should say `runner: local`.
 
 ## The local runner
 
-The local runner is built into `runtree`: nothing else needs to be started. The processes run on the machine of
-runtree, as the user who started it, with the environment of runtree (see [environment](variables.md#environment)).
+The local runner is built into `runtree` (and `runtree-headless`): nothing else needs to be started. The processes run
+on the machine of runtree, as the user who started it, with the environment of runtree (see
+[environment](variables.md#environment)). It works on Windows too (`runtree-headless`), the ssh runners do not yet.
 
 To run commands on other machines with the local runner, the commands can run `ssh` themselves, e.g. with
 `args_prefix: [ssh, -t, "root@{host}"]`. This works anywhere, but the `envs` and `cwd` of the node apply to the local

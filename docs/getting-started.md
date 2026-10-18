@@ -4,6 +4,8 @@
 
 runtree runs on Linux. The GUI (`runtree`) needs GTK 4 and VTE (the terminal widget of GNOME Terminal); the runner
 (`rtrunner`) is a static binary without dependencies, that also runs on macOS and other Linux machines.
+[`runtree-headless`](headless.md) runs trees without the GUI (e.g. in CI): it is a static binary too, that also runs
+on Windows.
 
 At runtime, the GUI needs `bash` and `socat` (each terminal attaches to the process with `socat`). runtree does not
 start without `socat`.
@@ -42,12 +44,15 @@ put into `dist/linux/amd64/`:
 | File | What it is |
 |------|------------|
 | `runtree` | the scheduler and its GUI |
+| `runtree-headless` | the scheduler without the GUI, for [CI and cron](headless.md) |
 | `rtrunner` | the runner daemon, for [runners](runners.md) on other machines |
 | `runtree-lsp` | the language server for [editors](editors.md) |
 | `*_debug` | the same, with debug information |
 
-`dist/rtrunners/` has `rtrunner` for other platforms (Linux on x86_64, arm64 and 32 bit ARM, macOS). `runtree` has
-them inside too: it uploads the right one to the hosts of [ssh runners](runners.md#ssh-runners).
+`dist/rtrunners/` has `rtrunner` for other platforms (Linux on x86_64, arm64 and 32 bit ARM, macOS). `runtree` and
+`runtree-headless` have them inside too: they upload the right one to the hosts of
+[ssh runners](runners.md#ssh-runners). `dist/windows/amd64/` has the programs that run on Windows: `runtree-headless`,
+`rtrunner` and `runtree-lsp`.
 
 `go build -o runtree ./cmd/runtree` builds it too, but without version information and without the `rtrunner`s for
 the uploads. See [Development](development.md) for the details of the build.

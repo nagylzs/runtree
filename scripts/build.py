@@ -8,7 +8,9 @@ import gzip
 import shutil
 import subprocess as sp
 
-targets=["rtrunner", "runtree", "runtree-lsp"]
+targets=["rtrunner", "runtree", "runtree-headless", "runtree-lsp"]
+# the ones that run with the embedded rtrunner binaries (-tags rtrunners)
+embedding=["runtree", "runtree-headless"]
 
 DIR=os.path.abspath(os.path.join(__file__,os.pardir,os.pardir))
 
@@ -79,12 +81,13 @@ print("go mod tidy")
 run(["go", "mod", "tidy"])
 
 # The rtrunner binaries that runtree uploads to the hosts of managed ssh runners (ssh://host without a path): they are
-# embedded in runtree (-tags rtrunners), and they are in dist/rtrunners too (for manual installs, or --rtrunner-dir).
+# embedded in runtree and runtree-headless (-tags rtrunners, see internal/rtrunners), and they are in dist/rtrunners too
+# (for manual installs, or --rtrunner-dir).
 rtrunner_platforms = [
 	("linux", "amd64"), ("linux", "arm64"), ("linux", "arm"),
 	("darwin", "amd64"), ("darwin", "arm64"),
 ]
-embed_dir = os.path.join(DIR, "cmd", "runtree", "rtrunners")
+embed_dir = os.path.join(DIR, "internal", "rtrunners", "bin")
 rtrunners_dist = os.path.join(DIR, "dist", "rtrunners")
 for d in (embed_dir, rtrunners_dist):
 	shutil.rmtree(d, ignore_errors=True)
@@ -118,8 +121,7 @@ for target in targets:
 		sldflags = " ".join(ldflags_gui)
 	else:
 		sldflags = " ".join(ldflags)
-	# runtree embeds the rtrunner binaries
-	tags = ["-tags", "rtrunners"] if target == "runtree" else []
+	tags = ["-tags", "rtrunners"] if target in embedding else []
 	cmd = ["go", "build"] + tags + ["-ldflags", sldflags, "-o", binary, src]
 	print(" ".join(cmd))
 	run(cmd)
@@ -135,4 +137,17 @@ for target in targets:
 	if is_gui and oss=="windows":
 		run(["go-winres", "patch", "--no-backup", binary])
 
-
+# The programs without cgo are cross-built for Windows too (runtree does not build there: VTE)
+if oss == "linux":
+	wdir = os.path.join(DIR, "dist", "windows", "amd64")
+	os.makedirs(wdir, exist_ok=True)
+	for target in targets:
+		if target == "runtree":
+			continue
+		os.chdir(os.path.join(DIR, "cmd", target))
+		tags = ["-tags", "rtrunners"] if target in embedding else []
+		cmd = ["go", "build"] + tags + ["-ldflags", " ".join(ldflags), "-o", os.path.join(wdir, target + ".exe"), "."]
+		print("GOOS=windows GOARCH=amd64 " + " ".join(cmd))
+		ret = sp.call(cmd, env=dict(os.environ, GOOS="windows", GOARCH="amd64", CGO_ENABLED="0"))
+		if ret != 0:
+			raise SystemExit(ret)

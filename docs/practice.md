@@ -61,7 +61,8 @@ The exit codes of runtree:
 | 75 | the lock file is locked by another runtree |
 | 143 | SIGTERM |
 
-The exit code does not depend on the result of the tree yet (see the TODO list for a headless mode).
+The exit code of `runtree` does not depend on the result of the tree; the one of
+[`runtree-headless`](headless.md#exit-codes) does.
 
 ## Patterns
 

@@ -21,13 +21,15 @@ Read these in order the first time; each page builds on the previous ones.
 7. [Runners](runners.md): where the processes run: locally, over ssh, or on an `rtrunner` daemon
 8. [Logs and history](logging.md): events, the Log tab, saving the runs in SQLite
 9. [Running trees in practice](practice.md): lock files, signals and exit, several users, patterns and pitfalls
+10. [Running without the GUI](headless.md): `runtree-headless` in CI and cron, exit codes, output
 
 The [examples](../examples/README.md) go from the simplest tree to a realistic rolling upgrade.
 
 ## Reference
 
 - [Node properties](reference/properties.md): every property of the tree files (generated from the source)
-- [Command line](reference/cli.md): the options of `runtree`, `rtrunner` and `runtree-lsp`, exit codes, files
+- [Command line](reference/cli.md): the options of `runtree`, `runtree-headless`, `rtrunner` and `runtree-lsp`, exit
+  codes, files
 - [Events](logging.md#events): the events of the log
 - [Editor support](editors.md): the JSON Schema, the language server and the VS Code extension
 

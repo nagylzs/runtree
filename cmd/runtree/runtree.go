@@ -1,24 +1,23 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	_ "net/http"
 	_ "net/http/pprof"
 	"os"
-	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/nagylzs/runtree/internal/app"
 	"github.com/nagylzs/runtree/internal/config"
 	"github.com/nagylzs/runtree/internal/gtkui"
-	"github.com/nagylzs/runtree/internal/lockfile"
 	"github.com/nagylzs/runtree/internal/logdb"
 	"github.com/nagylzs/runtree/internal/logging"
 	"github.com/nagylzs/runtree/internal/rt"
+	_ "github.com/nagylzs/runtree/internal/rtrunners" // the rtrunner binaries, with -tags rtrunners
 	"github.com/nagylzs/runtree/internal/runner"
 	"github.com/nagylzs/runtree/internal/version"
 )
@@ -26,7 +25,8 @@ import (
 var exitCode int = 0
 
 func main() {
-	var args = config.CLIArgs{BaseArgs: config.BaseArgs{Verbose: false, Debug: false}, MaxDepth: config.DefaultMaxDepth}
+	var args = config.CLIArgs{BaseArgs: config.BaseArgs{Verbose: false, Debug: false},
+		RunArgs: config.RunArgs{MaxDepth: config.DefaultMaxDepth}}
 	parser := flags.NewParser(&args, flags.Default)
 	parser.Usage = "[OPTIONS] TREE_FILE"
 	posArgs, err := parser.ParseArgs(os.Args)
@@ -96,22 +96,8 @@ func main() {
 	}
 
 	err = runMain(args, posArgs)
-	var parseErrs rt.ParseErrors
-	var parseErr *rt.ParseError
-	var lockedErr *lockfile.LockedError
-	if errors.As(err, &parseErrs) {
-		// file:line:col: message lines, and their details on separate lines
-		_, _ = fmt.Fprintln(os.Stderr, parseErrs.Error())
-		if len(parseErrs) > 1 {
-			_, _ = fmt.Fprintf(os.Stderr, "%d errors\n", len(parseErrs))
-		}
-		os.Exit(1)
-	} else if errors.As(err, &lockedErr) {
-		_, _ = fmt.Fprintln(os.Stderr, "the tree cannot be run now: "+lockedErr.Error())
-		os.Exit(exitLocked)
-	} else if errors.As(err, &parseErr) {
-		_, _ = fmt.Fprintln(os.Stderr, parseErr.Error())
-		os.Exit(1)
+	if code := app.PrintLoadError(err); code != 0 {
+		os.Exit(code)
 	}
 
 	if args.MemProfile != "" {
@@ -137,36 +123,19 @@ func main() {
 }
 
 func runMain(args config.CLIArgs, posArgs []string) error {
-	fullFilePath, err := filepath.Abs(posArgs[1])
-	if err != nil {
-		return fmt.Errorf("could open input file %v: %w", fullFilePath, err)
-	}
-
 	runner.SetBinaryDir(args.RtrunnerDir)
 	runner.SetSSHShare(!args.NoSSHShare)
-	sources := rt.NewSources()
-	sources.DefaultRunner = args.Runner
-	_, filename, err := rt.AddTree(fullFilePath, sources)
-	if err != nil {
-		return err
-	}
-	runTree, err := rt.ParseToDom(sources, filename, args.MaxDepth)
-	// the warnings are printed before the errors (that are printed by main)
-	warnings := sources.Warnings()
-	if len(warnings) > 0 {
-		_, _ = fmt.Fprintln(os.Stderr, warnings.Error())
-	}
+	runTree, fullFilePath, warnings, err := app.LoadTree(posArgs[1], args.Runner, args.MaxDepth)
 	if err != nil {
 		return err
 	}
 	if args.Check {
-		_, _ = fmt.Fprintf(os.Stderr, "%s: OK%s%s\n", posArgs[1], plural(", %d node", len(runTree.Nodes)),
-			plural(", %d warning", len(warnings)))
+		app.PrintCheck(posArgs[1], runTree, warnings)
 		return nil
 	}
 
 	if args.Lock != "" {
-		lock, err := lockTree(args.Lock, fullFilePath)
+		lock, err := app.LockTree(args.Lock, fullFilePath)
 		if err != nil {
 			return err
 		}
@@ -175,15 +144,13 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 
 	var db *logdb.DB
 	if args.LogDB != "" {
-		db, err = openLogDB(args.LogDB, fullFilePath, runTree)
+		db, err = app.OpenLogDB(args.LogDB, fullFilePath, runTree)
 		if err != nil {
 			return fmt.Errorf("could not open the log database: %w", err)
 		}
-		defer func() {
-			if err := db.Close(); err != nil {
-				slog.Error("could not close the log database", "error", err)
-			}
-		}()
+		defer app.CloseLogDB(db)
+		runTree.SetLogHandler(logging.Multi(slog.Default().Handler(), db.Handler()))
+		runTree.SetOutputRecorder(app.LogDBRecorder(db))
 	}
 	handleTerm(runTree, db)
 
@@ -193,18 +160,6 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 	}
 
 	exitCode = gtkui.RunApplication()
-	stopRunning(runTree)
+	app.StopRunning(runTree)
 	return nil
-}
-
-// plural formats a count with format (e.g. ", %d warning"), with an "s" if count > 1. It is empty when count is 0.
-func plural(format string, count int) string {
-	if count == 0 {
-		return ""
-	}
-	res := fmt.Sprintf(format, count)
-	if count > 1 {
-		res += "s"
-	}
-	return res
 }

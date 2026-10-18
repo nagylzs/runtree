@@ -28,6 +28,8 @@ the step, and let the automation continue.
 - **History:** every event and the terminal output of every step can be saved in SQLite, and queried with SQL.
 - **Safe to operate:** lock files against concurrent runs, confirmation before closing a running tree or pasting
   multi-line text into a terminal, graceful termination of the processes.
+- **Without the GUI too:** `runtree-headless` runs the same trees in CI or from cron, with the output of every step
+  on stdout and an exit code that tells how the run ended (it also stops when nothing can go on, e.g. frozen nodes).
 - **Editor support:** a JSON Schema, a language server and a VS Code extension, with errors as you type.
 
 ## Example
@@ -89,7 +91,7 @@ See [Getting started](docs/getting-started.md) for the details and other distrib
 - [Writing tree files](docs/tree-files.md) · [Variables and the environment](docs/variables.md) ·
   [How a tree runs](docs/execution.md) · [Dependencies and locks](docs/coordination.md)
 - [The GUI](docs/gui.md) · [Runners](docs/runners.md) · [Logs and history](docs/logging.md) ·
-  [Running trees in practice](docs/practice.md)
+  [Running trees in practice](docs/practice.md) · [Running without the GUI](docs/headless.md)
 - Reference: [node properties](docs/reference/properties.md) · [command line](docs/reference/cli.md) ·
   [editor support](docs/editors.md)
 - [Development](docs/development.md) · [TODO](TODO.md)
@@ -97,8 +99,9 @@ See [Getting started](docs/getting-started.md) for the details and other distrib
 ## Status
 
 runtree is used for real upgrades and deployments, but it is young: the tree format and the options may still
-change. The GUI runs on Linux; the runner (`rtrunner`) also runs on macOS (not tested yet) and Windows. There are no
-packages or releases yet.
+change. The GUI runs on Linux; the runner (`rtrunner`) also runs on macOS (not tested yet) and Windows, and
+`runtree-headless` (without the GUI, e.g. for CI) on Windows too (tested under wine only). There are no packages or
+releases yet.
 
 ## License
 

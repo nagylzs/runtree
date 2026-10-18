@@ -76,7 +76,8 @@ A seq or par node gets its status from its sub-nodes:
 `on_error` says what a node does when its process, or one of its sub-nodes, fails. It has two parts:
 
 - the **status** of the node: `failed` (the default), `paused` (it waits for you to choose: Re-run, Success or Fail in
-  the GUI), or `success` (the failure is allowed);
+  the GUI; [`runtree-headless`](headless.md#nobody-decides) has nobody to ask, the node fails there), or `success`
+  (the failure is allowed);
 - an **operation on the siblings** that are not started yet: `none` (the default), `freeze` (they are frozen, thaw
   them to go on) or `skip` (they are skipped).
 
@@ -165,7 +166,8 @@ subtree.
 `status` is inherited, so the sub-nodes of a frozen seq or par node are frozen too: use **Thaw all** for them.
 **Thaw** only thaws the seq or par node itself, so it is still Frozen while its sub-nodes are (it only starts the
 sub-nodes that have `status: waiting`). **Skip** skips the whole group. A frozen run node can also be started by hand
-with **Run**. The possible initial statuses are `waiting` (the default) and `frozen`.
+with **Run**. The possible initial statuses are `waiting` (the default) and `frozen`. `runtree-headless` never thaws
+a node: its run [stops](headless.md#when-the-run-ends) when only frozen nodes are left.
 
 ## Blocking
 
@@ -177,4 +179,4 @@ A waiting node is **blocked** when it cannot start yet:
 The scheduler does not start a blocked node, and it does not look into the subtree of a blocked seq or par node. The
 GUI shows why a node waits in its status ("blocked", "max proc reached", "won't schedule" for frozen and paused
 nodes), and the Dependencies tab shows what it waits for. A tree can deadlock (e.g. two nodes that require what the
-other one provides): runtree does not detect it, it simply waits.
+other one provides): runtree does not detect it, it simply waits (`runtree-headless` stops then).

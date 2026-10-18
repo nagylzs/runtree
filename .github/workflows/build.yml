@@ -55,7 +55,10 @@ jobs:
           dist/linux/amd64/rtrunner_debug
           dist/linux/amd64/runtree
           dist/linux/amd64/runtree_debug
+          dist/linux/amd64/runtree-headless
+          dist/linux/amd64/runtree-headless_debug
           dist/linux/amd64/runtree-lsp
           dist/linux/amd64/runtree-lsp_debug
           dist/rtrunners/
+          dist/windows/amd64/
         if-no-files-found: error
