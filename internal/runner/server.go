@@ -37,8 +37,12 @@ type PtyRunner interface {
 	Resize(ws WinSize) error
 	SignalGroup(sig os.Signal) error // send a signal to the process group of the command
 	GroupAlive() bool                // tells if any process is left in the process group of the command
+	Exited()                         // the command exited (Cmd().Wait returned)
 	Close() error
 }
+
+// errSignalNotSupported is the error of PtyRunner.SignalGroup for a signal that the system does not have
+var errSignalNotSupported = errors.New("the signal is not supported on this system")
 
 // Server runs a command in a pseudo-terminals and forward pty and command channels to a socket
 type Server struct {
@@ -207,6 +211,7 @@ func (s *Server) ServePty(ctx context.Context) error {
 	go s.recvCommands()
 
 	waitErr := s.ptyRunner.Cmd().Wait()
+	s.ptyRunner.Exited()
 	close(s.exited)
 	s.logger.Info("exited", "pid", s.ptyRunner.Pid(),
 		"exit_code", s.ptyRunner.Cmd().ProcessState.ExitCode(), "error", waitErr)
@@ -270,10 +275,14 @@ func (s *Server) terminateProcess() {
 		if !alive() {
 			return
 		}
-		s.logger.Warn("terminating", "pid", s.ptyRunner.Pid(), "signal", step.sig)
 		err := s.ptyRunner.SignalGroup(step.sig)
+		if errors.Is(err, errSignalNotSupported) {
+			continue // the next one (on Windows: Kill)
+		}
+		s.logger.Warn("terminating", "pid", s.ptyRunner.Pid(), "signal", step.sig)
 		if err != nil {
 			s.logger.Error("could not send signal", "signal", step.sig, "error", err)
+			continue
 		}
 		for deadline := time.Now().Add(step.grace); time.Now().Before(deadline); {
 			if !alive() {

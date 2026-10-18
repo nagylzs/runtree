@@ -2,39 +2,47 @@ package runner
 
 import (
 	"fmt"
-	"github.com/ActiveState/termtest/conpty"
 	"io"
 	"os"
 	"os/exec"
+	"strings"
+	"sync"
 	"syscall"
+	"time"
+
+	"github.com/ActiveState/termtest/conpty"
 )
 
 type windowsPtyRunner struct {
-	cpty *conpty.ConPty
-	cmd  *exec.Cmd
+	cpty  *conpty.ConPty
+	cmd   *exec.Cmd
+	close sync.Once
 }
 
-func (w windowsPtyRunner) StdIn() io.WriteCloser {
+// conptyDrain is the time for the pseudo console to write the rest of the output after the process exited
+const conptyDrain = 500 * time.Millisecond
+
+func (w *windowsPtyRunner) StdIn() io.WriteCloser {
 	return w.cpty.InPipe()
 }
 
-func (w windowsPtyRunner) StdOut() io.Reader {
+func (w *windowsPtyRunner) StdOut() io.Reader {
 	return w.cpty.OutPipe()
 }
 
-func (w windowsPtyRunner) Pty() io.Closer {
+func (w *windowsPtyRunner) Pty() io.Closer {
 	return w.cpty
 }
 
-func (w windowsPtyRunner) Pid() int {
+func (w *windowsPtyRunner) Pid() int {
 	return w.cmd.Process.Pid
 }
 
-func (w windowsPtyRunner) Cmd() *exec.Cmd {
+func (w *windowsPtyRunner) Cmd() *exec.Cmd {
 	return w.cmd
 }
 
-func (w windowsPtyRunner) Resize(ws WinSize) error {
+func (w *windowsPtyRunner) Resize(ws WinSize) error {
 	if w.cpty == nil { // during load
 		return nil
 	}
@@ -42,23 +50,34 @@ func (w windowsPtyRunner) Resize(ws WinSize) error {
 }
 
 // SignalGroup only supports os.Kill on Windows, and it only kills the process itself.
-func (w windowsPtyRunner) SignalGroup(sig os.Signal) error {
+func (w *windowsPtyRunner) SignalGroup(sig os.Signal) error {
 	if sig == os.Kill {
 		return w.cmd.Process.Kill()
 	}
-	return fmt.Errorf("signal %v is not supported on windows", sig)
+	return fmt.Errorf("%v: %w", sig, errSignalNotSupported)
 }
 
 // GroupAlive always returns false on Windows: there are no process groups, only the process itself is tracked.
-func (w windowsPtyRunner) GroupAlive() bool {
+func (w *windowsPtyRunner) GroupAlive() bool {
 	return false
 }
 
-func (w windowsPtyRunner) Close() error {
+// Exited closes the pseudo console a bit later: its output does not end while it is open (the server waits for the
+// end of the output)
+func (w *windowsPtyRunner) Exited() {
+	go func() {
+		time.Sleep(conptyDrain)
+		_ = w.Close()
+	}()
+}
+
+func (w *windowsPtyRunner) Close() error {
 	if w.cpty == nil {
 		return nil
 	}
-	return w.cpty.Close()
+	var err error
+	w.close.Do(func() { err = w.cpty.Close() })
+	return err
 }
 
 func (s *Server) startPty(ca CmdArgs) (PtyRunner, error) {
@@ -67,15 +86,25 @@ func (s *Server) startPty(ca CmdArgs) (PtyRunner, error) {
 		return nil, err
 	}
 
+	// CreateProcess does not look for the program in the PATH (a path is relative to the working directory, Spawn
+	// joins them), and the command line has the program too
+	name := ca.Args[0]
+	if !strings.ContainsAny(name, `/\:`) {
+		if name, err = exec.LookPath(name); err != nil {
+			_ = cpty.Close()
+			return nil, err
+		}
+	}
 	pid, _, err := cpty.Spawn(
-		ca.Args[0],
-		ca.Args[1:],
+		name,
+		ca.Args,
 		&syscall.ProcAttr{
 			Env: ca.Env,
 			Dir: ca.Cwd,
 		},
 	)
 	if err != nil {
+		_ = cpty.Close()
 		return nil, err
 	}
 

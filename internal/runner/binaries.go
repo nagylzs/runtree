@@ -16,8 +16,8 @@ import (
 )
 
 // The rtrunner binaries that runtree uploads to the hosts of managed ssh runners (ssh://host without a path), by
-// platform (goos-goarch): the embedded ones (runtree built with -tags rtrunners, see scripts/build.py), and the ones in
-// the directory of SetBinaryDir, that override them.
+// platform (goos-goarch): the embedded ones (runtree and runtree-headless built with -tags rtrunners, see
+// internal/rtrunners), and the ones in the directory of SetBinaryDir, that override them.
 
 // runnerBinary is an rtrunner for a platform
 type runnerBinary struct {

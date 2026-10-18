@@ -60,6 +60,9 @@ func (u unixPtyRunner) GroupAlive() bool {
 	return err == nil || err == syscall.EPERM
 }
 
+// Exited does nothing: the output of the pty ends when the processes that have it are gone
+func (u unixPtyRunner) Exited() {}
+
 func (u unixPtyRunner) Close() error {
 	if u.tty == nil {
 		return nil

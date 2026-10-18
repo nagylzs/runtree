@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -215,4 +216,84 @@ func TestVersionMismatch(t *testing.T) {
 	if err == nil || err.Error() != "incompatible versions, local="+Version+" remote=0.0.1" {
 		t.Errorf("the error is %v", err)
 	}
+}
+
+// closedBuffer is an output writer that tells when it is closed
+type closedBuffer struct {
+	mu     sync.Mutex
+	b      strings.Builder
+	closed chan struct{}
+}
+
+func (w *closedBuffer) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.b.Write(p)
+}
+
+func (w *closedBuffer) Close() error {
+	close(w.closed)
+	return nil
+}
+
+// Without a terminal, the output only goes to the output writer, and it is closed at the end of the output. A process
+// with a lot of output does not block, also when the writer fails.
+func TestNoTerminal(t *testing.T) {
+	l := newTestLocalRunner()
+	for _, failing := range []bool{false, true} {
+		conn, err := l.dial()
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, err := newClient(context.Background(), conn, HandshakeTimeout, slog.New(slog.DiscardHandler), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := &closedBuffer{closed: make(chan struct{})}
+		var w io.Writer = out
+		if failing {
+			w = failingWriter{out}
+		}
+		c.SetOutput(w)
+		c.SetNoTerminal()
+		exited := make(chan ProcState, 1)
+		ca := testArgs
+		ca.Name, ca.Args = "sh", []string{"sh", "-c", "seq 1 100000; echo done"}
+		err = c.StartPty(context.Background(), ca, func(ps ProcState) {
+			if !ps.Alive() {
+				select {
+				case exited <- ps:
+				default:
+				}
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.PtyPath != "" {
+			t.Errorf("there is a terminal socket: %s", c.PtyPath)
+		}
+		if ps := waitExit(t, exited); !ps.Exited || ps.ExitCode != 0 {
+			t.Errorf("the process state is %s", ps.String())
+		}
+		select {
+		case <-out.closed:
+		case <-time.After(10 * time.Second):
+			t.Fatal("the output is not closed")
+		}
+		if !failing && !strings.HasSuffix(out.b.String(), "100000\r\ndone\r\n") {
+			t.Errorf("the end of the output is %q", out.b.String()[max(0, out.b.Len()-30):])
+		}
+	}
+	waitServers(t, l)
+}
+
+// failingWriter writes to w, and returns an error
+type failingWriter struct {
+	*closedBuffer
+}
+
+func (w failingWriter) Write(p []byte) (int, error) {
+	_, _ = w.closedBuffer.Write(p)
+	return 0, errors.New("failing writer")
 }

@@ -22,18 +22,18 @@ type Client struct {
 	cmdStream *smux.Stream // the other side is connected to the command handler, on the runner
 	logger    *slog.Logger
 
-	PtyPath         string       // local unix domain socket path for the forwarded pty
-	ptyListener     net.Listener // local unix domain socket's listener for the forwarded pty
-	ptyConn         net.Conn     // local unix domain socket for the forwarded pty
-	unixSocketReady sync.WaitGroup
+	PtyPath     string       // local unix domain socket path for the forwarded pty (not with SetNoTerminal)
+	ptyListener net.Listener // local unix domain socket's listener for the forwarded pty
+	ptyConn     net.Conn     // local unix domain socket for the forwarded pty
 
-	stop      *atomic.Bool
-	stateLock sync.Mutex
-	lastState ProcState
-	cmdLock   sync.Mutex
-	onNotify  func(ProcState)
-	onError   func(Error)
-	output    io.Writer // gets a copy of the terminal output, see SetOutput
+	stop       *atomic.Bool
+	stateLock  sync.Mutex
+	lastState  ProcState
+	cmdLock    sync.Mutex
+	onNotify   func(ProcState)
+	onError    func(Error)
+	output     io.Writer // gets a copy of the terminal output, see SetOutput
+	noTerminal bool      // see SetNoTerminal
 }
 
 // NewClient connects to a runner (see ParseAddress)
@@ -87,14 +87,13 @@ func newClient(ctx context.Context, conn net.Conn, timeout time.Duration, logger
 	_ = conn.SetDeadline(time.Time{})
 
 	c := &Client{
-		conn:            conn,
-		ptyStream:       nil,
-		cmdStream:       nil,
-		unixSocketReady: sync.WaitGroup{},
-		logger:          logger,
-		onNotify:        nil,
-		onError:         onError,
-		stop:            &atomic.Bool{},
+		conn:      conn,
+		ptyStream: nil,
+		cmdStream: nil,
+		logger:    logger,
+		onNotify:  nil,
+		onError:   onError,
+		stop:      &atomic.Bool{},
 
 		stateLock: sync.Mutex{},
 	}
@@ -102,10 +101,17 @@ func newClient(ctx context.Context, conn net.Conn, timeout time.Duration, logger
 }
 
 // SetOutput sets a writer that gets a copy of the terminal output of the process (not the input), e.g. to save it.
-// Its errors are ignored, and it should not block for long: the terminal waits for it. It must be called before
-// StartPty.
+// Its errors are ignored, and it should not block for long: the terminal waits for it. When it is an io.Closer, it is
+// closed after the end of the output. It must be called before StartPty.
 func (c *Client) SetOutput(w io.Writer) {
 	c.output = w
+}
+
+// SetNoTerminal starts the process without a local terminal (there is no PtyPath to attach to): its output only goes
+// to the writer of SetOutput (or it is dropped), and nobody types into it (e.g. runtree-headless). It must be called
+// before StartPty.
+func (c *Client) SetNoTerminal() {
+	c.noTerminal = true
 }
 
 // StartPty starts a pty master on the server side, and connects it to a local pty slave.
@@ -155,16 +161,26 @@ func (c *Client) StartPty(ctx context.Context, cmdArgs CmdArgs, onNotify func(st
 	// do not delete this line, this disables the deferred error cleanup
 	ptyStream, cmdStream, session = nil, nil, nil
 
+	// the socket of the terminal, before the process is started (the caller closes the client when it fails)
+	if !c.noTerminal {
+		c.PtyPath, c.ptyListener, err = createUnixSocket()
+		if err != nil {
+			return err
+		}
+	}
+
 	// Send initial command to the terminal server.
 	err = SendAny(ctx, c.cmdStream, cmdArgs)
 	if err != nil {
+		if c.ptyListener != nil {
+			_ = c.ptyListener.Close()
+			_ = os.Remove(c.PtyPath)
+		}
 		return err
 	}
 
 	go c.receiveCommands()
-	c.unixSocketReady.Add(1)
 	go c.run()
-	c.unixSocketReady.Wait()
 	return nil
 }
 
@@ -281,33 +297,20 @@ func (c *Client) recvError(ctx context.Context) {
 	}
 }
 
-func (c *Client) failedStart(err error) {
-	c.stateLock.Lock()
-	c.lastState = ProcState{
-		Pid:        0,
-		Exited:     true,
-		ExitCode:   0,
-		SystemTime: 0,
-		UserTime:   0,
-		Error:      err.Error(),
-	}
-	c.stateLock.Unlock()
-	c.logger.Error(err.Error())
-}
-
+// run copies the output of the process to the terminal that connects to the socket (and to the output writer), and
+// the input from the terminal to the process, until the pty stream is closed (the process exited)
 func (c *Client) run() {
-	path, listener, err := createUnixSocket()
-	if err != nil {
-		c.failedStart(err)
+	defer c.closeOutput()
+	if c.noTerminal {
+		// the errors of the output are ignored: the stream must be read, or the process blocks when it writes
+		_, _ = io.Copy(teeWriter{io.Discard, c.output}, c.ptyStream)
 		return
 	}
-	c.PtyPath, c.ptyListener = path, listener
 	defer os.Remove(c.PtyPath)
 	defer c.ptyListener.Close()
 
-	c.unixSocketReady.Done()
-
-	c.ptyConn, err = listener.Accept()
+	var err error
+	c.ptyConn, err = c.ptyListener.Accept()
 	if err != nil {
 		c.requestStop(fmt.Errorf("could not accept the terminal connection: %w", err))
 		return
@@ -332,6 +335,13 @@ func (c *Client) run() {
 		// the communication
 	}()
 	wg.Wait()
+}
+
+// closeOutput closes the output writer, when it is an io.Closer
+func (c *Client) closeOutput() {
+	if cl, ok := c.output.(io.Closer); ok {
+		_ = cl.Close()
+	}
 }
 
 func (c *Client) notifyListeners() {
@@ -390,7 +400,7 @@ type teeWriter struct {
 
 func (t teeWriter) Write(p []byte) (int, error) {
 	n, err := t.w.Write(p)
-	if n > 0 {
+	if n > 0 && t.copyTo != nil {
 		_, _ = t.copyTo.Write(p[:n])
 	}
 	return n, err
