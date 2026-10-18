@@ -56,7 +56,8 @@ Three binaries; `runtree` and `rtrunner` share the runner protocol:
   connection on stdin/stdout: the `ssh://` runner (`ssh.go`) starts it with the system `ssh` for each connection.
   Without a path the ssh runner is managed (`upload.go`, `binaries.go`): a start script runs the uploaded
   `rtrunner-<sha256>` for the platform of the host, or runtree uploads it first. The binaries are embedded only with
-  `-tags rtrunners` (`cmd/runtree/rtrunners.go`, `scripts/build.py` builds them into `cmd/runtree/rtrunners/`).
+  `-tags rtrunners` (`cmd/runtree/rtrunners.go`, `scripts/build.py` builds them into `cmd/runtree/rtrunners/`). The
+  connections to a host share one ssh master (`sshOptions`, `controlDir`); the tests turn it off (`SetSSHShare`).
 - `cmd/runtree-lsp` → `internal/lsp`: language server for editors (stdio JSON-RPC, no dependencies, no GTK/cgo). It
   loads the trees with `rt` (open documents through `Sources.Overlay`) and publishes `ParseError`s as diagnostics;
   `editors/vscode/extension.js` starts it.

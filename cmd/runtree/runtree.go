@@ -136,6 +136,7 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 	}
 
 	runner.SetBinaryDir(args.RtrunnerDir)
+	runner.SetSSHShare(!args.NoSSHShare)
 	sources := rt.NewSources()
 	sources.DefaultRunner = args.Runner
 	_, filename, err := rt.AddTree(fullFilePath, sources)

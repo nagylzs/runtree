@@ -74,8 +74,8 @@ connection still runs exactly one command, so a runner per run node needs no pro
    the host (`uname`) to `~/.cache/runtree/rtrunner-<sha256>`, once for parallel starts, checked by its hash before
    it is renamed; the binaries are embedded (`build.py`, `-tags rtrunners`), `--rtrunner-dir` overrides them.
    Still to do:
-   * share one SSH connection per host (`ControlMaster`/`ControlPath`/`ControlPersist`; note sshd's `MaxSessions`, 10
-     by default): a start costs an SSH login now (0.3 s on localhost)
+   * Done: one shared SSH connection per host (`ControlMaster=auto`, `ControlPersist=60`, sockets in
+     `$XDG_RUNTIME_DIR/runtree`; above `MaxSessions` ssh makes a new connection), `--no-ssh-share`
    * test the macOS binaries on a Mac (darwin amd64/arm64 are embedded but not tested; Gatekeeper, the ad-hoc
      signature of darwin/arm64, `uname -m` under Rosetta)
    * Windows hosts: the OpenSSH server of Windows starts `cmd.exe` (or PowerShell), not `sh`, so the start and upload

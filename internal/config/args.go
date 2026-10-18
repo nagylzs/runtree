@@ -16,6 +16,7 @@ type CLIArgs struct {
 	Check       bool   `long:"check" description:"Only check the tree file (and the included files), then exit"`
 	Schema      bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
 	RtrunnerDir string `long:"rtrunner-dir" value-name:"DIR" env:"RUNTREE_RTRUNNER_DIR" description:"A directory with rtrunner-<goos>-<goarch> binaries, to upload them to the hosts of ssh runners instead of the embedded ones"`
+	NoSSHShare  bool   `long:"no-ssh-share" description:"Do not share one ssh connection for each host (ssh:// runners)"`
 	Runner      string `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port, tcp://host:port or ssh://[user@]host[:port][/path/to/rtrunner] (default: local)"`
 
 	LogDB      string `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`

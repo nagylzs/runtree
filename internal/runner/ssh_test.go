@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -30,6 +31,8 @@ func TestMain(m *testing.M) {
 		}
 		os.Exit(0)
 	}
+	// the tests do not share ssh connections in the runtime directory of the user, see TestSSHShare
+	SetSSHShare(false)
 	os.Exit(m.Run())
 }
 
@@ -164,5 +167,39 @@ func TestSSHErrors(t *testing.T) {
 func TestSSHCommandNotChanged(t *testing.T) {
 	if !slices.Equal(sshCommand, []string{"ssh"}) {
 		t.Errorf("the ssh command is %v", sshCommand)
+	}
+}
+
+// The options of the shared ssh connections, and their directory
+func TestSSHShare(t *testing.T) {
+	a, _ := ParseAddress("ssh://root@server01:2222")
+	t.Cleanup(func() { SetSSHShare(false) })
+	run, cache := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cache)
+	for _, tc := range []struct {
+		runtimeDir, dir string
+	}{
+		{run, filepath.Join(run, "runtree")},
+		{"", filepath.Join(cache, "runtree", "ssh")},      // e.g. macOS
+		{filepath.Join(run, strings.Repeat("x", 80)), ""}, // the socket path would be too long
+	} {
+		t.Setenv("XDG_RUNTIME_DIR", tc.runtimeDir)
+		SetSSHShare(true)
+		got := strings.Join(sshOptions(a), " ")
+		want := "-T -o BatchMode=yes -p 2222"
+		if tc.dir != "" {
+			want = "-T -o BatchMode=yes -o ControlMaster=auto -o ControlPath=" + tc.dir + "/%C -o ControlPersist=60 " +
+				"-p 2222"
+			if st, err := os.Stat(tc.dir); err != nil || st.Mode().Perm() != 0700 {
+				t.Errorf("%s: %v, %v", tc.dir, st, err)
+			}
+		}
+		if got != want {
+			t.Errorf("XDG_RUNTIME_DIR=%s: got %s, want %s", tc.runtimeDir, got, want)
+		}
+	}
+	SetSSHShare(false)
+	if got := strings.Join(sshOptions(a), " "); got != "-T -o BatchMode=yes -p 2222" {
+		t.Errorf("disabled: %s", got)
 	}
 }

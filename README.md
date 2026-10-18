@@ -276,6 +276,10 @@ The `runner` property of the nodes chooses the runner:
   ones of the process, not of `ssh`. A failed login is a start error of the node, with the message of `ssh`.
   - `ssh` uses `~/.ssh/config`, the keys and `ssh-agent`, but it cannot ask for passwords or passphrases (`BatchMode`),
     and the host key must be known already (connect with `ssh` once).
+  - The processes on the same host (user, port) share one ssh connection (`ControlMaster`, the sockets are in
+    `$XDG_RUNTIME_DIR/runtree`), so only the first one logs in. It stays open for a minute after the last use (also
+    after `runtree` exits). Above the `MaxSessions` of `sshd` (10 by default), `ssh` opens another connection.
+    `--no-ssh-share` turns it off.
   - Without a path (`ssh://root@host`), `runtree` manages `rtrunner` on the host: it starts
     `~/.cache/runtree/rtrunner-<sha256>` for the platform of the host (`uname`), and uploads it first when it is not
     there. Nodes that start at the same time on the same host wait for one upload (a `runner-upload` event). The file

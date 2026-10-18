@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -23,10 +24,59 @@ const SSHHandshakeTimeout = 2 * time.Minute
 // sshOptions returns the options of ssh for the address
 func sshOptions(a Address) []string {
 	args := []string{"-T", "-o", "BatchMode=yes"}
+	if dir := controlDir(); dir != "" {
+		// one connection for each host (user, port): the first ssh starts a master in the background, the others use
+		// it, and it exits when it was not used for a minute. Above the MaxSessions of sshd (10 by default), ssh
+		// makes a new connection.
+		args = append(args, "-o", "ControlMaster=auto", "-o", "ControlPath="+filepath.Join(dir, "%C"),
+			"-o", "ControlPersist=60")
+	}
 	if a.Port != "" {
 		args = append(args, "-p", a.Port)
 	}
 	return args
+}
+
+var sshShare = struct {
+	lock     sync.Mutex
+	disabled bool
+	dir      *string // nil until it is created
+}{}
+
+// SetSSHShare enables or disables the sharing of one ssh connection for each host (it is enabled by default)
+func SetSSHShare(enabled bool) {
+	sshShare.lock.Lock()
+	defer sshShare.lock.Unlock()
+	sshShare.disabled = !enabled
+	sshShare.dir = nil
+}
+
+// maxSocketPath is the length of the longest unix socket path (sun_path is 108 bytes on Linux, 104 on macOS)
+const maxSocketPath = 103
+
+// controlDir returns the private directory of the control sockets of the shared ssh connections, or "" when they are
+// not shared: $XDG_RUNTIME_DIR/runtree, or the cache directory of the user (e.g. on macOS)
+func controlDir() string {
+	sshShare.lock.Lock()
+	defer sshShare.lock.Unlock()
+	if sshShare.disabled {
+		return ""
+	}
+	if sshShare.dir != nil {
+		return *sshShare.dir
+	}
+	dir := ""
+	if run := os.Getenv("XDG_RUNTIME_DIR"); run != "" {
+		dir = filepath.Join(run, "runtree")
+	} else if cache, err := os.UserCacheDir(); err == nil {
+		dir = filepath.Join(cache, "runtree", "ssh")
+	}
+	// %C is 40 characters
+	if dir != "" && (len(dir)+41 > maxSocketPath || os.MkdirAll(dir, 0700) != nil || os.Chmod(dir, 0700) != nil) {
+		dir = ""
+	}
+	sshShare.dir = &dir
+	return dir
 }
 
 // remoteCommand returns the command that starts rtrunner --stdio on the host, for an address with a path (ssh passes
