@@ -89,6 +89,16 @@ func (c *testClient) receive(timeout <-chan time.Time) (*message, bool) {
 
 func (c *testClient) request(method string, params interface{}) json.RawMessage {
 	c.t.Helper()
+	m := c.call(method, params)
+	if m.Error != nil {
+		c.t.Fatalf("%s: %s", method, m.Error.Message)
+	}
+	return m.Result
+}
+
+// call sends a request, and returns its response (also an error response)
+func (c *testClient) call(method string, params interface{}) *message {
+	c.t.Helper()
 	c.nextID++
 	id := json.RawMessage(strings.TrimSpace(string(mustJSON(c.t, c.nextID))))
 	if err := c.out.write(message{JSONRPC: "2.0", ID: id, Method: method, Params: mustJSON(c.t, params)}); err != nil {
@@ -101,10 +111,7 @@ func (c *testClient) request(method string, params interface{}) json.RawMessage 
 			c.t.Fatalf("no response to %s", method)
 		}
 		if string(m.ID) == string(id) && m.Method == "" {
-			if m.Error != nil {
-				c.t.Fatalf("%s: %s", method, m.Error.Message)
-			}
-			return m.Result
+			return m
 		}
 	}
 }
