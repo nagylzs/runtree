@@ -167,8 +167,10 @@ Ordered by impact:
   (done), users who run the same tree on a deploy host over ssh do not run it twice. Maybe: a `lock` property of the
   root node, so that a tree is always locked without `--lock`; `--lock-wait` to wait for the lock instead of exit 75.
 * Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
-  substitution, the operations, reset / re-run and unprovide, the events, and starting processes on an in-process
-  runner. Still thin: the scheduler loop (`findRunnable`, `max_proc`), lock/deps semantics, and the runner package.
+  substitution, the operations, reset / re-run and unprovide, the events, the scheduler (seq/par order, max_proc,
+  frozen/skipped, requires, xlocks/rlocks, with real processes too), the runners (local, TCP, ssh with a fake ssh,
+  uploads), the log database and the lock file. Still thin: the GUI (no tests), on_error sibling operations in
+  depth, and the language server's edge cases.
 * Reduce DSL friction: avoid duplicating inventory via per-node `runner`; make it easy for
   a leaf node to call an existing Ansible playbook / script.
 * Pitch: "`make -j` for ops, where every job is a terminal you can step into".
