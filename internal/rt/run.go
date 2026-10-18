@@ -29,7 +29,11 @@ func (n *Node) Start(locked bool) error {
 	n.calcClientArgs()
 	n.Starts++
 	logger := n.log()
-	logger.Info(fmt.Sprintf("starting on %s: %s", n.Calculated.Runner, quoteArgs(n.Calculated.Args)),
+	on := ""
+	if n.Calculated.Runner != runner.LocalAddress {
+		on = " on " + n.Calculated.Runner
+	}
+	logger.Info(fmt.Sprintf("starting%s: %s", on, quoteArgs(n.Calculated.Args)),
 		attrEvent, EventStart, "start", n.Starts, "runner", n.Calculated.Runner, "args", n.Calculated.Args,
 		"cwd", n.Calculated.CWD)
 	ctx := context.Background()

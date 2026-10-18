@@ -50,8 +50,8 @@ python scripts/build.py
 Alternatively, you can build this way:
 
 ```bash
-go build cmd/runtree.go -o runtree
-go build cmd/rtrunner.go -o rtrunner
+go build -o runtree ./cmd/runtree
+go build -o rtrunner ./cmd/rtrunner
 ```
 
 but in that case, version information will not be included in the binary.
@@ -258,13 +258,26 @@ GDK_SCALE=2
 
 ## Components
 
-There are two main parts: the scheduler `runtree` and the runner `rtrunner`. A single scheduler connects to one or 
-more runners. The scheduler decides what needs to be run and where. The runner receives commands from the 
-scheduler and executes them: allocates pseudo-terminals, keeps track of the process states, etc. The scheduler 
-has a GUI. The runner is a CLI program. Terminals opened by the runner can be displayed and interacted with in the
+There are two main parts: the scheduler `runtree` and the runners. The scheduler decides what needs to be run and
+where. A runner receives commands from the scheduler and executes them: allocates pseudo-terminals, keeps track of the
+process states, etc. The scheduler has a GUI. Terminals opened by the runner can be displayed and interacted with in the
 scheduler's GUI. One scheduler can use multiple runners at the same time, and one runner can run several commands in 
 parallel. The GUI is used for displaying the structure of the tree, the current state of the processes, and also to
 provide an interface where the user can intervene.
+
+The `runner` property of the nodes chooses the runner:
+
+- `local` (the default): the runner that is built into `runtree`. Nothing else needs to be started, and the processes
+  run on the machine of `runtree`, as the user who started it. To run commands on other machines, use `ssh` in the
+  commands (e.g. `args_prefix: [ssh, -t, "root@{host}"]`).
+- `host:port` or `tcp://host:port`: an `rtrunner` daemon, a CLI program that listens on a TCP port (`rtrunner -l
+  :5000`). The connection is neither authenticated nor encrypted: anyone who can connect to the port can run commands
+  as the user of `rtrunner`, so use it on trusted networks only.
+
+When `runtree` exits (the main window is closed, or it gets `SIGTERM`), it stops starting nodes, and terminates the
+processes of the local runner that are still running: `SIGINT`, then `SIGTERM` after 10 seconds and `SIGKILL` after 10
+more, and it waits until they exit. An `rtrunner` does the same when `runtree` disconnects. If `runtree` is killed
+(`SIGKILL`), the processes of the local runner get `SIGHUP` when their terminals are closed.
 
 ## Runtree and nodes
 
@@ -311,7 +324,8 @@ Every node can have the following general read-write properties. They can be spe
 - `description` - Multi-line string, with the details of the node. Displayed in the GUI, when the node is selected.
 - `cwd` - startup directory where the contained process(es) should be started. When not specified, or set to an empty 
   string, sub-nodes inherit the value of the `cwd` property from the parent node. When the inherited value is also
-  empty, then it will be set to the current directory of the `rtrunner` process that is used to start the process. 
+  empty, then it will be set to the current directory of the runner (of `runtree` for the local runner, or of the
+  `rtrunner` process).
 - `vars` - it can be a simple object containing name-value pairs. This object will be used in the subtree of the node
   for starting new processes, in particular for generating commands from the command templates (see below).
 - `def_vars` - similar to `vars`, it defines variable values only if they are not already defined and inherited from the
@@ -324,8 +338,8 @@ Every node can have the following general read-write properties. They can be spe
 - `envs` - it can be a simple object containing name-value pairs. Values must be strings. This object will be used for
   starting new processes, in particular for setting environment variables.
 - `system_envs`:
-    - `true`: Use system environment variables (e.g., inherited from the `rtrunner` process) as a base
-      environment for all subprocesses. Default value is `true`.
+    - `true`: Use the environment of the runner (of `runtree` for the local runner, or of the `rtrunner` process) as
+      a base environment for all subprocesses. Default value is `true`.
     - `false`: use an empty environment as a base for all subprocesses. Please note that in this case, you will have to
       define `PATH`, or specify every command with absolute filepath.
 - `inherit_envs`:
@@ -354,8 +368,9 @@ Every node can have the following general read-write properties. They can be spe
   to calculate the command line arguments that will be executed with `os.Exec`. The value of `args` cannot be inherited.
 - `args_prefix` - a list of strings, this will be prepended to `args` to form the command line arguments. This can be 
   inherited from the parent, and it is useful when there are lots of sub-nodes with the same argument prefixes.
-- `runner` - the name of the runner that should be used to execute this node. When not specified, then it is inherited
-  from the parent node, or `127.0.0.1:5000` (for the root node).
+- `runner` - the runner that runs the processes of the node: `local` (the runner in `runtree`), or the address of an
+  `rtrunner` (`host:port` or `tcp://host:port`), see [Components](#components). Variables can be used. When not
+  specified, then it is inherited from the parent node, or `local` (for the root node).
 - `on_error` - this determines what to do when the underlying process or a subnode fails. It is a string, or a list of
    two strings, containing the following values:
       - `failed`, `paused`, `success`: what should be the status of the node. The default is `failed`.
@@ -866,7 +881,7 @@ can directly be started by launching an underlying process (either manually, or 
 * `args` - all "run command" nodes must have this property. It is
   a list of strings (they will be escaped to arguments even if they contain special characters). The
   actual arguments will be generated from this value, using variable substitution.
-* `runner` - the `rtrunner` TCP endpoint (address:port) that will be used to start the process
+* `runner` - the runner that starts the process: `local` (the default), or the `host:port` of an `rtrunner`
 
 ### Syntax
 

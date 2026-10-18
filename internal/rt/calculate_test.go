@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nagylzs/runtree/internal/config"
+	"github.com/nagylzs/runtree/internal/runner"
 )
 
 func TestProvidesNotInherited(t *testing.T) {
@@ -61,8 +61,8 @@ tree:
           args: ["true"]
 `)
 	for id, want := range map[string]string{
-		"root":   config.DefaultRunnerAddress,
-		"local":  config.DefaultRunnerAddress,
+		"root":   runner.LocalAddress,
+		"local":  runner.LocalAddress,
 		"remote": "10.0.0.1:5001",
 		"middle": "10.0.0.1:5001",
 		"deep":   "10.0.0.1:5001",

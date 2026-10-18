@@ -52,9 +52,10 @@ var NodeProperties = []Property{
 		Description: "Arguments that are put before args, e.g. [\"ssh\", \"root@{server}\"] for all sub-nodes."},
 	{Name: "cwd", Kind: KindString, Inherited: true,
 		Description: "The directory where the processes are started. When it is empty, the current directory of " +
-			"the rtrunner process is used."},
-	{Name: "runner", Kind: KindString, Inherited: true, Default: "127.0.0.1:5000",
-		Description: "The address (host:port) of the rtrunner that runs the processes of the node."},
+			"the runner is used (runtree's own for the local runner)."},
+	{Name: "runner", Kind: KindString, Inherited: true, Default: "local",
+		Description: "The runner that runs the processes of the node: local (runtree runs them itself), or the " +
+			"address (host:port or tcp://host:port) of an rtrunner."},
 	{Name: "vars", Kind: KindVarMap, Inherited: true,
 		Description: "Variables (name: value) for this node and its subtree. Values are strings or lists of " +
 			"strings, and can be used as {name} in other properties."},
@@ -66,7 +67,8 @@ var NodeProperties = []Property{
 	{Name: "envs", Kind: KindStringMap, Inherited: true,
 		Description: "Environment variables (name: value) for the processes of this subtree."},
 	{Name: "system_envs", Kind: KindBool, Default: "true",
-		Description: "Use the environment of the rtrunner process as a base environment for the processes."},
+		Description: "Use the environment of the runner (runtree's own for the local runner) as a base environment " +
+			"for the processes."},
 	{Name: "inherit_envs", Kind: KindBool, Default: "true",
 		Description: "Inherit the environment variables (envs) of the parent node."},
 	{Name: "xlocks", Kind: KindStringList,

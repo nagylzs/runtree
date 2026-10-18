@@ -17,7 +17,7 @@ import (
 
 // handleExitSignals handles SIGINT (Ctrl+C in the terminal that started runtree) and SIGHUP (that terminal was
 // closed) the same way as closing the main window: when there are unfinished nodes, the user must confirm it.
-// SIGTERM is not handled, it still terminates runtree immediately.
+// SIGTERM is handled by runtree's main (handleTerm): it exits without the confirmation, after terminating the processes.
 func handleExitSignals() {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGHUP)

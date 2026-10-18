@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `runtree` is a process scheduler: a YAML file defines a tree of nodes (`run` / `seq` / `par`), and a GTK4 GUI
-(`runtree`) schedules the leaf commands on one or more `rtrunner` daemons, which execute them in pseudo-terminals
-and stream the ptys back so they can be shown/interacted with in the GUI. README.md is the full user-facing spec
+(`runtree`) schedules the leaf commands on runners, which execute them in pseudo-terminals and stream the ptys back
+so they can be shown/interacted with in the GUI. The default runner is embedded in `runtree` (`runner: local`); an
+`rtrunner` daemon (`runner: host:port`) runs them on another machine. README.md is the full user-facing spec
 of the YAML format, node properties, statuses, and operations — consult it before changing parser or scheduler
 semantics. TODO.md lists planned work.
 
@@ -27,18 +28,19 @@ go build -o rtrunner ./cmd/rtrunner
 go build ./... && go vet ./...    # compile/vet everything (first GTK build takes several minutes)
 ```
 
-Running locally requires a runner listening first; the default runner address is `127.0.0.1:5000`:
+The default runner is the local one, embedded in `runtree`, so no `rtrunner` is needed for local trees:
 
 ```bash
-./rtrunner -v                     # listens on :5000 (-l to change); -d for debug logs
 ./runtree -v test/test01.rt.yaml  # GUI; --max-depth, --cpu-profile, --mem-profile, --net-profile-port also available
+./rtrunner -v                     # only for runner: host:port; listens on :5000 (-l to change); -d for debug logs
 ```
 
 `test/*.rt.yaml` are hand-run example trees, not automated tests. Unit tests are `internal/rt/*_test.go`; shared helpers
 are in `internal/rt/helpers_test.go` (`loadTestTree` builds a tree from YAML with the scheduler disabled, `setStatus`
-sets a node status; `startTestRunner` runs an in-process runner on a free port and `ptyTerminalHelper` attaches to the
-ptys, for tests that start real processes; `killNode` stops them). Run them with `go test ./...`. CI (`.github/workflows/build.yml`) runs the tests and then
-`scripts/build.py` on `main`. Coverage is still small: add tests for new and changed code.
+sets a node status; `ptyTerminalHelper` attaches to the ptys, for tests that start real processes, on the local runner
+by default, or on `startTestRunner`, an in-process TCP runner on a free port; `killNode` stops them). Run them with
+`go test ./...`. CI (`.github/workflows/build.yml`) runs the tests and then `scripts/build.py` on `main`. Coverage is
+still small: add tests for new and changed code.
 
 Dark GTK theme is the design target: `GTK_THEME=Adwaita:dark`.
 
@@ -48,15 +50,19 @@ Three binaries; `runtree` and `rtrunner` share the runner protocol:
 
 - `cmd/rtrunner` → `internal/runner` (server side). Accepts TCP connections; each connection becomes one
   `Server` that runs exactly one command in a pty (`server_unix.go` via creack/pty, `server_windows.go` via conpty).
+  The same `Server` is the local runner in `runtree` (`local.go`): each connection is a socket pair, the server is a
+  goroutine. When `runtree` exits (`cmd/runtree/exit.go`, also on SIGTERM), it stops the scheduler and terminates the
+  local processes like `rtrunner` does when its client is gone (`runner.StopLocal`).
 - `cmd/runtree-lsp` → `internal/lsp`: language server for editors (stdio JSON-RPC, no dependencies, no GTK/cgo). It
   loads the trees with `rt` (open documents through `Sources.Overlay`) and publishes `ParseError`s as diagnostics;
   `editors/vscode/extension.js` starts it.
 - `cmd/runtree` → `internal/rt` (tree model + scheduler) + `internal/gtkui` (GTK4 GUI). Each started node opens its
-  own `runner.Client` TCP connection.
+  own `runner.Client` connection; `runner.ParseAddress` parses the `runner` property (`local`, `host:port`,
+  `tcp://host:port`). TODO.md "Runners" has the plan for `ssh://` runners.
 
 ### Runner protocol (`internal/runner`)
 After a version handshake (`proto.go`, `runner.Version` must match on both ends — bump it when changing the wire
-format), the client sends `MsgStartPty` and the TCP connection is upgraded to an `smux` session with two streams:
+format), the client sends `MsgStartPty` and the connection is upgraded to an `smux` session with two streams:
 a raw **pty stream** and a **command stream** (msgpack-encoded messages: resize, signal, proc-state, error).
 On the client side the pty stream is re-exposed as a local Unix domain socket (`Client.PtyPath`); the GUI attaches a
 VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `onNotify` callback.

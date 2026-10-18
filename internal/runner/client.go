@@ -36,14 +36,31 @@ type Client struct {
 	output    io.Writer // gets a copy of the terminal output, see SetOutput
 }
 
+// NewClient connects to a runner (see ParseAddress)
 func NewClient(ctx context.Context, address string, logger *slog.Logger, onError func(Error)) (*Client, error) {
-	conn, err := net.Dial("tcp", address)
+	a, err := ParseAddress(address)
 	if err != nil {
 		return nil, err
 	}
-
-	err = negotiateVersion(ctx, conn)
+	var conn net.Conn
+	switch a.Network {
+	case NetworkLocal:
+		conn, err = local.dial()
+	default:
+		var d net.Dialer
+		conn, err = d.DialContext(ctx, "tcp", a.Host)
+	}
 	if err != nil {
+		return nil, err
+	}
+	return newClient(ctx, conn, logger, onError)
+}
+
+// newClient negotiates the protocol version on conn, and closes it when that fails
+func newClient(ctx context.Context, conn net.Conn, logger *slog.Logger, onError func(Error)) (*Client, error) {
+	err := negotiateVersion(ctx, conn)
+	if err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
 

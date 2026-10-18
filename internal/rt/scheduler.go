@@ -16,10 +16,18 @@ const HZ = time.Second
 // Then it stops until it is awakened by a Schedule() call, or HZ elapses.
 func (t *Tree) Run() {
 	t.logger.Info("scheduler started", attrEvent, EventSchedulerStarted, "nodes", len(t.Nodes))
-	for !signal.IsStopping() {
+	for !signal.IsStopping() && !t.stopped.Load() {
 		t.Awake()
 		time.Sleep(HZ)
 	}
+}
+
+// StopScheduler stops the scheduler, it does not start nodes anymore (e.g. when runtree exits). A schedule cycle in
+// progress is finished first. It must be called in unlocked state.
+func (t *Tree) StopScheduler() {
+	t.Lock("StopScheduler")
+	defer t.UnLock()
+	t.stopped.Store(true)
 }
 
 // Awake can be called manually to request a new schedule cycle.
@@ -44,6 +52,9 @@ func (t *Tree) schedule() {
 
 	t.Lock("schedule")
 	defer t.UnLock()
+	if t.stopped.Load() {
+		return
+	}
 
 	// commit to total elapsed
 	for _, node := range t.Nodes {

@@ -48,6 +48,18 @@ func (r *testRecorder) get(key string) (string, bool) {
 	return b.String(), true
 }
 
+// check checks the output of a start ("id start"), it may arrive a bit later than the exit
+func (r *testRecorder) check(t *testing.T, key, want string) {
+	t.Helper()
+	var out string
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if out, _ = r.get(key); out == want {
+			return
+		}
+	}
+	t.Errorf("the output of %s is %q, want %q", key, out, want)
+}
+
 const outputTree = `
 tree:
   id: root
@@ -92,17 +104,7 @@ func TestOutputRecorder(t *testing.T) {
 		if hello.Starts != start {
 			t.Errorf("starts: %d, want %d", hello.Starts, start)
 		}
-		// the output may arrive a bit later than the exit
-		key := fmt.Sprintf("hello %d", start)
-		var out string
-		for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-			if out, _ = recorder.get(key); strings.Contains(out, "world") {
-				break
-			}
-		}
-		if out != "hello\r\nworld\r\n" {
-			t.Errorf("the output of %s is %q", key, out)
-		}
+		recorder.check(t, fmt.Sprintf("hello %d", start), "hello\r\nworld\r\n")
 	}
 	// the start is in the events
 	var starts []string

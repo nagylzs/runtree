@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/nagylzs/runtree/internal/config"
+	"github.com/nagylzs/runtree/internal/runner"
 	"github.com/nagylzs/set"
 )
 
@@ -206,7 +206,10 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 			return false, err
 		}
 		if c.Runner == "" {
-			c.Runner = config.DefaultRunnerAddress
+			c.Runner = runner.LocalAddress
+		}
+		if _, err := runner.ParseAddress(c.Runner); err != nil {
+			return false, propErrorf("runner", "%s", err)
 		}
 	}
 	if n.Parsed.XLocks == nil && n.Parent != nil {

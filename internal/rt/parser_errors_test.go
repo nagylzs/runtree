@@ -112,6 +112,8 @@ func TestPropertyValueErrors(t *testing.T) {
 		{"on_error", "pausd", `invalid on_error: "pausd" (expected a status`, 0},
 		{"success_exit_codes", "[0, 300]", "exit codes are integers between 0 and 255", 4},
 		{"type", "loop", `invalid type: "loop"`, 0},
+		{"runner", `"ssh://root@host"`, `unknown runner "ssh://root@host": the runner is local, host:port or`, 0},
+		{"runner", "server01", `invalid runner "server01"`, 0},
 	} {
 		dir := writeFiles(t, map[string]string{"tree.yaml": "tree:\n  seq:\n    - title: job\n      " +
 			tc.property + ": " + tc.value + "\n      args: [\"true\"]\n"})

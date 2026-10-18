@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nagylzs/runtree/internal/events"
@@ -22,6 +23,7 @@ type Tree struct {
 	events    *EventLog
 	awaker    *events.Debouncer[int]
 	unblocker *events.Debouncer[int]
+	stopped   atomic.Bool // the scheduler is stopped, see StopScheduler
 
 	nodeListenerLock sync.Mutex
 	nodeListeners    []chan *Node // node level events, when node status changes

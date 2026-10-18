@@ -68,7 +68,7 @@
           ]
         },
         "cwd": {
-          "description": "The directory where the processes are started. When it is empty, the current directory of the rtrunner process is used. Inherited from the parent node.",
+          "description": "The directory where the processes are started. When it is empty, the current directory of the runner is used (runtree's own for the local runner). Inherited from the parent node.",
           "type": "string"
         },
         "def_vars": {
@@ -317,7 +317,7 @@
           "type": "array"
         },
         "runner": {
-          "description": "The address (host:port) of the rtrunner that runs the processes of the node. Inherited from the parent node. Default: 127.0.0.1:5000.",
+          "description": "The runner that runs the processes of the node: local (runtree runs them itself), or the address (host:port or tcp://host:port) of an rtrunner. Inherited from the parent node. Default: local.",
           "type": "string"
         },
         "seq": {
@@ -358,7 +358,7 @@
           "type": "array"
         },
         "system_envs": {
-          "description": "Use the environment of the rtrunner process as a base environment for the processes. Default: true.",
+          "description": "Use the environment of the runner (runtree's own for the local runner) as a base environment for the processes. Default: true.",
           "enum": [
             true,
             false,

@@ -15,6 +15,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/nagylzs/runtree/internal/config"
 	"github.com/nagylzs/runtree/internal/gtkui"
+	"github.com/nagylzs/runtree/internal/logdb"
 	"github.com/nagylzs/runtree/internal/logging"
 	"github.com/nagylzs/runtree/internal/rt"
 	"github.com/nagylzs/runtree/internal/version"
@@ -149,8 +150,9 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		return nil
 	}
 
+	var db *logdb.DB
 	if args.LogDB != "" {
-		db, err := openLogDB(args.LogDB, fullFilePath, runTree)
+		db, err = openLogDB(args.LogDB, fullFilePath, runTree)
 		if err != nil {
 			return fmt.Errorf("could not open the log database: %w", err)
 		}
@@ -160,6 +162,7 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 			}
 		}()
 	}
+	handleTerm(runTree, db)
 
 	err = gtkui.InitApplication(runTree, warnings)
 	if err != nil {
@@ -167,6 +170,7 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 	}
 
 	exitCode = gtkui.RunApplication()
+	stopRunning(runTree)
 	return nil
 }
 

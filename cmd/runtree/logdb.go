@@ -6,9 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/signal"
 	"os/user"
-	"syscall"
 
 	"github.com/nagylzs/runtree/internal/config"
 	"github.com/nagylzs/runtree/internal/logdb"
@@ -50,23 +48,7 @@ func openLogDB(path string, treeFile string, tree *rt.Tree) (*logdb.DB, error) {
 	tree.SetLogHandler(logging.Multi(slog.Default().Handler(), db.Handler()))
 	tree.SetOutputRecorder(outputRecorder{db})
 	slog.Info("saving the log", "file", path, "run", db.RunID())
-	closeOnTerm(db)
 	return db, nil
-}
-
-// closeOnTerm closes the log database when runtree is terminated (SIGTERM ends runtree right away, without the close
-// confirmation of the GUI), so that the last records and the end of the run are saved too
-func closeOnTerm(db *logdb.DB) {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM)
-	go func() {
-		<-ch
-		slog.Warn("terminated, closing the log database")
-		if err := db.Close(); err != nil {
-			slog.Error("could not close the log database", "error", err)
-		}
-		os.Exit(128 + int(syscall.SIGTERM))
-	}()
 }
 
 type outputRecorder struct {

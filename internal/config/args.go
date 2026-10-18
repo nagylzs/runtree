@@ -25,7 +25,6 @@ type CLIArgs struct {
 }
 
 const DefaultListenAddress = ":5000"
-const DefaultRunnerAddress = "127.0.0.1:5000"
 
 const DefaultMaxDepth = 30
 

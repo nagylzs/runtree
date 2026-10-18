@@ -17,7 +17,7 @@ func TestGlibInfoIsDebug(t *testing.T) {
 		{slog.LevelDebug, []string{"level=INFO msg=runtree", "level=DEBUG msg=vulkan glib_domain=Gdk"}, nil},
 	} {
 		var buf bytes.Buffer
-		l := slog.New(glibHandler{slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: tc.level})})
+		l := slog.New(glibHandler(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: tc.level})))
 		l.Info("runtree")
 		l.Info("vulkan", "glib_domain", "Gdk")
 		l.Warn("warning", "glib_domain", "Gtk") // only Info is lowered
@@ -31,6 +31,30 @@ func TestGlibInfoIsDebug(t *testing.T) {
 			if strings.Contains(out, w) {
 				t.Errorf("%s: %q is in\n%s", tc.level, w, out)
 			}
+		}
+	}
+}
+
+func TestInfoAsDebug(t *testing.T) {
+	for level, want := range map[slog.Level]string{
+		slog.LevelInfo:  "level=WARN msg=terminating runner=local\n",
+		slog.LevelDebug: "level=DEBUG msg=started runner=local pid=7\nlevel=WARN msg=terminating runner=local\n",
+	} {
+		var buf bytes.Buffer
+		h := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+			Level: level,
+			ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.TimeKey {
+					return slog.Attr{}
+				}
+				return a
+			},
+		})
+		l := slog.New(InfoAsDebug(h)).With("runner", "local")
+		l.Info("started", "pid", 7)
+		l.Warn("terminating")
+		if got := buf.String(); got != want {
+			t.Errorf("%s: got\n%swant\n%s", level, got, want)
 		}
 	}
 }

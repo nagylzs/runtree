@@ -53,18 +53,19 @@ type Server struct {
 
 	exited    chan struct{} // closed when the process has exited
 	terminate sync.Once
+
+	startLock   sync.Mutex // guards ptyRunner (set when the process started) and terminating, for Terminate
+	terminating bool       // Terminate was called
 }
 
 // RunNewServer creates a new server for the given connection, and runs it until the client disconnects.
 // Should be called as a goroutine.
 func RunNewServer(ctx context.Context, conn io.ReadWriteCloser, logger *slog.Logger) error {
-	logger.Debug("negotiating the protocol version")
-	err := negotiateVersion(ctx, conn)
-	if err != nil {
-		return err
-	}
+	return newServer(conn, logger).Run(ctx)
+}
 
-	srv := &Server{
+func newServer(conn io.ReadWriteCloser, logger *slog.Logger) *Server {
+	return &Server{
 		ptyRunner: nil,
 		conn:      conn,
 		ptyStream: nil,
@@ -74,7 +75,47 @@ func RunNewServer(ctx context.Context, conn io.ReadWriteCloser, logger *slog.Log
 		stop:      &atomic.Bool{},
 		exited:    make(chan struct{}),
 	}
-	return srv.Serve(ctx)
+}
+
+// Run serves the connection until the client disconnects
+func (s *Server) Run(ctx context.Context) error {
+	s.logger.Debug("negotiating the protocol version")
+	err := negotiateVersion(ctx, s.conn)
+	if err != nil {
+		return err
+	}
+	return s.Serve(ctx)
+}
+
+// processRunning tells if the process of the server has started and not exited yet
+func (s *Server) processRunning() bool {
+	s.startLock.Lock()
+	started := s.ptyRunner != nil
+	s.startLock.Unlock()
+	if !started {
+		return false
+	}
+	select {
+	case <-s.exited:
+		return false
+	default:
+		return true
+	}
+}
+
+// Terminate terminates the process of the server, as when its client is gone: SIGINT, then SIGTERM and SIGKILL after
+// the grace periods. When the process is not started yet, it is terminated as soon as it starts. The client gets its
+// exit status as usual.
+func (s *Server) Terminate() {
+	s.startLock.Lock()
+	s.terminating = true
+	started := s.ptyRunner != nil
+	s.startLock.Unlock()
+	if started {
+		s.terminate.Do(func() {
+			go s.terminateProcess()
+		})
+	}
 }
 
 func (s *Server) Serve(ctx context.Context) error {
@@ -141,7 +182,10 @@ func (s *Server) ServePty(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.startLock.Lock()
 	s.ptyRunner = ptyRunner
+	terminating := s.terminating
+	s.startLock.Unlock()
 	defer func() {
 		err := ptyRunner.Close()
 		if err != nil {
@@ -150,6 +194,9 @@ func (s *Server) ServePty(ctx context.Context) error {
 	}()
 
 	s.logger.Info("started", "pid", ptyRunner.Pid(), "args", ca.Args)
+	if terminating {
+		s.Terminate()
+	}
 
 	s.stop.Store(false)
 	s.logError(s.sendProcState(err))

@@ -120,7 +120,7 @@ func negotiateVersion(ctx context.Context, stream io.ReadWriter) error {
 		return err
 	}
 	if Version != remoteVersion {
-		return fmt.Errorf("incompatible versions, local=%s remote=%s", remoteVersion, Version)
+		return fmt.Errorf("incompatible versions, local=%s remote=%s", Version, remoteVersion)
 	}
 	return nil
 }

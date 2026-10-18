@@ -12,7 +12,6 @@
   very low priority, you can do it on its parent...
 * command line switch to exit app when the root node succeeds or fails
 * display CWD in properties
-* stop scheduler when GUI is closed
 * runner sessions that survive the GUI: when the client disconnects (GUI closed or crashed, network error), keep
   the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
   runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol
@@ -45,6 +44,34 @@ attributes. Terminal input is never logged (passwords). A handler sends every re
    written in batches by a goroutine; `--show-runs`, `--show-events`.
 4. Done: the terminal output of the nodes is saved in the same database, `--show-output`. Maybe later: show the
    previous runs and their output in the GUI; delete old runs (`--prune-log`?); compress the output.
+
+# Runners (plan, 2026-10-18)
+
+The `runner` property chooses where the processes of the nodes run:
+
+| `runner:`                           | runner                                                     |
+|-------------------------------------|------------------------------------------------------------|
+| omitted, or `local`                 | the runner embedded in runtree (the default)               |
+| `host:port`, `tcp://host:port`      | an `rtrunner` daemon (unauthenticated, for trusted networks) |
+| `ssh://user@host:port`              | `ssh -T user@host rtrunner --stdio`, a runner per run node |
+
+All of them speak the same protocol (version handshake, then smux with a pty and a command stream), and one
+connection still runs exactly one command, so a runner per run node needs no protocol change.
+
+1. Done: the embedded runner, the default: each client gets one end of a socket pair, a goroutine serves the other end.
+   No `rtrunner` to start, no open port. When runtree exits (also on SIGTERM), it stops the scheduler, terminates the
+   local processes as `rtrunner` does when its client is gone (SIGINT, SIGTERM, SIGKILL), and waits for them.
+2. `rtrunner --stdio` serves one connection on stdin/stdout, and the `ssh://` runner starts it with the system `ssh`
+   (`~/.ssh/config`, keys, agent, ProxyJump). A failed ssh connection is a start failure, not exit code 255; `envs`
+   and `cwd` apply on the remote host; signals reach the remote process; the exit events have the remote exit code
+   and CPU times.
+3. Share one SSH connection per host (`ControlMaster`/`ControlPath`/`ControlPersist`; note sshd's `MaxSessions`,
+   10 by default). Upload a matching `rtrunner` to the host on first use (`uname -m`, a versioned path under
+   `~/.cache/runtree`), so nothing needs to be deployed.
+4. Later: runner sessions that survive the GUI (below) with a runner per node: when the connection drops, the
+   runner keeps the process and a socket, and `rtrunner --attach ID` reattaches (like tmux/dtach). For the local
+   runner it needs a detached runner process instead of the embedded one. Headless mode (below) can use the
+   embedded runner, so a tree in CI is a single command.
 
 # GUI layout and navigation (from the user, 2026-10-17)
 
@@ -117,9 +144,7 @@ pause-on-error -> manual fix -> resume automation, remote execution. No mainstre
 
 Ordered by impact:
 
-* SSH transport for runners, instead of the unauthenticated TCP daemon on :5000
-  (e.g. `ssh host rtrunner --stdio`, or use SSH's own pty). Removes the deploy step on
-  target hosts and the main security objection.
+* SSH transport for runners, instead of the unauthenticated TCP daemon on :5000: see "Runners" above.
 * TUI frontend (non-GTK), so runtree works headless, over SSH, and on macOS/Windows.
   GTK4+VTE+cgo is the biggest install/build barrier.
 * Headless mode: exit with root node's status (already listed above), so it can double as a CI step.
