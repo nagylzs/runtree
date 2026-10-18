@@ -334,9 +334,10 @@ nodes that must run on the machine of `runtree` (e.g. waiting for a host with `p
 
 When `runtree` exits (the main window is closed, or it gets `SIGTERM`), it stops starting nodes, and terminates the
 processes of the local runner that are still running: `SIGINT`, then `SIGTERM` after 10 seconds and `SIGKILL` after 10
-more, and it waits until they exit. An `rtrunner` (also the one started by `ssh`) does the same when `runtree`
-disconnects, but `runtree` does not wait for it, so those exits are not logged. If `runtree` is killed (`SIGKILL`), the
-processes of the local runner get `SIGHUP` when their terminals are closed.
+more, and it waits until they exit. The processes of `ssh://` and TCP runners get the same signals through their
+connections (the `rtrunner` terminates the rest of their process group when `runtree` disconnects), so all the exits are
+logged. If `runtree` is killed (`SIGKILL`), the processes of the local runner get `SIGHUP` when their terminals are
+closed, and the `rtrunner`s terminate theirs when the connection is gone.
 
 ## Runtree and nodes
 

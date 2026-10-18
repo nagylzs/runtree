@@ -413,7 +413,7 @@ func (s *Server) processSignalRequest() error {
 		if s.ptyRunner == nil || s.ptyRunner.Pid() == 0 {
 			e = &Error{
 				Code:    ErrorNoProcess,
-				Message: fmt.Sprintf("No process is running, pid=%d", s.ptyRunner.Pid()),
+				Message: "No process is running",
 			}
 			break
 		}

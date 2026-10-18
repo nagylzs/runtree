@@ -67,9 +67,8 @@ connection still runs exactly one command, so a runner per run node needs no pro
    `ssh` (`~/.ssh/config`, keys, agent, ProxyJump). A failed ssh connection is a start failure, not exit code 255;
    `envs` and `cwd` apply on the remote host; signals reach the remote process; the exit events have the remote exit
    code and CPU times. The nodes connect in the background (`Node.Start`, "Running, connecting" in the GUI).
-   Still to do: when runtree exits, terminate the processes of the ssh and TCP runners through the protocol and wait
-   for them (like the local ones), so their exits are logged too; now the rtrunner terminates them when runtree is
-   gone, without logging.
+   Done: when runtree exits, the processes of the ssh and TCP runners get SIGINT, SIGTERM, SIGKILL through the
+   protocol, and runtree waits for them (`Tree.TerminateRemote`), so their exits are logged too.
 3. Done: managed ssh runners (`ssh://host` without a path): runtree uploads its own `rtrunner` for the platform of
    the host (`uname`) to `~/.cache/runtree/rtrunner-<sha256>`, once for parallel starts, checked by its hash before
    it is renamed; the binaries are embedded (`build.py`, `-tags rtrunners`), `--rtrunner-dir` overrides them.

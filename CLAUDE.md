@@ -52,7 +52,8 @@ Three binaries; `runtree` and `rtrunner` share the runner protocol:
   `Server` that runs exactly one command in a pty (`server_unix.go` via creack/pty, `server_windows.go` via conpty).
   The same `Server` is the local runner in `runtree` (`local.go`): each connection is a socket pair, the server is a
   goroutine. When `runtree` exits (`cmd/runtree/exit.go`, also on SIGTERM), it stops the scheduler and terminates the
-  local processes like `rtrunner` does when its client is gone (`runner.StopLocal`). `rtrunner --stdio` serves one
+  local processes like `rtrunner` does when its client is gone (`runner.StopLocal`), and the remote ones through their
+  connections (`Tree.TerminateRemote`). `rtrunner --stdio` serves one
   connection on stdin/stdout: the `ssh://` runner (`ssh.go`) starts it with the system `ssh` for each connection.
   Without a path the ssh runner is managed (`upload.go`, `binaries.go`): a start script runs the uploaded
   `rtrunner-<sha256>` for the platform of the host, or runtree uploads it first. The binaries are embedded only with
