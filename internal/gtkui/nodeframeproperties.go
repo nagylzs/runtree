@@ -47,6 +47,9 @@ func (p *NodeFrameProperites) buildGui() {
 
 	p.addStringProp("Runner", "Runner", "The (possibly remote) runner that runs the process", 0, 12)
 	p.nextRow()
+	p.addStringProp("Cwd", "Cwd",
+		"The working directory of the process on the runner, only displayed when cwd is set", 0, 12)
+	p.nextRow()
 	p.addStringProp("CmdLine", "CmdLine", "Shell-escaped command line", 0, 12)
 	p.nextRow()
 
@@ -142,6 +145,7 @@ func (p *NodeFrameProperites) updateGUI() {
 	}
 
 	setStringProp("Runner", node.Calculated.Runner)
+	setStringProp("Cwd", node.Calculated.CWD)
 	setStringProp("CmdLine", buildCommandLine(node.Calculated.Args))
 
 	setStringProp("MaxProc", strconv.Itoa(node.MaxProc))
