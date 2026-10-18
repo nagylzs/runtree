@@ -84,6 +84,9 @@ func NavModeName(navMode NavMode) string {
 	return rt.StatusName(NavModeToStatus(navMode))
 }
 
+// levelIndent is the indentation of a level of the tree in the navigator
+const levelIndent = 20
+
 // NodeNavigator displays RunTree
 type NodeNavigator struct {
 	*gtk.Fixed
@@ -213,8 +216,22 @@ func (t *NodeNavigator) layoutItems() {
 		t.scrollTo = nil
 		// after the moved node views are allocated
 		glib.IdleAdd(func() {
-			t.viewport.ScrollTo(nw, nil)
+			t.scrollToView(nw)
 		})
+	}
+}
+
+// scrollToView scrolls the navigator to the node view: vertically to its middle when it is not visible as a whole,
+// and horizontally to its left edge when that is not visible. (Viewport.ScrollTo would scroll the views, that are
+// wider than the navigator, to their right end, where they show nothing.)
+func (t *NodeNavigator) scrollToView(nw *TreeNodeView) {
+	v := t.viewport.VAdjustment()
+	if nw.y < v.Value() || nw.y+nw.height > v.Value()+v.PageSize() {
+		v.SetValue(nw.y + nw.height/2 - v.PageSize()/2) // it is clamped to the range
+	}
+	h := t.viewport.HAdjustment()
+	if nw.x < h.Value() || nw.x > h.Value()+h.PageSize()-levelIndent {
+		h.SetValue(nw.x - levelIndent)
 	}
 }
 
@@ -284,7 +301,6 @@ func (t *NodeNavigator) layoutTree() {
 	// TODO: max width?
 	tw := 1024
 
-	var ident float64 = 20
 	var step float64 = 30
 	var y float64 = 0
 	for _, nodeView := range t.nodeViews {
@@ -298,7 +314,7 @@ func (t *NodeNavigator) layoutTree() {
 		if !nodeVisible {
 			continue
 		}
-		x := float64(node.Calculated.Level) * ident
+		x := float64(node.Calculated.Level) * levelIndent
 		step = t.place(nodeView, x, y, tw, added)
 		y += step
 	}
