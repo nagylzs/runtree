@@ -44,6 +44,7 @@ func activateApplication() {
 	window.SetDefaultSize(1024, 768)
 	window.Maximize()
 	window.SetVisible(true)
+	logSlowFrames(window)
 	// Nasty!
 	Application.window = window
 	window.ConnectCloseRequest(Application.onCloseRequest)

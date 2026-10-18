@@ -28,9 +28,22 @@ type TreeNodeView struct {
 	typeLabel    *gtk.Label
 	statusLabel  *gtk.Label
 	elapsedLabel *gtk.Label
-	prevStatus   rt.Status
+	shown        nodeViewState // what the widgets show, see Update
 	Node         *rt.Node
 	Selected     bool
+
+	// the position and the size in the navigator (see NodeNavigator.place)
+	x, y, width, height float64
+}
+
+// nodeViewState is what a TreeNodeView shows. Update changes only the widgets whose part of it changed: the navigator
+// updates every node every second, and some changes restyle or redraw a widget even when the result is the same
+// (removing and adding its CSS class, resetting its state flags); over a remote X server or VNC, every redraw goes over
+// the network.
+type nodeViewState struct {
+	title, status, statusClass, tooltip, typeName string
+	elapsed                                       string // empty: hidden
+	selected, inList, hasChild, expanded          bool
 }
 
 func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
@@ -163,9 +176,7 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	expanded := node.Expanded
 	nProc := node.NProc
 	maxProc := node.MaxProc
-	prevStatus := nw.prevStatus
 	selected := nw.Selected
-	nw.prevStatus = node.Status
 	failed := 0
 	if hasChild && !rt.StatusFinished(status) {
 		failed = node.FailedRunNodes(true)
@@ -175,7 +186,6 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 		node.RUnlockTree()
 	}
 
-	nw.titleLabel.SetText(displayLabel)
 	sn := rt.StatusName(status)
 	icons := ""
 	if hasTerm {
@@ -202,50 +212,82 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	if icons != "" {
 		sn = icons + " " + sn
 	}
-	nw.statusLabel.SetText(sn)
-	nw.statusLabel.RemoveCSSClass("status-" + strings.ToLower(rt.StatusName(prevStatus)))
-	nw.statusLabel.AddCSSClass("status-" + strings.ToLower(rt.StatusName(status)))
-	nw.statusLabel.SetTooltipText(rt.StatusDescription(status))
-
-	nw.typeLabel.SetText(rt.TypeName(typ))
-
-	if selected {
-		nw.Box.SetStateFlags(gtk.StateFlagChecked, true)
-	} else {
-		nw.Box.SetStateFlags(gtk.StateFlagNormal, true)
+	st := nodeViewState{
+		title:       displayLabel,
+		status:      sn,
+		statusClass: "status-" + strings.ToLower(rt.StatusName(status)),
+		tooltip:     rt.StatusDescription(status),
+		typeName:    rt.TypeName(typ),
+		selected:    selected,
+		inList:      nw.treeView.Mode() != NavModeTree,
+		hasChild:    hasChild,
+		expanded:    expanded,
 	}
-
 	elapsed, totalElapsed := node.CalcElapsed()
-	el := nw.elapsedLabel
-	if elapsed == time.Duration(0) {
-		el.SetVisible(false)
-	} else if (elapsed - totalElapsed).Abs() < time.Second {
-		el.SetText(fmtDuration(elapsed))
-		el.SetVisible(true)
-	} else {
-		el.SetText(fmt.Sprintf("%s tot=%s  ×%.1f",
-			fmtDuration(elapsed), fmtDuration(totalElapsed), float64(totalElapsed)/float64(elapsed)))
-		el.SetVisible(true)
+	if elapsed != time.Duration(0) {
+		if (elapsed - totalElapsed).Abs() < time.Second {
+			st.elapsed = fmtDuration(elapsed)
+		} else {
+			st.elapsed = fmt.Sprintf("%s tot=%s  ×%.1f",
+				fmtDuration(elapsed), fmtDuration(totalElapsed), float64(totalElapsed)/float64(elapsed))
+		}
 	}
+	nw.show(st)
+}
 
-	inList := nw.treeView.Mode() != NavModeTree
-	nw.expander.SetVisible(!inList)
-	nw.showInTree.SetVisible(inList)
-	nw.expander.SetSensitive(hasChild)
+// show changes the widgets whose part of the state changed (a zero shown state shows everything)
+func (nw *TreeNodeView) show(st nodeViewState) {
+	old, first := nw.shown, nw.shown == nodeViewState{}
+	nw.shown = st
+	if first || st.title != old.title {
+		nw.titleLabel.SetText(st.title)
+	}
+	if first || st.status != old.status {
+		nw.statusLabel.SetText(st.status)
+	}
+	if first || st.statusClass != old.statusClass {
+		if old.statusClass != "" {
+			nw.statusLabel.RemoveCSSClass(old.statusClass)
+		}
+		nw.statusLabel.AddCSSClass(st.statusClass)
+	}
+	if first || st.tooltip != old.tooltip {
+		nw.statusLabel.SetTooltipText(st.tooltip)
+	}
+	if first || st.typeName != old.typeName {
+		nw.typeLabel.SetText(st.typeName)
+	}
+	if first || st.selected != old.selected {
+		if st.selected {
+			nw.Box.SetStateFlags(gtk.StateFlagChecked, false)
+		} else {
+			nw.Box.UnsetStateFlags(gtk.StateFlagChecked)
+		}
+	}
+	if first || st.elapsed != old.elapsed {
+		nw.elapsedLabel.SetText(st.elapsed)
+		nw.elapsedLabel.SetVisible(st.elapsed != "")
+	}
+	if first || st.inList != old.inList {
+		nw.expander.SetVisible(!st.inList)
+		nw.showInTree.SetVisible(st.inList)
+	}
+	if first || st.hasChild != old.hasChild {
+		nw.expander.SetSensitive(st.hasChild)
+	}
 	// Expanded is also changed by the scheduler (expand_on_active, collapse_on_finished) and by ShowNode
-	if nw.expander.Active() != expanded {
+	if nw.expander.Active() != st.expanded {
 		nw.expander.HandlerBlock(nw.toggled)
-		nw.expander.SetActive(expanded)
+		nw.expander.SetActive(st.expanded)
 		nw.expander.HandlerUnblock(nw.toggled)
 	}
-	if hasChild {
-		if expanded {
+	if st.hasChild && (first || st.expanded != old.expanded) {
+		if st.expanded {
 			nw.icon.SetFromIconName(IconExpanded)
 		} else {
 			nw.icon.SetFromIconName(IconCollapsed)
 		}
 	}
-
 }
 
 func (nw *TreeNodeView) afterClicked(nPress int, x, y float64) {

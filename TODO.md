@@ -118,6 +118,11 @@ connection still runs exactly one command, so a runner per run node needs no pro
   make the right side wider than the window (they could wrap, e.g. in a `gtk.FlowBox`).
 * Done: the path in the header wraps, its nodes are links that show the node in the tree; the lists of the navigator
   have a "show in the tree" button; the Log tab has an End button.
+* the GUI over VNC (2026-10-18): GTK's GL renderer without a GPU sends the whole window on every frame (18.5 MB/s
+  idle, 195 MB/s with a streaming terminal, measured through a proxy); `GSK_RENDERER=cairo` sends the changed parts
+  (docs/getting-started.md). The node rows and the header call GTK only when something changed. Next: make cairo the
+  default when `GSK_RENDERER` is not set (after a test on the VNC server); maybe a `gtk.ListView` for the navigator,
+  so that a big tree has widgets only for the rows on the screen.
 
 # Appearance (from the user, 2026-10-17)
 

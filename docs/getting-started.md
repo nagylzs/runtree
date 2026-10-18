@@ -126,6 +126,28 @@ GTK_THEME=Adwaita:dark runtree tree.rt.yaml
 It works with light themes too, but some parts may still look dark. On a HiDPI screen, `GDK_SCALE=2` doubles the
 size. The application id is `com.github.nagylzs.runtree.gui`.
 
+## A remote or virtual X server
+
+On an X server without a GPU (VNC, Xvfb, `ssh -X`), start runtree with GTK's cairo renderer:
+
+```bash
+GSK_RENDERER=cairo runtree tree.rt.yaml
+```
+
+GTK draws with OpenGL by default; without a GPU it is software OpenGL, which sends the whole window to the X server on
+every change (6.4 MB on a 1600×1000 screen, and it changes every second while nodes run). The cairo renderer sends only
+the changed parts. Measured on an X server without shared memory (like one over the network), with a tree of 586
+nodes:
+
+| | default | `GSK_RENDERER=cairo` |
+|---|---|---|
+| idle, while nodes run | 18.5 MB/s | almost nothing |
+| switching to the Tree view | 50 MB, then 25 MB/s | 6 MB |
+| a terminal with streaming output | 195 MB/s | 4 MB/s |
+
+On a local desktop with a GPU the default is fine. With `-d`, runtree logs the frames of the window that take more than
+100 ms ("slow frame").
+
 ## Next steps
 
 - [Writing tree files](tree-files.md): the structure of the tree

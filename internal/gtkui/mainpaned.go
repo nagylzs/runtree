@@ -173,11 +173,11 @@ func (m *MainPaned) updateNavModeButtons() {
 
 	for nm, tb := range m.navModeButtons {
 		lbl := NavModeName(nm)
-		cnt, ok := counts[nm]
-		if !ok {
-			tb.SetLabel(lbl)
-			continue
+		if cnt, ok := counts[nm]; ok {
+			lbl = fmt.Sprintf("%s (%d)", lbl, cnt)
 		}
-		tb.SetLabel(fmt.Sprintf("%s (%d)", lbl, cnt))
+		if tb.Label() != lbl { // a new label is laid out and drawn again
+			tb.SetLabel(lbl)
+		}
 	}
 }

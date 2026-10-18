@@ -28,7 +28,8 @@ type NodeFrameHeader struct {
 	opButtonsRecursive    map[rt.NodeOp]*gtk.Button
 	opButtonsNonRecursive map[rt.NodeOp]*gtk.Button
 
-	prevStatus rt.Status
+	prevStatus  rt.Status
+	statusShown bool // the status class and tooltip are set (for prevStatus)
 }
 
 func NewHeaderFrame() *NodeFrameHeader {
@@ -206,17 +207,21 @@ func (w *NodeFrameHeader) updateGUI() {
 	}
 	typ := rt.TypeName(node.Type)
 
-	w.title.SetText(displayLabel)
+	setText(w.title, displayLabel)
 	if markup := "<b>Path:</b> " + breadCrumbs(path) + " Id=" + node.Id; markup != w.pathMarkup {
 		w.pathMarkup = markup
 		w.path.SetMarkup(markup)
 	}
-	w.typ.SetText(typ)
+	setText(w.typ, typ)
 
-	w.status.RemoveCSSClass("status-" + strings.ToLower(rt.StatusName(prevStatus)))
-	w.status.AddCSSClass("status-" + strings.ToLower(rt.StatusName(newStatus)))
-	w.status.SetText(st)
-	w.status.SetTooltipText(rt.StatusDescription(newStatus))
+	// only the changes are set, see nodeViewState
+	if newStatus != prevStatus || !w.statusShown {
+		w.status.RemoveCSSClass("status-" + strings.ToLower(rt.StatusName(prevStatus)))
+		w.status.AddCSSClass("status-" + strings.ToLower(rt.StatusName(newStatus)))
+		w.status.SetTooltipText(rt.StatusDescription(newStatus))
+		w.statusShown = true
+	}
+	setText(w.status, st)
 
 	ops := node.AllowedManualOps(true, true)
 	for op, btn := range w.opButtonsRecursive {
@@ -230,7 +235,7 @@ func (w *NodeFrameHeader) updateGUI() {
 		if node.HasChild() {
 			title += " all"
 		}
-		btn.SetLabel(title)
+		setButtonLabel(btn, title)
 	}
 	ops = node.AllowedManualOps(true, false)
 	for op, btn := range w.opButtonsNonRecursive {
@@ -240,7 +245,21 @@ func (w *NodeFrameHeader) updateGUI() {
 		if rt.StatusFinished(newStatus) && op == rt.OpRun {
 			title = "Re-run"
 		}
-		btn.SetLabel(title)
+		setButtonLabel(btn, title)
+	}
+}
+
+// setText sets the text of the label when it is different
+func setText(l *gtk.Label, text string) {
+	if l.Text() != text {
+		l.SetText(text)
+	}
+}
+
+// setButtonLabel sets the label of the button when it is different
+func setButtonLabel(b *gtk.Button, label string) {
+	if b.Label() != label {
+		b.SetLabel(label)
 	}
 }
 

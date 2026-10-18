@@ -197,6 +197,8 @@ func (t *NodeNavigator) layoutItems() {
 		return
 	}
 	defer t.layouting.Store(false)
+	began := time.Now()
+	defer func() { logSlow("navigator layout", began) }()
 
 	RunTree.RLock("LayoutItems")
 	defer RunTree.RUnlock()
@@ -253,18 +255,29 @@ func (t *NodeNavigator) layoutList(mode NavMode) {
 		if !nodeVisible {
 			continue
 		}
-		_, natural, _, _ := nodeView.Measure(gtk.OrientationVertical, tw)
-		nodeView.SetSizeRequest(tw, natural)
-		if added {
-			t.Fixed.Move(nodeView, 0, y)
-		} else {
-			t.Fixed.Put(nodeView, 0, y)
-			t.added[node.Id] = true
-		}
-		nodeView.SetVisible(true)
-		step = float64(natural)
+		step = t.place(nodeView, 0, y, tw, added)
 		y += step
 	}
+}
+
+// place puts the node view to x, y with the width tw, and returns its height. It only changes the size and the
+// position of the view when they changed (it would be laid out again).
+func (t *NodeNavigator) place(nodeView *TreeNodeView, x, y float64, tw int, added bool) float64 {
+	_, natural, _, _ := nodeView.Measure(gtk.OrientationVertical, tw)
+	if nodeView.width != float64(tw) || nodeView.height != float64(natural) {
+		nodeView.SetSizeRequest(tw, natural)
+		nodeView.width, nodeView.height = float64(tw), float64(natural)
+	}
+	switch {
+	case !added:
+		t.Fixed.Put(nodeView, x, y)
+		t.added[nodeView.Node.Id] = true
+	case nodeView.x != x || nodeView.y != y:
+		t.Fixed.Move(nodeView, x, y)
+	}
+	nodeView.x, nodeView.y = x, y
+	nodeView.SetVisible(true)
+	return float64(natural)
 }
 
 func (t *NodeNavigator) layoutTree() {
@@ -286,16 +299,7 @@ func (t *NodeNavigator) layoutTree() {
 			continue
 		}
 		x := float64(node.Calculated.Level) * ident
-		_, natural, _, _ := nodeView.Measure(gtk.OrientationVertical, tw)
-		nodeView.SetSizeRequest(tw, natural)
-		if added {
-			t.Fixed.Move(nodeView, x, y)
-		} else {
-			t.Fixed.Put(nodeView, x, y)
-			t.added[node.Id] = true
-		}
-		nodeView.SetVisible(true)
-		step = float64(natural)
+		step = t.place(nodeView, x, y, tw, added)
 		y += step
 	}
 }
@@ -307,12 +311,14 @@ func (t *NodeNavigator) fullUpdate() {
 	if !ok {
 		return
 	}
+	began := time.Now()
 	RunTree.RLock("fullUpdate")
 	for _, n := range t.nodeViews {
 		n.Update(false, "fullUpdate")
 	}
 	t.layouting.Store(false)
 	RunTree.RUnlock()
+	logSlow("navigator update", began, "nodes", len(t.nodeViews))
 	// then layout
 	t.layoutItems()
 }
