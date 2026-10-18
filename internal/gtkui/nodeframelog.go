@@ -11,32 +11,82 @@ import (
 )
 
 // NodeFrameLog shows the events of the selected node and of the nodes below it (the root shows the events of the
-// tree itself too). It follows the end of the log, unless it is scrolled up.
+// tree itself too). It follows the end of the log, unless it is scrolled up: then a button in the top right corner
+// scrolls to the end, and it follows the end again.
 type NodeFrameLog struct {
-	*gtk.TextView
+	*gtk.Overlay
+	view     *gtk.TextView
+	scroll   *gtk.ScrolledWindow
+	toEnd    *gtk.Button
 	frame    *NodeFrame
 	tabLabel *gtk.Label
 	end      *gtk.TextMark
 
-	shown    *rt.Node // the node whose events are shown; main gtk loop only, like the fields below
-	seq      uint64   // the last entry of the event log that was checked
-	count    int      // the number of shown entries
-	lastDate string   // of the last shown entry
+	shown     *rt.Node // the node whose events are shown; main gtk loop only, like the fields below
+	seq       uint64   // the last entry of the event log that was checked
+	count     int      // the number of shown entries
+	lastDate  string   // of the last shown entry
+	following bool     // the view is at the end of the log, new entries scroll it
 }
 
 func NewNodeFrameLog() *NodeFrameLog {
 	d := &NodeFrameLog{
-		TextView: gtk.NewTextView(),
-		tabLabel: gtk.NewLabel("Log"),
+		Overlay:   gtk.NewOverlay(),
+		view:      gtk.NewTextView(),
+		scroll:    gtk.NewScrolledWindow(),
+		tabLabel:  gtk.NewLabel("Log"),
+		following: true,
 	}
-	d.TextView.SetEditable(false)
-	d.TextView.SetCursorVisible(false)
-	d.TextView.SetMonospace(true)
-	d.TextView.SetWrapMode(gtk.WrapWordChar)
-	buffer := d.TextView.Buffer()
+	d.view.SetEditable(false)
+	d.view.SetCursorVisible(false)
+	d.view.SetMonospace(true)
+	d.view.SetWrapMode(gtk.WrapWordChar)
+	buffer := d.view.Buffer()
 	d.end = buffer.CreateMark("end", buffer.EndIter(), false)
+	d.scroll.SetHExpand(true)
+	d.scroll.SetVExpand(true)
+	d.scroll.SetChild(d.view)
+	d.Overlay.SetChild(d.scroll)
+
+	content := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	content.Append(gtk.NewImageFromIconName("go-bottom-symbolic"))
+	content.Append(gtk.NewLabel("End"))
+	d.toEnd = gtk.NewButton()
+	d.toEnd.SetChild(content)
+	d.toEnd.SetTooltipText("Scroll to the end of the log, and follow it")
+	d.toEnd.AddCSSClass("osd")
+	d.toEnd.SetHAlign(gtk.AlignEnd)
+	d.toEnd.SetVAlign(gtk.AlignStart)
+	d.toEnd.SetMarginTop(8)
+	d.toEnd.SetMarginEnd(20) // not on the scrollbar
+	d.toEnd.SetVisible(false)
+	d.toEnd.ConnectClicked(d.scrollToEnd)
+	d.Overlay.AddOverlay(d.toEnd)
+
+	// Only scrolling changes the value: a new entry changes the upper bound, then it is scrolled to the end when the
+	// view follows the log.
+	d.scroll.VAdjustment().ConnectValueChanged(func() {
+		d.setFollowing(d.atEnd())
+	})
 	d.frame = NewNodeFrame(d.updateGUI)
 	return d
+}
+
+// atEnd tells if the view is scrolled to the end
+func (d *NodeFrameLog) atEnd() bool {
+	adj := d.scroll.VAdjustment()
+	return adj.Value()+adj.PageSize() >= adj.Upper()-1
+}
+
+func (d *NodeFrameLog) setFollowing(following bool) {
+	d.following = following
+	d.toEnd.SetVisible(!following)
+}
+
+func (d *NodeFrameLog) scrollToEnd() {
+	adj := d.scroll.VAdjustment()
+	adj.SetValue(adj.Upper() - adj.PageSize())
+	d.setFollowing(true)
 }
 
 func (d *NodeFrameLog) TabLabel() gtk.Widgetter {
@@ -49,10 +99,11 @@ func (d *NodeFrameLog) SetNode(node *rt.Node) {
 
 func (d *NodeFrameLog) updateGUI() {
 	node := d.frame.Node()
-	buffer := d.TextView.Buffer()
+	buffer := d.view.Buffer()
 	if node != d.shown {
 		d.shown, d.seq, d.count, d.lastDate = node, 0, 0, ""
 		buffer.SetText("")
+		d.setFollowing(true)
 		d.updateTabLabel()
 	}
 	if node == nil {
@@ -81,13 +132,11 @@ func (d *NodeFrameLog) updateGUI() {
 		return
 	}
 
-	adj := d.TextView.VAdjustment()
-	follow := adj == nil || adj.Value()+adj.PageSize() >= adj.Upper()-1
 	buffer.InsertMarkup(buffer.EndIter(), sb.String())
 	d.count += added
 	d.updateTabLabel()
-	if follow {
-		d.TextView.ScrollToMark(d.end, 0, false, 0, 1)
+	if d.following {
+		d.view.ScrollToMark(d.end, 0, false, 0, 1)
 	}
 }
 

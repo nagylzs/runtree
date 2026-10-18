@@ -40,8 +40,8 @@ func NewToolsWidget() *NodeFrameTools {
 	deps := NewNodeFrameDeps()
 	addScrolledTab(deps)
 
-	log := NewNodeFrameLog()
-	addScrolledTab(log)
+	log := NewNodeFrameLog() // it has its own scrolled window
+	nb.AppendPage(log, log.TabLabel())
 
 	description := NewNodeFrameDescription()
 	addScrolledTab(description)
