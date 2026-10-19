@@ -23,7 +23,7 @@ func handleExitSignals() {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGHUP)
 	for sig := range ch {
 		slog.Warn("received signal, closing the main window", "signal", sig)
-		glib.IdleAdd(func() {
+		runOnMain(func() {
 			if Application.window == nil {
 				// not activated yet, nothing was started
 				GtkApplication.Quit()

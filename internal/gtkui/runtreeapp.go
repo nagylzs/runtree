@@ -67,8 +67,11 @@ func NewRunTreeApp(runTree *rt.Tree) (*RunTreeApp, error) {
 func (ra *RunTreeApp) Start() {
 	// Start the runtree deps, it will search for runable nodes and start them.
 	go RunTree.Run()
-	// Update the GUI periodically
-	go ra.runGuiUpdater()
+	// Update the GUI every second (a timer of the main gtk loop, not a goroutine, see runOnMain)
+	glib.TimeoutAdd(1000, func() bool {
+		ra.pane.UpdateGUI()
+		return true
+	})
 	glib.TimeoutAdd(terminalSizeCheckMs, ra.checkTerminalSize)
 
 	go func() {
@@ -77,26 +80,6 @@ func (ra *RunTreeApp) Start() {
 			RunTree.CheckLock(5 * time.Second)
 		}
 	}()
-}
-
-func (ra *RunTreeApp) runGuiUpdater() {
-	start := time.Now()
-	c := time.Second * 0
-	var cc int64 = 0
-	for {
-		started := time.Now()
-		glib.IdleAdd(ra.pane.UpdateGUI)
-		elapsed := time.Since(started)
-		c += elapsed
-		cc += 1
-		if elapsed < time.Second {
-			time.Sleep(time.Second)
-		}
-		if time.Since(start) > 10*time.Second {
-			slog.Debug(fmt.Sprintf("%v Avg GUI time=%v, count=%v", time.Now(), time.Duration(int64(c)/cc), cc))
-			start, c, cc = time.Now(), 0, 0
-		}
-	}
 }
 
 func (ra *RunTreeApp) GetWinSize() runner.WinSize {
@@ -110,7 +93,7 @@ func (ra *RunTreeApp) GetWinSize() runner.WinSize {
 // gtk loop cannot be waited for here, because it may be waiting for the tree lock.
 func (ra *RunTreeApp) AfterPtyStarted(n *rt.Node) {
 	client, size := n.Client, n.ClientArgs.InitialPtySize
-	glib.IdleAdd(func() {
+	runOnMain(func() {
 		err := ra.createTerminal(n, client, size)
 		if err != nil {
 			n.TerminalFailed(err)
@@ -138,7 +121,7 @@ func (ra *RunTreeApp) ProcStateChanged(n *rt.Node, state runner.ProcState) {
 		return
 	}
 	// Yes, re-display
-	glib.IdleAdd(func() {
+	runOnMain(func() {
 		ra.displaySelectedNode(false)
 	})
 }
@@ -162,13 +145,13 @@ func (ra *RunTreeApp) OnNodeChanged(n *rt.Node, oldStatus rt.Status, oldExpanded
 }
 
 func (ra *RunTreeApp) OnClientError(locked bool, node *rt.Node, e runner.Error) {
-	glib.IdleAdd(func() {
+	runOnMain(func() {
 		ShowToast(e.Message)
 	})
 }
 
 func (ra *RunTreeApp) OnInternalError(message string) {
-	glib.IdleAdd(func() {
+	runOnMain(func() {
 		ShowToast(message)
 	})
 }

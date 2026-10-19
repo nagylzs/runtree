@@ -2,6 +2,7 @@ package gtkui
 
 import (
 	_ "embed"
+	"log/slog"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -26,6 +27,12 @@ func InitApplication(runTree *rt.Tree, warnings rt.ParseErrors) error {
 }
 
 func RunApplication() int {
+	var err error
+	if mainQueue, err = newMainLoopQueue(); err != nil {
+		slog.Error("cannot create the queue of the main loop", "error", err)
+		return 1
+	}
+	mainQueue.watch()
 	// every runtree process runs its own tree: without NonUnique, a second runtree would only open another window of
 	// the first one (with the first tree) and exit
 	GtkApplication = gtk.NewApplication(ApplicationId, gio.ApplicationNonUnique)

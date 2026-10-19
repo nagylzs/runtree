@@ -129,10 +129,13 @@ when adding methods.
 
 ### GUI (`internal/gtkui`)
 Package-level globals `RunTree`, `Application`, `GtkApplication` (`global.go`). `RunTreeApp` owns the VTE terminals
-(one per node id) and pushes updates via `glib.IdleAdd` from a 1s `runGuiUpdater` goroutine plus event-driven
-`navigator.UpdateNode` calls. `mainpaned.go` splits into `nodenavigator.go` (tree list, `treenodeview.go` rows) and
-`nodeframe*.go` (tabs for the selected node: header/actions, properties, vars, envs, deps, description, tools).
-Styling is in the embedded `main.css`. All GTK calls must happen on the GTK main thread.
+(one per node id). The GUI is updated every second by timers of the main loop (`RunTreeApp.Start`, `NodeFrame`), and
+by event-driven `navigator.UpdateNode` calls. `mainpaned.go` splits into `nodenavigator.go` (tree list,
+`treenodeview.go` rows) and `nodeframe*.go` (tabs for the selected node: header/actions, properties, vars, envs,
+deps, description, tools). Styling is in the embedded `main.css`. All GTK calls must happen on the GTK main thread.
+Goroutines must not call GLib either, not even `glib.IdleAdd`/`TimeoutAdd`: they pass the function to `runOnMain`
+(`mainqueue.go`: a queue and a pipe that the main loop watches). On macOS 27 a contended `pthread_rwlock` hangs when
+signals arrive, and GLib's sources share one, so goroutines that added sources froze the GUI.
 
 ## Conventions
 

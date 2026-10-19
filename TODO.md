@@ -18,8 +18,13 @@
     real processes in ptys). Test rtrunner by hand too (process groups, signals).
   * runtree GUI: it builds with Homebrew's `gtk4` (4.24) and `vte3` (`vte-2.91-gtk4`, 0.84) after `brew install
     pkgconf gtk4 vte3 gobject-introspection socat`; the linker warns about duplicate libraries (`ld: warning: ignoring
-    duplicate libraries`, harmless). Not run yet. Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift
-    on macOS), middle click paste (macOS has no primary selection), the close confirmation on Cmd+Q.
+    duplicate libraries`, harmless). It runs (light theme without `GTK_THEME=Adwaita:dark`). Fixed: it froze, because
+    a contended `pthread_rwlock` hangs on macOS 27.0.1 when the waiting threads get signals (reported to Apple),
+    and GLib's sources share one: goroutines no longer call GLib (`runOnMain`). gotk4 still unrefs objects from its
+    finalizers with `g_main_context_invoke` (rare, but it can hit it; block the signals around it, or keep the objects
+    referenced?). Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift on macOS), middle click paste
+    (macOS has no primary selection), the close confirmation on Cmd+Q, `rt.TermEmoji` (U+1F5B5, no glyph in the macOS
+    fonts), a glitch in the "Tree (" text of the navigator.
   * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
 * test on Windows: `runtree-headless`, `rtrunner` and `runtree-lsp` from `dist/windows/amd64/` on a real Windows (only
   tested under wine so far): the local runner (ConPTY), the output, exit codes, `--lock`, Ctrl+C.

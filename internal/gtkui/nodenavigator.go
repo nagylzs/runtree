@@ -174,10 +174,10 @@ func (t *NodeNavigator) stateFlagsChanged(flags gtk.StateFlags) {
 
 func (t *NodeNavigator) debouncedLayout(value int) {
 	if value == 0 {
-		glib.IdleAdd(t.layoutItems)
+		runOnMain(t.layoutItems)
 		time.Sleep(25 * time.Millisecond)
 	} else {
-		glib.IdleAdd(t.fullUpdate)
+		runOnMain(t.fullUpdate)
 		time.Sleep(100 * time.Millisecond)
 	}
 }
@@ -188,7 +188,7 @@ func (t *NodeNavigator) UpdateNode(n *rt.Node, who string) {
 	if !ok {
 		return
 	}
-	glib.IdleAdd(func() {
+	runOnMain(func() {
 		nodeView.Update(true, who)
 	})
 }

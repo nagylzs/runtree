@@ -2,7 +2,6 @@ package gtkui
 
 import (
 	"sync"
-	"time"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -21,29 +20,41 @@ type NodeFrame struct {
 	lck       *sync.Mutex
 }
 
-// NewNodeFrame creates a NodeFrame where the given updateGui function is called periodically in the main gtk loop
+// NewNodeFrame creates a NodeFrame where the given updateGui function is called every second in the main gtk loop.
+// It must be called from the main gtk loop.
 func NewNodeFrame(updateGUI func()) *NodeFrame {
 	f := &NodeFrame{node: nil, lck: &sync.Mutex{}, updateGui: updateGUI}
 	if updateGUI != nil {
-		go f.run()
+		f.start()
 	}
 	return f
 }
 
+// SetUpdateGUI must be called from the main gtk loop.
 func (f *NodeFrame) SetUpdateGUI(updateGUI func()) {
 	f.lck.Lock()
 	defer f.lck.Unlock()
 	needStart := f.updateGui == nil
 	f.updateGui = updateGUI
 	if needStart {
-		go f.run()
+		f.start()
 	}
 }
 
-func (f *NodeFrame) run() {
-	for {
-		time.Sleep(1 * time.Second)
-		glib.IdleAdd(f.updateGui)
+// start calls updateGui every second with a timer of the main gtk loop (not from a goroutine, see runOnMain)
+func (f *NodeFrame) start() {
+	glib.TimeoutAdd(1000, func() bool {
+		f.update()
+		return true
+	})
+}
+
+func (f *NodeFrame) update() {
+	f.lck.Lock()
+	updateGui := f.updateGui
+	f.lck.Unlock()
+	if updateGui != nil {
+		updateGui()
 	}
 }
 
@@ -51,7 +62,7 @@ func (f *NodeFrame) SetNode(node *rt.Node) {
 	f.lck.Lock()
 	f.node = node
 	f.lck.Unlock()
-	glib.IdleAdd(f.updateGui)
+	runOnMain(f.update)
 }
 
 func (f *NodeFrame) Node() *rt.Node {
