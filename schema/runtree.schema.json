@@ -220,6 +220,10 @@
             "0"
           ]
         },
+        "lock": {
+          "description": "A lock file of the whole tree, like runtree --lock FILE: the tree runs once at a time, another runtree (or runtree-headless) with the same lock file exits with 75. Only the root node can have it. A relative path is relative to the tree file, variables are not substituted in it. With --lock too, both files are locked.",
+          "type": "string"
+        },
         "max_proc": {
           "description": "Maximum number of running processes in this subtree; a negative value means no limit, 0 starts nothing. It is inherited: a sub-node limits its own subtree with the same number. Inherited from the parent node. Default: -1.",
           "type": "integer"

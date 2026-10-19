@@ -2,6 +2,7 @@ package headless
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -16,6 +17,16 @@ const maxLabel = 30
 
 // flushAfter is the time after which a line that has not ended yet is written (e.g. a prompt that waits for input)
 const flushAfter = 2 * time.Second
+
+// The output modes (--output): all the lines, the lines of the nodes that fail (when they fail), or nothing
+const (
+	OutputAll    = "all"
+	OutputFailed = "failed"
+	OutputNone   = "none"
+)
+
+// maxHeld is the size of the output of a node that is kept until it fails (--output failed), its end is kept
+const maxHeld = 1 << 20
 
 // label is the title of the node (or its command, or its id) for the output and the events, it is shortened to
 // maxLabel
@@ -35,11 +46,13 @@ type console struct {
 	width      int            // of the labels: they are padded to it
 	open       sync.WaitGroup // the outputs that are not closed yet
 	flushAfter time.Duration
+	mode       string                   // OutputAll ("" too), OutputFailed or OutputNone
+	writers    map[*rt.Node]*lineWriter // the output of the last start of the nodes (with OutputFailed)
 }
 
-// newConsole returns the console for the run nodes of the tree
-func newConsole(w io.Writer, tree *rt.Tree) *console {
-	c := &console{w: w, flushAfter: flushAfter}
+// newConsole returns the console for the run nodes of the tree, in an output mode (OutputAll...)
+func newConsole(w io.Writer, tree *rt.Tree, mode string) *console {
+	c := &console{w: w, flushAfter: flushAfter, mode: mode, writers: make(map[*rt.Node]*lineWriter)}
 	for _, n := range tree.Nodes {
 		if n.Type == rt.TypeRun {
 			c.width = max(c.width, utf8.RuneCountInString(label(n)))
@@ -51,7 +64,37 @@ func newConsole(w io.Writer, tree *rt.Tree) *console {
 func (c *console) NodeOutput(n *rt.Node, _ int) io.Writer {
 	c.open.Add(1)
 	l := label(n)
-	return &lineWriter{c: c, prefix: l + strings.Repeat(" ", c.width-utf8.RuneCountInString(l)) + " | "}
+	w := &lineWriter{c: c, prefix: l + strings.Repeat(" ", c.width-utf8.RuneCountInString(l)) + " | "}
+	if c.mode == OutputFailed {
+		c.mu.Lock()
+		c.writers[n] = w
+		c.mu.Unlock()
+	}
+	return w
+}
+
+// finished is called when a run node finishes: with OutputFailed, its output is written when it failed (the lines
+// that arrive later too), or dropped. It does not lock the tree.
+func (c *console) finished(n *rt.Node, failed bool) {
+	c.mu.Lock()
+	w := c.writers[n]
+	delete(c.writers, n)
+	c.mu.Unlock()
+	if w != nil {
+		w.decide(failed)
+	}
+}
+
+// finishAll writes the output of the nodes that failed, and drops the others, for the nodes that did not finish yet
+// (with OutputFailed, at the end of the run)
+func (c *console) finishAll(failed func(n *rt.Node) bool) {
+	c.mu.Lock()
+	writers := c.writers
+	c.writers = make(map[*rt.Node]*lineWriter)
+	c.mu.Unlock()
+	for n, w := range writers {
+		w.decide(failed(n))
+	}
 }
 
 // wait waits until the outputs are closed (the client of a node closes it after the end of the output), at most for
@@ -71,13 +114,20 @@ func (c *console) wait(timeout time.Duration) bool {
 }
 
 func (c *console) writeLine(prefix string, line []byte) {
-	buf := make([]byte, 0, len(prefix)+len(line)+5)
-	buf = append(buf, prefix...)
-	buf = append(buf, line...)
-	if bytes.IndexByte(line, 0x1b) >= 0 {
-		buf = append(buf, "\x1b[0m"...) // the colors and styles of the line end with it
+	c.writeLines(prefix, [][]byte{line})
+}
+
+// writeLines writes the lines together, the lines of other nodes do not get between them
+func (c *console) writeLines(prefix string, lines [][]byte) {
+	var buf []byte
+	for _, line := range lines {
+		buf = append(buf, prefix...)
+		buf = append(buf, line...)
+		if bytes.IndexByte(line, 0x1b) >= 0 {
+			buf = append(buf, "\x1b[0m"...) // the colors and styles of the line end with it
+		}
+		buf = append(buf, '\n')
 	}
-	buf = append(buf, '\n')
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	_, _ = c.w.Write(buf)
@@ -94,6 +144,11 @@ type lineWriter struct {
 	flushed bool   // the line is written already by flush, its end does not make an empty line
 	timer   *time.Timer
 	closed  bool
+
+	// with OutputFailed: the lines are held until the node finishes, then they are written or dropped (drop)
+	held              [][]byte
+	heldSize, dropped int // the size of held, and the number of lines that were dropped from its beginning
+	decided, drop     bool
 }
 
 func (w *lineWriter) Write(p []byte) (int, error) {
@@ -136,9 +191,47 @@ func (w *lineWriter) Write(p []byte) (int, error) {
 // emit writes the line (an empty one only when allowEmpty)
 func (w *lineWriter) emit(allowEmpty bool) {
 	if len(w.line) > 0 || (allowEmpty && !w.flushed) {
-		w.c.writeLine(w.prefix, w.line)
+		w.out(w.line)
 	}
 	w.line, w.flushed = w.line[:0], false
+}
+
+// out writes a line, or holds it until the node finishes (OutputFailed), or drops it (OutputNone)
+func (w *lineWriter) out(line []byte) {
+	switch {
+	case w.c.mode == OutputNone || w.drop:
+	case w.c.mode == OutputFailed && !w.decided:
+		w.held = append(w.held, bytes.Clone(line))
+		w.heldSize += len(line)
+		for w.heldSize > maxHeld && len(w.held) > 1 {
+			w.heldSize -= len(w.held[0])
+			w.held = w.held[1:]
+			w.dropped++
+		}
+	default:
+		w.c.writeLine(w.prefix, line)
+	}
+}
+
+// decide writes the held lines when the node failed, and the later lines will be written too; otherwise they are
+// dropped (OutputFailed)
+func (w *lineWriter) decide(failed bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.decided {
+		return
+	}
+	w.decided, w.drop = true, !failed
+	if failed {
+		lines := w.held
+		if w.dropped > 0 {
+			lines = append([][]byte{fmt.Appendf(nil, "(%d earlier lines are not shown)", w.dropped)}, lines...)
+		}
+		if len(lines) > 0 {
+			w.c.writeLines(w.prefix, lines)
+		}
+	}
+	w.held, w.heldSize = nil, 0
 }
 
 // flush writes the line that has not ended yet (the rest of it will be on the next line). A \r at its end stays: a \n

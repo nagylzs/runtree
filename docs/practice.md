@@ -19,6 +19,20 @@ admin@deploy01 since 2026-10-18 10:30:00 +0200, tree /srv/runtree/upgrade.rt.yam
   servers).
 - `--check` and the `--show-*` options do not use the lock.
 
+A tree that must never run twice at the same time can say so itself, then nobody has to remember `--lock`: the `lock`
+property of the root node locks the file for every runtree and `runtree-headless` that runs the tree:
+
+```yaml
+tree:
+  title: "Upgrade all DEV and UAT"
+  lock: /var/lock/runtree/upgrade-dev-uat.lock   # a relative path is relative to the tree file
+  seq: [...]
+```
+
+Only the root node can have a lock, and variables are not substituted in it. With `--lock` too, both files are locked
+(e.g. a lock file of all the trees that change the same servers, and the lock of the tree), the same file once. The
+GUI shows who holds the lock in a window too (it may be started without a terminal).
+
 ## Several users
 
 When several people run the same trees, run them on one machine (e.g. a deploy host that everyone logs in to with

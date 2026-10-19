@@ -69,8 +69,9 @@ Four binaries; `runtree`, `runtree-headless` and `rtrunner` share the runner pro
 - `cmd/runtree-headless` → `internal/headless`: runs the tree unattended (`rt.Tree.SetUnattended`, `unattended.go`: a
   node that would pause fails, the clients have no terminal (`Client.SetNoTerminal`), the run ends when the root is
   finished or when nothing runs and nothing can be started, `checkEnd`). The output of the nodes goes to stdout with
-  their labels (`output.go`), the events to stderr (`events.go`). `internal/app` is what it shares with `runtree`
-  (loading the tree, `--lock`, `--log-db`, `StopRunning`).
+  their labels (`output.go`; `--output failed` holds the lines of a node until it finishes, `none` drops them), the
+  events to stderr (`events.go`). `internal/app` is what it shares with `runtree` (loading the tree, `--lock` and the
+  `lock` property, `--log-db`, `StopRunning`); `--thaw` is `rt.Tree.ThawGates` (`thaw.go`).
 - `cmd/runtree` → `internal/rt` (tree model + scheduler) + `internal/gtkui` (GTK4 GUI). Each started node opens its
   own `runner.Client` connection; `runner.ParseAddress` parses the `runner` property (`local`, `host:port`,
   `tcp://host:port`, `ssh://[user@]host[:port][/path]`); `runtree --runner` sets the default (`Sources.DefaultRunner`).

@@ -31,6 +31,7 @@ An **inherited** property that is not set in a node gets the value of the parent
 | [`max_proc`](#max_proc) | integer | yes | `-1` |
 | [`success_exit_codes`](#success_exit_codes) | list of integers (0-255) | yes | `[0]` |
 | [`timeout`](#timeout) | duration (e.g. 30m), or 0 | yes | `0` |
+| [`lock`](#lock) | string |  |  |
 | [`status`](#status) | `waiting` or `frozen` | yes | `waiting` |
 | [`on_error`](#on_error) | status and/or sibling operation | yes | `failed` |
 | [`children_on_error`](#children_on_error) | status and/or sibling operation |  |  |
@@ -170,6 +171,12 @@ Value: list of integers (0-255), inherited, default: `[0]`. See [the guide](../e
 The longest time that a run node may run, e.g. 90s, 30m or 1h30m (0: no limit). Then its process is stopped (Ctrl+C is typed into its terminal, SIGTERM and SIGKILL follow if it does not stop), and the node fails: it gets the status of its on_error. It is inherited: on a seq or par node it is the limit of each run node below it, not of the group.
 
 Value: duration (e.g. 30m), or 0, inherited, default: `0`. See [the guide](../execution.md#timeouts).
+
+## lock
+
+A lock file of the whole tree, like runtree --lock FILE: the tree runs once at a time, another runtree (or runtree-headless) with the same lock file exits with 75. Only the root node can have it. A relative path is relative to the tree file, variables are not substituted in it. With --lock too, both files are locked.
+
+Value: string. See [the guide](../practice.md#running-a-tree-once-at-a-time).
 
 ## status
 

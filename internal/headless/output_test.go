@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/nagylzs/runtree/internal/rt"
 )
 
 // syncBuffer is a bytes.Buffer for several goroutines
@@ -29,7 +31,7 @@ func (s *syncBuffer) String() string {
 }
 
 func testWriter(out *syncBuffer, flush time.Duration) (*console, *lineWriter) {
-	c := &console{w: out, flushAfter: flush}
+	c := &console{w: out, flushAfter: flush, writers: make(map[*rt.Node]*lineWriter)}
 	c.open.Add(1)
 	return c, &lineWriter{c: c, prefix: "node | "}
 }

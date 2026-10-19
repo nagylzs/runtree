@@ -52,6 +52,10 @@ type Node struct {
 	held Status
 	// frozenInFile: the node is frozen by "status: frozen" in the tree file (its own, or inherited)
 	frozenInFile bool
+	// frozenGate: the node has its own "status: frozen" in the tree file (an approval gate, see ThawGates), the
+	// sub-nodes that inherit it are frozen with it
+	frozenGate bool
+	Lock       string // the lock file of the tree (the lock property of the root node), see app.LockTree
 
 	WantManualStatus bool   // Node.PerformOp sets this to true when it wants to manually set status
 	ManualStatus     Status // Node.PerformOp sets this to the desired manual status
@@ -271,6 +275,7 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.Status = n2.Status
 	n.held = n2.held
 	n.frozenInFile = n2.frozenInFile
+	n.frozenGate = n2.frozenGate
 }
 
 // keepOwn sets the properties of a node that its single included object replaced (see loadFrom), but that the object

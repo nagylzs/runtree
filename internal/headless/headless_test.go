@@ -197,6 +197,88 @@ tree:
 }
 
 // --check only loads the tree, the errors of the tree and a locked lock file have their exit codes
+const gatedTree = `
+tree:
+  title: upgrade
+  status: frozen
+  seq:
+    - {title: dev, args: [sh, -c, "echo dev done"]}
+    - title: prod
+      status: frozen
+      seq:
+        - {title: prod step, args: [sh, -c, "echo prod done"]}
+`
+
+// --thaw opens the gates (status: frozen) of the tree file, a gate inside a thawed one stays frozen
+func TestRunThaw(t *testing.T) {
+	t.Parallel()
+	thaw := func(names ...string) func(*config.HeadlessCLIArgs) {
+		return func(a *config.HeadlessCLIArgs) { a.Thaw = names }
+	}
+	r := run(t, gatedTree, nil)
+	r.check(t, ExitStopped, nil, []string{"Waiting for:\n  upgrade: frozen (status: frozen)\n"})
+	if r.stdout != "" {
+		t.Errorf("a frozen node is run:\n%s", r.stdout)
+	}
+	r = run(t, gatedTree, nil, thaw("upgrade"))
+	r.check(t, ExitStopped, []string{"dev       | dev done\n"}, []string{"upgrade: thawed (--thaw)\n",
+		"Waiting for:\n  prod: frozen (status: frozen)\n"})
+	r = run(t, gatedTree, nil, thaw("upgrade", "prod"))
+	r.check(t, ExitSuccess, []string{"dev       | dev done\n", "prod step | prod done\n"}, nil)
+	run(t, gatedTree, nil, thaw("dev")).check(t, ExitError, nil,
+		[]string{"--thaw: upgrade › dev is frozen because upgrade is frozen (status: frozen): thaw that one\n"})
+	run(t, gatedTree, nil, thaw("nothing")).check(t, ExitError, nil,
+		[]string{`--thaw: no node is "nothing" (its id, title or path)` + "\n"})
+}
+
+// --output failed writes the output of the nodes that fail (when they fail), only the end of a long one; --output none
+// writes nothing, the events and the summary are on stderr
+func TestRunOutputModes(t *testing.T) {
+	t.Parallel()
+	const tree = `
+tree:
+  par:
+    - {title: good, args: [sh, -c, "echo fine"]}
+    - {title: bad, args: [sh, -c, "echo broken; exit 1"]}
+    - {title: long, args: [sh, -c, "seq 1 300000; exit 2"]}
+`
+	output := func(mode string) func(*config.HeadlessCLIArgs) {
+		return func(a *config.HeadlessCLIArgs) { a.Output = mode }
+	}
+	summary := []string{"WARN bad: exited with code 1", "Failed:\n  bad: exit code 1\n  long: exit code 2\n"}
+	r := run(t, tree, nil, output(OutputFailed))
+	r.check(t, ExitFailed, []string{"bad  | broken\n", "long | 300000\n"}, summary)
+	if strings.Contains(r.stdout, "fine") {
+		t.Errorf("the output of a node that did not fail is written:\n%s", r.stdout)
+	}
+	if !strings.Contains(r.stdout, "long | (") || !strings.Contains(r.stdout, " earlier lines are not shown)\n") ||
+		strings.Contains(r.stdout, "long | 1\n") {
+		t.Errorf("the beginning of a long output is written, or it is not told that it is missing:\n%.300s",
+			r.stdout)
+	}
+	r = run(t, tree, nil, output(OutputNone))
+	r.check(t, ExitFailed, nil, summary)
+	if r.stdout != "" {
+		t.Errorf("the output is written:\n%.300s", r.stdout)
+	}
+}
+
+// The lock property of the root node locks the tree like --lock
+func TestRunLockProperty(t *testing.T) {
+	t.Parallel()
+	lockPath := filepath.Join(t.TempDir(), "tree.lock")
+	lock, err := lockfile.Acquire(lockPath, "the test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lock.Release() }()
+	r := run(t, "tree:\n  lock: "+lockPath+"\n  args: [sh, -c, \"echo running\"]\n", nil)
+	r.check(t, app.ExitLocked, nil, nil)
+	if r.stdout != "" {
+		t.Errorf("the tree is run:\n%s", r.stdout)
+	}
+}
+
 func TestRunErrors(t *testing.T) {
 	t.Parallel()
 	check := func(a *config.HeadlessCLIArgs) { a.Check = true }

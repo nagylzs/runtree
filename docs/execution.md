@@ -202,8 +202,13 @@ subtree.
 `status` is inherited, so the sub-nodes of a frozen seq or par node are frozen too: use **Thaw all** for them.
 **Thaw** only thaws the seq or par node itself, so it is still Frozen while its sub-nodes are (it only starts the
 sub-nodes that have `status: waiting`). **Skip** skips the whole group. A frozen run node can also be started by hand
-with **Run**. The possible initial statuses are `waiting` (the default) and `frozen`. `runtree-headless` never thaws
-a node: its run [stops](headless.md#when-the-run-ends) when only frozen nodes are left.
+with **Run**. The possible initial statuses are `waiting` (the default) and `frozen`.
+
+`--thaw NODE` (its id, title or path; it can be given several times) thaws a gate before the run starts, like pressing
+Thaw first: the node with its own `status: frozen`, and the sub-nodes that are frozen because they inherit it. A gate
+inside it (a sub-node with its own `status: frozen`) stays frozen: give it with `--thaw` too. `runtree-headless` thaws
+nothing else: its run [stops](headless.md#when-the-run-ends) when only frozen nodes are left (see
+[approval gates](headless.md#approval-gates)).
 
 ## Blocking
 

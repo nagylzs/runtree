@@ -49,13 +49,11 @@ func Run(args config.HeadlessCLIArgs, fileArg string, stdout, stderr io.Writer, 
 		app.PrintCheck(fileArg, tree, warnings)
 		return ExitSuccess
 	}
-	if args.Lock != "" {
-		lock, err := app.LockTree(args.Lock, fullFilePath)
-		if err != nil {
-			return loadError(err)
-		}
-		defer func() { _ = lock.Release() }()
+	release, err := app.LockTree(args.Lock, tree, fullFilePath)
+	if err != nil {
+		return loadError(err)
 	}
+	defer release()
 
 	level := slog.LevelInfo
 	if args.Debug {
@@ -65,7 +63,7 @@ func Run(args config.HeadlessCLIArgs, fileArg string, stdout, stderr io.Writer, 
 	if args.LogFormat == "json" {
 		events = logging.NewHandler(stderr, level, "json")
 	}
-	out := newConsole(stdout, tree)
+	out := newConsole(stdout, tree, args.Output)
 	var output rt.OutputRecorder = out
 	if args.LogDB != "" {
 		var db *logdb.DB
@@ -80,8 +78,17 @@ func Run(args config.HeadlessCLIArgs, fileArg string, stdout, stderr io.Writer, 
 	}
 	tree.SetLogHandler(events)
 	tree.SetOutputRecorder(output)
-	tree.SetTerminalHelper(terminal{})
+	tree.SetTerminalHelper(terminal{out})
 	tree.SetUnattended()
+	if len(args.Thaw) > 0 {
+		tree.Lock("--thaw")
+		err := tree.ThawGates(true, args.Thaw)
+		tree.UnLock()
+		if err != nil {
+			_, _ = fmt.Fprintln(stderr, "--thaw: "+err.Error())
+			return ExitError
+		}
+	}
 
 	began := time.Now()
 	go tree.Run()
@@ -104,6 +111,7 @@ func Run(args config.HeadlessCLIArgs, fileArg string, stdout, stderr io.Writer, 
 
 	tree.RLock("headless summary")
 	defer tree.RUnlock()
+	out.finishAll(func(n *rt.Node) bool { return n.Status == rt.StatusFailed })
 	if sig != nil {
 		_, _ = fmt.Fprintf(stderr, "The run was interrupted after %s (%s).\n", formatElapsed(elapsed), signalName(sig))
 		printFailed(stderr, tree)
@@ -209,11 +217,18 @@ func formatElapsed(d time.Duration) string {
 }
 
 // terminal is the TerminalHelper of the tree: there are no terminals
-type terminal struct{}
+// terminal is the TerminalHelper of the tree: there are no terminals, it tells the console when a node finishes
+type terminal struct {
+	out *console
+}
 
 func (terminal) GetWinSize() runner.WinSize                  { return winSize }
 func (terminal) AfterPtyStarted(*rt.Node)                    {}
 func (terminal) ProcStateChanged(*rt.Node, runner.ProcState) {}
-func (terminal) OnNodeChanged(*rt.Node, rt.Status, bool)     {}
-func (terminal) OnClientError(bool, *rt.Node, runner.Error)  {}
-func (terminal) OnInternalError(message string)              { slog.Error("internal error: " + message) }
+func (t terminal) OnNodeChanged(n *rt.Node, old rt.Status, _ bool) {
+	if n.Type == rt.TypeRun && rt.StatusActive(old) && !rt.StatusActive(n.Status) {
+		t.out.finished(n, n.Status == rt.StatusFailed)
+	}
+}
+func (terminal) OnClientError(bool, *rt.Node, runner.Error) {}
+func (terminal) OnInternalError(message string)             { slog.Error("internal error: " + message) }

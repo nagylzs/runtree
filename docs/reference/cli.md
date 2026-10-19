@@ -20,8 +20,9 @@ Loads the tree file and runs it in the GUI. Without errors in the tree, the wind
 | `--runner=ADDRESS` | the runner of the nodes that do not specify one (`local` by default), see [runners](../runners.md#the-default-runner) |
 | `--rtrunner-dir=DIR` | a directory of `rtrunner-<goos>-<goarch>` binaries to upload to the hosts of ssh runners, instead of the embedded ones (also `RUNTREE_RTRUNNER_DIR`) |
 | `--no-ssh-share` | do not share one ssh connection for each host |
-| `--lock=FILE` | lock FILE while the tree runs; another runtree with the same lock file exits with 75 (see [lock files](../practice.md#running-a-tree-once-at-a-time)) |
+| `--lock=FILE` | lock FILE while the tree runs; another runtree with the same lock file exits with 75 (see [lock files](../practice.md#running-a-tree-once-at-a-time); the `lock` property of the root node does the same) |
 | `--log-db=FILE` | save the events and the terminal output in an SQLite database (see [saving the log](../logging.md#saving-the-log)) |
+| `--thaw=NODE` | thaw a node that is frozen in the tree file (`status: frozen`, e.g. an approval gate) before the run: its id, title or path; it can be given several times (see [frozen nodes](../execution.md#frozen-nodes)) |
 | `--show-runs` | list the runs of the `--log-db` database, and exit |
 | `--show-events` | print the events of a run of the `--log-db` database, and exit |
 | `--show-output=NODE` | print the terminal output of a node (id, title or path) from the `--log-db` database, and exit |
@@ -55,8 +56,10 @@ nodes goes to stdout, the events and the summary at the end to stderr.
 | `--runner=ADDRESS` | the runner of the nodes that do not specify one (`local` by default) |
 | `--rtrunner-dir=DIR` | a directory of `rtrunner-<goos>-<goarch>` binaries to upload to the hosts of ssh runners (also `RUNTREE_RTRUNNER_DIR`) |
 | `--no-ssh-share` | do not share one ssh connection for each host |
-| `--lock=FILE` | lock FILE while the tree runs; another runtree with the same lock file exits with 75 |
+| `--lock=FILE` | lock FILE while the tree runs; another runtree with the same lock file exits with 75 (the `lock` property of the root node does the same) |
 | `--log-db=FILE` | save the events and the terminal output in an SQLite database (`runtree --show-*` reads it) |
+| `--thaw=NODE` | thaw a node that is frozen in the tree file (`status: frozen`, e.g. an approval gate) before the run: its id, title or path; it can be given several times (see [approval gates](../headless.md#approval-gates)) |
+| `--output=all\|failed\|none` | the terminal output of the nodes on stdout: `all` (the default), `failed` (only of the nodes that fail, when they fail), or `none` (see [output](../headless.md#output)) |
 | `-h`, `--help` | show the options |
 
 Exit codes: 0 when the root node is Success, 1 when the tree or the command line has errors, 2 when the root node is

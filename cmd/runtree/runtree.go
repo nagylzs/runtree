@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/nagylzs/runtree/internal/app"
 	"github.com/nagylzs/runtree/internal/config"
 	"github.com/nagylzs/runtree/internal/gtkui"
+	"github.com/nagylzs/runtree/internal/lockfile"
 	"github.com/nagylzs/runtree/internal/logdb"
 	"github.com/nagylzs/runtree/internal/logging"
 	"github.com/nagylzs/runtree/internal/rt"
@@ -97,6 +99,11 @@ func main() {
 
 	err = runMain(args, posArgs)
 	if code := app.PrintLoadError(err); code != 0 {
+		var lockedErr *lockfile.LockedError
+		if errors.As(err, &lockedErr) {
+			// runtree may be started without a terminal (e.g. from a desktop menu)
+			gtkui.ShowError("The tree is locked", "The tree cannot be run now: "+lockedErr.Error())
+		}
 		os.Exit(code)
 	}
 
@@ -134,13 +141,11 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		return nil
 	}
 
-	if args.Lock != "" {
-		lock, err := app.LockTree(args.Lock, fullFilePath)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = lock.Release() }()
+	release, err := app.LockTree(args.Lock, runTree, fullFilePath)
+	if err != nil {
+		return err
 	}
+	defer release()
 
 	var db *logdb.DB
 	if args.LogDB != "" {
@@ -151,6 +156,14 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 		defer app.CloseLogDB(db)
 		runTree.SetLogHandler(logging.Multi(slog.Default().Handler(), db.Handler()))
 		runTree.SetOutputRecorder(app.LogDBRecorder(db))
+	}
+	if len(args.Thaw) > 0 {
+		runTree.Lock("--thaw")
+		err := runTree.ThawGates(true, args.Thaw)
+		runTree.UnLock()
+		if err != nil {
+			return fmt.Errorf("--thaw: %w", err)
+		}
 	}
 	handleTerm(runTree, db)
 

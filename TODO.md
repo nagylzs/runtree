@@ -199,9 +199,9 @@ Ordered by impact:
   * ssh runners on Windows (`startSSH` with the pipes of `ssh.exe`; Windows OpenSSH has no ControlMaster, so no
     connection sharing);
   * test it on a real Windows (and macOS);
-  * maybe: `--thaw ID` to thaw approval gates from the command line; a `lock` property of the root node, so that a
-    tree is always locked without `--lock`; `--lock-wait` to wait for the lock instead of exit 75; `--output none`
-    (only the events, with `--log-db`).
+  * Done: `--thaw NODE` opens approval gates (also in the GUI), the `lock` property of the root node locks the tree
+    without `--lock` (the GUI shows the holder in a window), `--output failed` and `--output none`.
+  * maybe: `--lock-wait [DURATION]` to wait for the lock instead of exit 75 (for queued CI runs).
 * Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
   substitution, the operations, reset / re-run and unprovide, the events, the scheduler (seq/par order, max_proc,
   frozen/skipped, requires, xlocks/rlocks, with real processes too), the runners (local, TCP, ssh with a fake ssh,

@@ -174,6 +174,14 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		report(err)
 	}
 
+	if _, ok := raw["lock"]; ok {
+		if parent != nil {
+			report(&keyError{name: "lock", msg: "only the root node can have a lock (it is the lock of the whole tree)"})
+		} else if n.Lock, err = getStringDef(raw, "lock", ""); err != nil {
+			report(err)
+		}
+	}
+
 	n.Parsed.Runner, err = getStringDef(raw, "runner", "")
 	if err != nil {
 		report(err)
@@ -295,7 +303,8 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	if st == "waiting" {
 		n.Status = StatusWaiting
 	} else if st == "frozen" {
-		n.Status, n.frozenInFile = StatusFrozen, true
+		_, own := raw["status"]
+		n.Status, n.frozenInFile, n.frozenGate = StatusFrozen, true, own
 		if n.Type != TypeRun {
 			n.held = StatusFrozen
 		}

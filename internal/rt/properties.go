@@ -104,6 +104,11 @@ var NodeProperties = []Property{
 			"process is stopped (Ctrl+C is typed into its terminal, SIGTERM and SIGKILL follow if it does not " +
 			"stop), and the node fails: it gets the status of its on_error. It is inherited: on a seq or par " +
 			"node it is the limit of each run node below it, not of the group."},
+	{Name: "lock", Kind: KindString,
+		Description: "A lock file of the whole tree, like runtree --lock FILE: the tree runs once at a time, " +
+			"another runtree (or runtree-headless) with the same lock file exits with 75. Only the root node can " +
+			"have it. A relative path is relative to the tree file, variables are not substituted in it. With " +
+			"--lock too, both files are locked."},
 	{Name: "status", Kind: KindString, Enum: []string{"waiting", "frozen"}, Inherited: true, Default: "waiting",
 		Description: "The initial status of the node. A frozen node is not started until it is thawed manually. It " +
 			"is inherited: the sub-nodes of a frozen seq or par node are frozen too."},

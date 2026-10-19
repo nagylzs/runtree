@@ -89,17 +89,47 @@ func PrintLoadError(err error) int {
 	return 0
 }
 
-// LockTree acquires the lock file of --lock for the run of the tree
-func LockTree(path, treeFile string) (*lockfile.Lock, error) {
+// LockTree acquires the lock files of the run of the tree: the one of --lock (path, when it is not empty), and the one
+// of the lock property of the root node (relative to the tree file). When both are given, both are locked (once when
+// they are the same file). It returns a function that releases them.
+func LockTree(path string, tree *rt.Tree, treeFile string) (func(), error) {
+	var paths []string
+	if path != "" {
+		paths = append(paths, path)
+	}
+	if l := tree.Root.Lock; l != "" {
+		if !filepath.IsAbs(l) {
+			l = filepath.Join(filepath.Dir(treeFile), l)
+		}
+		paths = append(paths, l)
+	}
 	userName, host := CurrentUser()
 	holder := fmt.Sprintf("%s@%s since %s, tree %s", userName, host, time.Now().Format("2006-01-02 15:04:05 -0700"),
 		treeFile)
-	l, err := lockfile.Acquire(path, holder)
-	if err != nil {
-		return nil, err
+	var locks []*lockfile.Lock
+	release := func() {
+		for i := len(locks) - 1; i >= 0; i-- {
+			_ = locks[i].Release()
+		}
 	}
-	slog.Info("holding the lock", "file", path)
-	return l, nil
+	locked := make(map[string]bool)
+	for _, p := range paths {
+		// the same file is locked once: a second lock of it would wait for the first one
+		if abs, err := filepath.Abs(p); err == nil {
+			if locked[abs] {
+				continue
+			}
+			locked[abs] = true
+		}
+		l, err := lockfile.Acquire(p, holder)
+		if err != nil {
+			release()
+			return nil, err
+		}
+		locks = append(locks, l)
+		slog.Info("holding the lock", "file", p)
+	}
+	return release, nil
 }
 
 // CurrentUser returns the name of the user and the host

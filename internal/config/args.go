@@ -9,13 +9,14 @@ type BaseArgs struct {
 
 // RunArgs are the options of runtree and runtree-headless for loading and running a tree
 type RunArgs struct {
-	MaxDepth    uint   `long:"max-depth" description:"Maximum tree depth"`
-	Check       bool   `long:"check" description:"Only check the tree file (and the included files), then exit"`
-	RtrunnerDir string `long:"rtrunner-dir" value-name:"DIR" env:"RUNTREE_RTRUNNER_DIR" description:"A directory with rtrunner-<goos>-<goarch> binaries, to upload them to the hosts of ssh runners instead of the embedded ones"`
-	NoSSHShare  bool   `long:"no-ssh-share" description:"Do not share one ssh connection for each host (ssh:// runners)"`
-	Runner      string `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port, tcp://host:port or ssh://[user@]host[:port][/path/to/rtrunner] (default: local)"`
-	Lock        string `long:"lock" value-name:"FILE" description:"Lock FILE while the tree runs, another runtree with the same lock file exits (with 75) instead of running"`
-	LogDB       string `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`
+	MaxDepth    uint     `long:"max-depth" description:"Maximum tree depth"`
+	Check       bool     `long:"check" description:"Only check the tree file (and the included files), then exit"`
+	RtrunnerDir string   `long:"rtrunner-dir" value-name:"DIR" env:"RUNTREE_RTRUNNER_DIR" description:"A directory with rtrunner-<goos>-<goarch> binaries, to upload them to the hosts of ssh runners instead of the embedded ones"`
+	NoSSHShare  bool     `long:"no-ssh-share" description:"Do not share one ssh connection for each host (ssh:// runners)"`
+	Runner      string   `long:"runner" value-name:"ADDRESS" description:"The runner of the nodes that do not specify one: local, host:port, tcp://host:port or ssh://[user@]host[:port][/path/to/rtrunner] (default: local)"`
+	Lock        string   `long:"lock" value-name:"FILE" description:"Lock FILE while the tree runs, another runtree with the same lock file exits (with 75) instead of running (the lock property of the root node does the same)"`
+	LogDB       string   `long:"log-db" value-name:"FILE" description:"Save the events and the terminal output of the run in an SQLite database (it keeps all runs)"`
+	Thaw        []string `long:"thaw" value-name:"NODE" description:"Thaw a node that is frozen in the tree file (status: frozen, e.g. an approval gate) before the run: its id, title or path; it can be given several times"`
 }
 
 type CLIArgs struct {
@@ -37,6 +38,7 @@ type CLIArgs struct {
 type HeadlessCLIArgs struct {
 	BaseArgs
 	RunArgs
+	Output string `long:"output" value-name:"MODE" choice:"all" choice:"failed" choice:"none" default:"all" description:"The terminal output of the nodes on stdout: all, failed (only of the nodes that fail, when they fail) or none"`
 }
 
 const DefaultListenAddress = ":5000"
