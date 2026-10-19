@@ -23,6 +23,23 @@ type undefinedRef struct {
 	name string // the variable name
 }
 
+// checkCWD rejects a cwd that starts with ~: it is not expanded (no shell starts the processes), so the directory would
+// be missing, but only when the node is started
+func checkCWD(cwd string) error {
+	if !strings.HasPrefix(cwd, "~") {
+		return nil
+	}
+	hint := "use an absolute path"
+	if cwd == "~" || strings.HasPrefix(cwd, "~/") { // not ~user
+		if rel := strings.TrimLeft(cwd[1:], "/"); rel == "" {
+			hint += ", or no cwd for an ssh runner (it starts in the home directory)"
+		} else {
+			hint += fmt.Sprintf(", or for an ssh runner a path relative to the home directory (%q)", rel)
+		}
+	}
+	return propErrorf("cwd", "invalid cwd: %q: ~ is not expanded; %s", cwd, hint)
+}
+
 func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 	c := &Calculated{Idx: *idx, Level: level}
 	n.undefinedRefs = nil
@@ -194,6 +211,9 @@ func (n *Node) calculate(idx *uint, level uint) (bool, error) {
 	} else {
 		c.CWD, err = eval("cwd", -1, n.Parsed.CWD, c.Vars)
 		if err != nil {
+			return false, err
+		}
+		if err := checkCWD(c.CWD); err != nil {
 			return false, err
 		}
 	}

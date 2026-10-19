@@ -115,6 +115,10 @@ func TestPropertyValueErrors(t *testing.T) {
 		{"timeout", `"-5m"`, `invalid timeout: "-5m" (expected a duration with a unit, e.g. 90s, 30m or 1h30m`, 0},
 		{"timeout", "soon", `invalid timeout: "soon"`, 0},
 		{"timeout", "[30m]", "invalid timeout: it is a list, expected a duration with a unit (e.g. 30m)", 0},
+		{"cwd", `"~/deploy"`, `invalid cwd: "~/deploy": ~ is not expanded; use an absolute path, or for an ssh ` +
+			`runner a path relative to the home directory ("deploy")`, 0},
+		{"cwd", `"~"`, `invalid cwd: "~": ~ is not expanded; use an absolute path, or no cwd for an ssh runner`, 0},
+		{"cwd", `"~root/x"`, `invalid cwd: "~root/x": ~ is not expanded; use an absolute path`, 0},
 		{"type", "loop", `invalid type: "loop"`, 0},
 		{"runner", `"udp://host:5000"`, `unknown runner "udp://host:5000": the runner is local, host:port,`, 0},
 		{"runner", `"ssh://root:secret@host"`, `invalid runner "ssh://root:secret@host": passwords are not`, 0},
@@ -126,6 +130,29 @@ func TestPropertyValueErrors(t *testing.T) {
 		checkPos(t, pe.Pos, "tree.yaml", 4, 9+len(tc.property)+tc.offset)
 		checkContains(t, pe.Message, tc.message)
 		checkContains(t, pe.Node, "job")
+	}
+}
+
+// A cwd that starts with ~ is an error, also when it comes from a variable, on the node that sets it (not on the ones
+// that inherit it); a ~ in the rest of the path is not
+func TestCWDTilde(t *testing.T) {
+	_, err := parseTestTree(t, `
+tree:
+  vars: {workdir: "~/work"}
+  cwd: "{workdir}"
+  seq:
+    - {id: a, args: ["true"]}
+    - {id: b, args: ["true"]}
+`)
+	var pes ParseErrors
+	if !errors.As(err, &pes) || len(pes) != 1 {
+		t.Fatalf("the errors are %v", err)
+	}
+	checkContains(t, pes[0].Message, `invalid cwd: "~/work": ~ is not expanded`)
+	for _, cwd := range []string{"./~", "/tmp/~", "relative/dir", "/abs"} {
+		if _, err := parseTestTree(t, "tree:\n  cwd: \""+cwd+"\"\n  args: [\"true\"]\n"); err != nil {
+			t.Errorf("cwd %s: %v", cwd, err)
+		}
 	}
 }
 

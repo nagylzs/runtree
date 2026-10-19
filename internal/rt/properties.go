@@ -54,8 +54,9 @@ var NodeProperties = []Property{
 		Description: "Arguments that are put before the args of the run nodes in this subtree, e.g. [\"ssh\", " +
 			"\"root@{server}\"]. Its variables are the ones of the node that sets it."},
 	{Name: "cwd", Kind: KindString, Inherited: true,
-		Description: "The directory where the processes are started (~ is not expanded). When it is empty, the " +
-			"current directory of the runner is used (runtree's own for the local runner)."},
+		Description: "The directory where the processes are started. When it is empty, the current directory of " +
+			"the runner is used (runtree's own for the local runner, the home directory for an ssh runner). ~ is " +
+			"not expanded, a cwd that starts with ~ is an error."},
 	{Name: "runner", Kind: KindString, Inherited: true, Default: "local",
 		Description: "The runner that runs the processes of the node: local (runtree runs them itself), the " +
 			"address (host:port or tcp://host:port) of an rtrunner, or ssh://[user@]host[:port][/path/to/rtrunner] " +

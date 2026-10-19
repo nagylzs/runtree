@@ -157,7 +157,11 @@ variables in the remote command (`NEEDRESTART_MODE=l apt-get -y dist-upgrade`).
 
 `cwd` is the directory where the processes start. It is inherited. When it is not set (or empty), the processes start
 in the current directory of the runner: where `runtree` was started for the local runner, the home directory of the
-user for an ssh runner. `~` is not expanded: use an absolute path, or `cd` in a shell.
+user for an ssh runner (so there a relative path is relative to the home directory).
+
+`~` is not expanded: no shell starts the processes, and `cwd` applies on the host of the runner, for its user. A
+`cwd` that starts with `~` is an error when the tree is loaded (`--check` reports it too), instead of a failed start
+later: use an absolute path, or for an ssh runner a relative one (`deploy` instead of `~/deploy`).
 
 ## Command prefix
 

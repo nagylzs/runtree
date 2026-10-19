@@ -83,7 +83,7 @@ Value: list of strings, inherited. See [the guide](../variables.md#command-prefi
 
 ## cwd
 
-The directory where the processes are started (~ is not expanded). When it is empty, the current directory of the runner is used (runtree's own for the local runner).
+The directory where the processes are started. When it is empty, the current directory of the runner is used (runtree's own for the local runner, the home directory for an ssh runner). ~ is not expanded, a cwd that starts with ~ is an error.
 
 Value: string, inherited. See [the guide](../variables.md#working-directory).
 

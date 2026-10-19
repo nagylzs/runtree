@@ -58,9 +58,8 @@ The README was checked against the code when the documentation was moved to docs
 sibling operation stopped running siblings in the middle, a single include lost the title, provides and requires of
 the including node, the descriptions of several properties, Skip and Skip all of a frozen seq/par node, a seq/par node
 whose sub-nodes are all frozen showed Waiting, a name in both `rlocks` and `xlocks` was not an error, the exit code
-did not depend on the result of the tree (`runtree-headless` has one now). Still open:
-
-* `~` is not expanded in `cwd` (expand it, or report it as an error?)
+did not depend on the result of the tree (`runtree-headless` has one now), a `cwd` with `~` failed only when the node
+started (`~` is not expanded, it is a load error now).
 
 # Ideas (from the old README)
 
