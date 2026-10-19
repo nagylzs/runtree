@@ -13,18 +13,17 @@
   the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
   runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol
   change (bump `runner.Version`), a session registry on the runner, and restoring node statuses in the GUI.
-* macOS support (checked on 2026-10-17, not tested on a Mac yet):
-  * rtrunner: it cross-compiles for darwin/arm64 and darwin/amd64 (`internal/signal/signals_unix.go` is used on
-    macOS too). Test it on a Mac (ptys, process groups, signals).
-  * runtree GUI: Homebrew has `gtk4` (4.24) and `vte3` built with `-Dgtk4=true` (`vte-2.91-gtk4`, 0.84), and
-    gotk4/gotkit have no OS specific code (cgo with pkg-config), so it should build after
-    `brew install pkgconf gtk4 vte3 socat`. Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift on
-    macOS), middle click paste (macOS has no primary selection), the close confirmation on Cmd+Q.
+* macOS support (built on a Mac, arm64, macOS 27, on 2026-10-19):
+  * `scripts/build.py` builds everything on macOS, and `go test ./...` passes there (the local runner tests start
+    real processes in ptys). Test rtrunner by hand too (process groups, signals).
+  * runtree GUI: it builds with Homebrew's `gtk4` (4.24) and `vte3` (`vte-2.91-gtk4`, 0.84) after `brew install
+    pkgconf gtk4 vte3 gobject-introspection socat`; the linker warns about duplicate libraries (`ld: warning: ignoring
+    duplicate libraries`, harmless). Not run yet. Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift
+    on macOS), middle click paste (macOS has no primary selection), the close confirmation on Cmd+Q.
   * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
 * test on Windows: `runtree-headless`, `rtrunner` and `runtree-lsp` from `dist/windows/amd64/` on a real Windows (only
   tested under wine so far): the local runner (ConPTY), the output, exit codes, `--lock`, Ctrl+C.
-* test on macOS: `rtrunner`, `runtree-headless` (`GOOS=darwin go build ./cmd/runtree-headless`) and the GUI (see macOS
-  support above) on a real Mac.
+* test on macOS: `rtrunner`, `runtree-headless` and the GUI (see macOS support above) from `dist/darwin/arm64/`.
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).

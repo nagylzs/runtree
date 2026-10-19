@@ -2,8 +2,9 @@
 
 ## Requirements
 
-runtree runs on Linux. The GUI (`runtree`) needs GTK 4 and VTE (the terminal widget of GNOME Terminal); the runner
-(`rtrunner`) is a static binary without dependencies, that also runs on macOS and other Linux machines.
+runtree runs on Linux, and it builds on macOS too (the GUI is not tested there yet). The GUI (`runtree`) needs GTK 4
+and VTE (the terminal widget of GNOME Terminal); the runner (`rtrunner`) is a static binary without dependencies, that
+also runs on macOS and other Linux machines.
 [`runtree-headless`](headless.md) runs trees without the GUI (e.g. in CI): it is a static binary too, that also runs
 on Windows.
 
@@ -30,6 +31,15 @@ On Arch or Manjaro:
 sudo pacman -S base-devel go git python socat gtk4 vte4
 ```
 
+On macOS, with [Homebrew](https://brew.sh) (and the Xcode command line tools, `xcode-select --install`):
+
+```bash
+brew install go git pkgconf gtk4 vte3 gobject-introspection socat
+```
+
+Without GTK 4 and VTE (when `pkg-config` does not find `gtk4` and `vte-2.91-gtk4`), the build skips the GUI and builds
+the other programs.
+
 Then build it:
 
 ```bash
@@ -39,7 +49,7 @@ python3 scripts/build.py
 ```
 
 The first build takes several minutes (the GTK bindings are compiled once, then they are cached). The binaries are
-put into `dist/linux/amd64/`:
+put into `dist/<os>/<arch>/`, e.g. `dist/linux/amd64/`, or `dist/darwin/arm64/` on a Mac with Apple silicon:
 
 | File | What it is |
 |------|------------|

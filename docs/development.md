@@ -8,7 +8,7 @@ go build ./... && go vet ./...  # compile and vet everything
 go build -o runtree ./cmd/runtree
 ```
 
-`scripts/build.py` (it needs git, and an x86 Linux or Windows host):
+`scripts/build.py` (it needs git, and a Linux, macOS or Windows host, on amd64 or arm64):
 
 1. runs `go mod tidy`;
 2. cross-builds `rtrunner` for the platforms of the [managed ssh runners](runners.md#managed-rtrunner) (linux amd64,
@@ -16,8 +16,9 @@ go build -o runtree ./cmd/runtree
    `internal/rtrunners/bin/` (ignored by git);
 3. builds `rtrunner`, `runtree`, `runtree-headless` and `runtree-lsp` into `dist/<os>/<arch>/`, with the version, the
    commit and the build time in them (`--version`), and `*_debug` variants with debug information. `runtree` and
-   `runtree-headless` are built with `-tags rtrunners`, so they embed the binaries of step 2;
-4. on Linux, cross-builds the programs without cgo for Windows too, into `dist/windows/amd64/`.
+   `runtree-headless` are built with `-tags rtrunners`, so they embed the binaries of step 2. `runtree` is built only
+   when `pkg-config` finds GTK 4 and VTE (`gtk4`, `vte-2.91-gtk4`);
+4. on Linux and macOS, cross-builds the programs without cgo for Windows too, into `dist/windows/amd64/`.
 
 Only `runtree` needs cgo (GTK 4 and VTE through [gotk4](https://github.com/diamondburned/gotk4)); the others are built
 without cgo, as static binaries. The first build of `runtree` takes several minutes, the cgo packages are cached after

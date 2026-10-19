@@ -20,7 +20,8 @@ on Windows (VTE dependency); see TODO.md for macOS.
 
 System deps: gcc, gtk4, vte4 (`libgtk-4-dev libvte-2.91-gtk4-dev libgirepository1.0-dev` on Debian/Ubuntu),
 plus `bash` and `socat` at runtime for the GUI (it spawns `socat` inside each VTE terminal to attach to the
-forwarded pty socket).
+forwarded pty socket). On macOS: `brew install pkgconf gtk4 vte3 gobject-introspection socat`; without GTK/VTE
+(pkg-config), `build.py` skips `runtree` and builds the others.
 
 ```bash
 python3 scripts/build.py          # official build: go mod tidy + all binaries (+ _debug variants) into dist/<os>/<arch>/, with version ldflags

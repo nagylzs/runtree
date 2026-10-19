@@ -20,7 +20,7 @@ version_prefix=f"{module_name}/internal/version"
 
 
 oss = platform.system().lower()
-if oss not in ["windows", "linux"]:
+if oss not in ["windows", "linux", "darwin"]:
 	raise SystemExit(f"unknown system {oss}")
 
 is_mingw = False
@@ -33,10 +33,22 @@ except ImportError:
 arch = platform.machine().lower()
 if arch=='x86_64':
 	arch = "amd64"
-if arch not in ["amd64", "i386"]:
+if arch=='aarch64':
+	arch = "arm64"
+if arch not in ["amd64", "arm64", "i386"]:
 	raise SystemExit(f"unknown arch {arch}")
 
 print(f"os={oss} arch={arch}")
+
+# runtree (the GUI) needs GTK 4 and VTE through cgo and pkg-config; without them only the other programs are built
+gui_packages = ["gtk4", "vte-2.91-gtk4"]
+try:
+	has_gui = sp.call(["pkg-config", "--exists"] + gui_packages) == 0
+except OSError:
+	has_gui = False
+if not has_gui:
+	print(f"pkg-config does not find {' '.join(gui_packages)}: runtree (the GUI) is not built")
+	targets.remove("runtree")
 
 def co(cmd):
 	o = sp.check_output(cmd)
@@ -138,7 +150,7 @@ for target in targets:
 		run(["go-winres", "patch", "--no-backup", binary])
 
 # The programs without cgo are cross-built for Windows too (runtree does not build there: VTE)
-if oss == "linux":
+if oss in ["linux", "darwin"]:
 	wdir = os.path.join(DIR, "dist", "windows", "amd64")
 	os.makedirs(wdir, exist_ok=True)
 	for target in targets:

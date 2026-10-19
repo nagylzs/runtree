@@ -99,9 +99,9 @@ See [Getting started](docs/getting-started.md) for the details and other distrib
 ## Status
 
 runtree is used for real upgrades and deployments, but it is young: the tree format and the options may still
-change. The GUI runs on Linux; the runner (`rtrunner`) also runs on macOS (not tested yet) and Windows, and
-`runtree-headless` (without the GUI, e.g. for CI) on Windows too (tested under wine only). There are no packages or
-releases yet.
+change. The GUI runs on Linux, and it builds on macOS (not tested there yet); the runner (`rtrunner`) also runs on
+macOS and Windows, and `runtree-headless` (without the GUI, e.g. for CI) on Windows too (tested under wine only).
+There are no packages or releases yet.
 
 ## License
 

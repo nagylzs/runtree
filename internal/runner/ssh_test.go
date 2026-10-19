@@ -174,13 +174,20 @@ func TestSSHCommandNotChanged(t *testing.T) {
 func TestSSHShare(t *testing.T) {
 	a, _ := ParseAddress("ssh://root@server01:2222")
 	t.Cleanup(func() { SetSSHShare(false) })
-	run, cache := t.TempDir(), t.TempDir()
+	// not t.TempDir(): it is too long for a socket path on macOS (/var/folders/...)
+	run, cache := shortTempDir(t), shortTempDir(t)
+	// the user cache directory is $XDG_CACHE_HOME on Linux, $HOME/Library/Caches on macOS
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("HOME", cache)
+	userCache, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		runtimeDir, dir string
 	}{
 		{run, filepath.Join(run, "runtree")},
-		{"", filepath.Join(cache, "runtree", "ssh")},      // e.g. macOS
+		{"", filepath.Join(userCache, "runtree", "ssh")},  // e.g. macOS
 		{filepath.Join(run, strings.Repeat("x", 80)), ""}, // the socket path would be too long
 	} {
 		t.Setenv("XDG_RUNTIME_DIR", tc.runtimeDir)
@@ -202,4 +209,14 @@ func TestSSHShare(t *testing.T) {
 	if got := strings.Join(sshOptions(a), " "); got != "-T -o BatchMode=yes -p 2222" {
 		t.Errorf("disabled: %s", got)
 	}
+}
+
+// shortTempDir is a temporary directory in /tmp, short enough for socket paths in it
+func shortTempDir(t *testing.T) string {
+	dir, err := os.MkdirTemp("/tmp", "rt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	return dir
 }
