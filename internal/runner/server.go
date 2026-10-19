@@ -179,7 +179,7 @@ func (s *Server) ServePty(ctx context.Context) error {
 	s.logger.Debug("starting", "args", ca.Args, "cwd", ca.Cwd)
 
 	if ca.InheritSysEnvs {
-		ca.Env = append(os.Environ(), ca.Env...)
+		ca.Env = append(environ(), ca.Env...)
 	}
 
 	ptyRunner, err := s.startPty(ca)

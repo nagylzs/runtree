@@ -138,25 +138,26 @@ size. The application id is `com.github.nagylzs.runtree.gui`.
 
 ## A remote or virtual X server
 
-On an X server without a GPU (VNC, Xvfb, `ssh -X`), start runtree with GTK's cairo renderer:
-
-```bash
-GSK_RENDERER=cairo runtree tree.rt.yaml
-```
-
-GTK draws with OpenGL by default; without a GPU it is software OpenGL, which sends the whole window to the X server on
+runtree draws its window with GTK's cairo renderer, so it works well on an X server without a GPU (VNC, Xvfb, `ssh -X`)
+too. GTK's own default is OpenGL; without a GPU it is software OpenGL, which sends the whole window to the X server on
 every change (6.4 MB on a 1600×1000 screen, and it changes every second while nodes run). The cairo renderer sends only
 the changed parts. Measured on an X server without shared memory (like one over the network), with a tree of 586
 nodes:
 
-| | default | `GSK_RENDERER=cairo` |
+| | OpenGL (`GSK_RENDERER=ngl`) | cairo (runtree's default) |
 |---|---|---|
 | idle, while nodes run | 18.5 MB/s | almost nothing |
 | switching to the Tree view | 50 MB, then 25 MB/s | 6 MB |
 | a terminal with streaming output | 195 MB/s | 4 MB/s |
 
-On a local desktop with a GPU the default is fine. With `-d`, runtree logs the frames of the window that take more than
-100 ms ("slow frame").
+`GSK_RENDERER` chooses another renderer, e.g. on a local desktop with a GPU (`ngl` or `vulkan`):
+
+```bash
+GSK_RENDERER=ngl runtree tree.rt.yaml
+```
+
+runtree sets `GSK_RENDERER` only for itself: the commands of the nodes do not get it (unless you set it). With `-d`,
+runtree logs the frames of the window that take more than 100 ms ("slow frame").
 
 ## Next steps
 

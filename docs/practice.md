@@ -33,8 +33,8 @@ runtree --lock /srv/runtree/upgrade.lock --log-db /srv/runtree/runs.db /srv/runt
   `touch /srv/runtree/upgrade.lock; chgrp ops /srv/runtree/upgrade.lock; chmod 664 /srv/runtree/upgrade.lock`.
 - The log database can be shared the same way (it must be writable by the group, and on a local filesystem); every
   session is a run in it, with the host and the user.
-- On a shared VNC desktop (several users watch the same runtree), start runtree with `GSK_RENDERER=cairo`: see
-  [a remote or virtual X server](getting-started.md#a-remote-or-virtual-x-server).
+- On a shared VNC desktop (several users watch the same runtree), keep the default renderer of runtree (do not set
+  `GSK_RENDERER`): see [a remote or virtual X server](getting-started.md#a-remote-or-virtual-x-server).
 - The lock only works between the runtree processes of the same machine. Locks on network filesystems (NFS) may not
   work between machines, and runtrees on different machines (e.g. on the laptops of the users) cannot coordinate with
   a lock file.

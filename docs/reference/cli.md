@@ -99,7 +99,7 @@ The language server: it speaks the Language Server Protocol on stdin and stdout 
 | `RUNTREE_RTRUNNER_DIR` | the same as `--rtrunner-dir` |
 | `GTK_THEME` | the GTK theme of the GUI, e.g. `Adwaita:dark` |
 | `GDK_SCALE` | the scale of the GUI, e.g. 2 on a HiDPI screen |
-| `GSK_RENDERER` | the renderer of GTK: `cairo` is much faster on an X server without a GPU (see [a remote or virtual X server](../getting-started.md#a-remote-or-virtual-x-server)) |
+| `GSK_RENDERER` | the renderer of GTK; runtree uses `cairo` when it is not set, it is much faster on an X server without a GPU (see [a remote or virtual X server](../getting-started.md#a-remote-or-virtual-x-server)), e.g. `ngl` or `vulkan` for the GPU renderers of GTK |
 | `XDG_RUNTIME_DIR` | the directory of the shared ssh connections (`$XDG_RUNTIME_DIR/runtree`) |
 
 ## Files
