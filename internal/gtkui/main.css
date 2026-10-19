@@ -66,6 +66,13 @@ of the current theme.
     border: 1px solid currentColor;
 }
 
+/* the terminal mark before the status of a run node in the navigator (termmark.go): drawn as large as it fits */
+.term-mark {
+    min-width: 1.2em;
+    min-height: 1em;
+    margin-right: 0.3em;
+}
+
 .status-waiting {
     background-color: #cb4b16;
     color: #002b36;

@@ -49,7 +49,7 @@ func NewNodeFrameLog() *NodeFrameLog {
 	d.Overlay.SetChild(d.scroll)
 
 	content := gtk.NewBox(gtk.OrientationHorizontal, 5)
-	content.Append(gtk.NewImageFromIconName("go-bottom-symbolic"))
+	content.Append(gtk.NewImageFromIconName("go-down-symbolic")) // GTK has it, also without an icon theme
 	content.Append(gtk.NewLabel("End"))
 	d.toEnd = gtk.NewButton()
 	d.toEnd.SetChild(content)

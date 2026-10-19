@@ -23,8 +23,9 @@
     and GLib's sources share one: goroutines no longer call GLib (`runOnMain`). gotk4 still unrefs objects from its
     finalizers with `g_main_context_invoke` (rare, but it can hit it; block the signals around it, or keep the objects
     referenced?). Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift on macOS), middle click paste
-    (macOS has no primary selection), the close confirmation on Cmd+Q, `rt.TermEmoji` (U+1F5B5, no glyph in the macOS
-    fonts), a glitch in the "Tree (" text of the navigator.
+    (macOS has no primary selection), the close confirmation on Cmd+Q, the terminal mark of the run nodes in
+    the navigator (drawn by `termmark.go` now, the emoji had no glyph in the macOS fonts), a glitch in the "Tree (" text
+    of the navigator.
   * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
 * test on Windows: `runtree-headless`, `rtrunner` and `runtree-lsp` from `dist/windows/amd64/` on a real Windows (only
   tested under wine so far): the local runner (ConPTY), the output, exit codes, `--lock`, Ctrl+C.
@@ -136,9 +137,6 @@ about 40 hard coded colors.
 * resize cursor (<->) on the dividers of the panes. GTK 4 sets `col-resize` / `row-resize` on the handle of a
   `gtk.Paned` (`mainpaned.go` uses wide handles); check why it does not show (cursor theme? CSS of the handle?), and
   set it with `SetCursorFromName` if needed.
-* the terminal mark of run nodes (`rt.TermEmoji` "🖵", shown in the status label in `treenodeview.go`) needs a font
-  with that symbol. Use an embedded symbolic SVG icon (a `gtk.Image` before the status text, colored by the theme)
-  instead, so that it does not depend on fonts or icon themes.
 * dark / light / system appearance, with high contrast in all of them: replace the hard coded colors of `main.css`
   with named colors (or `@media (prefers-color-scheme: ...)`, which GTK 4.20+ supports, 4.22 is installed), and
   set the color scheme in `gtk.Settings` (`gtk-interface-color-scheme`). "System" follows the desktop setting

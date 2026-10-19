@@ -160,6 +160,5 @@ func OpName(st NodeOp) string {
 	}
 }
 
-const TermEmoji = "🖵"
 const LockEmoji = "🔒"
 const UnlockEmoji = "🔓"

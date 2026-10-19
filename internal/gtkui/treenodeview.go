@@ -26,6 +26,8 @@ type TreeNodeView struct {
 	icon         *gtk.Image
 	titleLabel   *gtk.Label
 	typeLabel    *gtk.Label
+	status       *gtk.Box // the status of the node: the terminal mark and the status label
+	termMark     *gtk.DrawingArea
 	statusLabel  *gtk.Label
 	elapsedLabel *gtk.Label
 	shown        nodeViewState // what the widgets show, see Update
@@ -43,7 +45,7 @@ type TreeNodeView struct {
 type nodeViewState struct {
 	title, status, statusClass, tooltip, typeName string
 	elapsed                                       string // empty: hidden
-	selected, inList, hasChild, expanded          bool
+	hasTerm, selected, inList, hasChild, expanded bool
 }
 
 func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
@@ -61,12 +63,17 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 	tyl.SetVisible(node.Type != rt.TypeRun)
 
 	sl := gtk.NewLabel("")
-	sl.SetHExpand(true)
-	sl.SetHAlign(gtk.AlignStart)
 	sl.SetVAlign(gtk.AlignCenter)
-	sl.AddCSSClass("status-label")
-	sl.AddCSSClass("node-status")
-	//sl.AddCSSClass("list-row")
+	tm := newTermMark()
+	tm.SetVisible(false)
+	sbx := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	sbx.SetHExpand(true)
+	sbx.SetHAlign(gtk.AlignStart)
+	sbx.SetVAlign(gtk.AlignCenter)
+	sbx.AddCSSClass("status-label")
+	sbx.AddCSSClass("node-status")
+	sbx.Append(tm)
+	sbx.Append(sl)
 
 	el := gtk.NewLabel("")
 	el.AddCSSClass("node-elapsed")
@@ -75,7 +82,7 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 
 	bxSecondRow := gtk.NewBox(gtk.OrientationHorizontal, 5)
 	bxSecondRow.Append(tyl)
-	bxSecondRow.Append(sl)
+	bxSecondRow.Append(sbx)
 	bxSecondRow.Append(el)
 
 	bxRows := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -119,6 +126,8 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 		icon:         icon,
 		titleLabel:   tl,
 		typeLabel:    tyl,
+		status:       sbx,
+		termMark:     tm,
 		statusLabel:  sl,
 		elapsedLabel: el,
 		Node:         node,
@@ -187,10 +196,6 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	}
 
 	sn := rt.StatusName(status)
-	icons := ""
-	if hasTerm {
-		icons += rt.TermEmoji
-	}
 	if connecting {
 		sn += ", connecting"
 	}
@@ -209,15 +214,13 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	if failed > 0 {
 		sn += fmt.Sprintf(", %d failed", failed)
 	}
-	if icons != "" {
-		sn = icons + " " + sn
-	}
 	st := nodeViewState{
 		title:       displayLabel,
 		status:      sn,
 		statusClass: "status-" + strings.ToLower(rt.StatusName(status)),
 		tooltip:     rt.StatusDescription(status),
 		typeName:    rt.TypeName(typ),
+		hasTerm:     hasTerm,
 		selected:    selected,
 		inList:      nw.treeView.Mode() != NavModeTree,
 		hasChild:    hasChild,
@@ -245,14 +248,17 @@ func (nw *TreeNodeView) show(st nodeViewState) {
 	if first || st.status != old.status {
 		nw.statusLabel.SetText(st.status)
 	}
+	if first || st.hasTerm != old.hasTerm {
+		nw.termMark.SetVisible(st.hasTerm)
+	}
 	if first || st.statusClass != old.statusClass {
 		if old.statusClass != "" {
-			nw.statusLabel.RemoveCSSClass(old.statusClass)
+			nw.status.RemoveCSSClass(old.statusClass)
 		}
-		nw.statusLabel.AddCSSClass(st.statusClass)
+		nw.status.AddCSSClass(st.statusClass)
 	}
 	if first || st.tooltip != old.tooltip {
-		nw.statusLabel.SetTooltipText(st.tooltip)
+		nw.status.SetTooltipText(st.tooltip)
 	}
 	if first || st.typeName != old.typeName {
 		nw.typeLabel.SetText(st.typeName)
