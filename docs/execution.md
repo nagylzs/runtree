@@ -44,7 +44,7 @@ The scheduler only starts nodes. It never stops, freezes or skips anything by it
 A run node is Waiting until the scheduler starts it, then Running while its process runs. When the process exits:
 
 - it is **Success** if the process exited normally (not by a signal) with an exit code in
-  [`success_exit_codes`](#exit-codes) (by default 0);
+  [`success_exit_codes`](#exit-codes) (by default 0), and it did not run longer than its [`timeout`](#timeouts);
 - otherwise it gets the status of its [`on_error`](#errors): Failed (the default), Paused or Success.
 
 A process that could not be started (e.g. the runner is not reachable, or the program is not found) is a start
@@ -134,6 +134,42 @@ replace the default, so list 0 too when it should also mean success:
 ```
 
 A process that was killed by a signal is always a failure.
+
+## Timeouts
+
+`timeout` is the longest time that a run node may run, e.g. `90s`, `30m` or `1h30m` (Go durations: `h`, `m`, `s`,
+`ms`; a number needs a unit). When the node runs longer (counted from its start, like its elapsed time in the GUI),
+runtree stops its process like you would:
+
+1. it types Ctrl+C into its terminal: the terminal sends SIGINT to the process and to the commands that it runs, and
+   `ssh -t` passes it to the remote command, so it stops there too;
+2. SIGTERM after 10 seconds, if it still runs;
+3. SIGKILL after 10 more seconds.
+
+The signals go to the process group of the process, like Ctrl+C. Then the node fails, also when the process exits
+with a success code after Ctrl+C (it did not finish its work): it gets the status of its [`on_error`](#errors), e.g.
+Paused, so in the GUI you can look at its terminal and decide (Re-run, Success, Fail), and `runtree-headless` goes on
+with the rest of the tree instead of waiting forever. The status change tells why (`Running → Paused (timed out after
+30m)`), the node shows "timed out" until it is started again, and its Re-run starts the clock again.
+
+`timeout` is inherited, and `0` (the default) means no limit. On a seq or par node it is the limit of each run node
+below it, not of the group, so a timeout on the root node is a safety net for every step of the tree, and the slow
+steps can have more:
+
+```yaml
+tree:
+  timeout: 30m                 # every step of the tree
+  seq:
+    - title: "db updates"
+      timeout: 3h              # this one can take long
+      args: [ssh, -t, root@db1, /usr/local/sbin/update-all.sh]
+    - title: "shell for the admin"
+      timeout: 0               # no limit
+      args: [bash]
+```
+
+A step that needs another way to stop (another signal, or less time between them) can do it itself, e.g. with
+`timeout --signal=HUP --kill-after=1m 20m command` of coreutils in its `args`.
 
 ## Limiting processes
 

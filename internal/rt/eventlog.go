@@ -24,6 +24,7 @@ const (
 	EventStatus           = "status"       // the status of the node changed
 	EventOperation        = "operation"    // a manual operation
 	EventSignal           = "signal"       // a signal is sent to the process
+	EventTimeout          = "timeout"      // the node ran longer than its timeout, its process is stopped
 	EventOnError          = "on-error"     // the operation of on_error is performed on the siblings
 	EventProvided         = "provided"
 	EventUnprovided       = "unprovided" // by a reset to waiting

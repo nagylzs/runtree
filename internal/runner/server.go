@@ -426,16 +426,8 @@ func (s *Server) processSignalRequest() error {
 			}
 			break
 		}
-		process, err := os.FindProcess(s.ptyRunner.Pid())
-		if err != nil {
-			e = &Error{
-				Code: ErrorNoProcess,
-				Message: fmt.Sprintf("Clould not find process, pid=%d, err=%s",
-					s.ptyRunner.Pid(), err.Error()),
-			}
-			break
-		}
-		err = process.Signal(sig)
+		// to the process group, like Ctrl+C in a terminal: a script and the commands that it waits for get it too
+		err = s.ptyRunner.SignalGroup(sig)
 		if err != nil {
 			e = &Error{
 				Code:    ErrorCannotSendSignal,

@@ -112,11 +112,12 @@ From cron, with a lock file, so that a slow run is not started twice (exit code 
 
 ## Limitations
 
-- **Input.** Nothing is typed into the terminals, so a command that asks something (a password of `sudo`, the host
+- **Input.** Nobody types into the terminals (only a timeout types Ctrl+C), so a command that asks something (a password of `sudo`, the host
   key of `ssh`, a confirmation of `apt`) waits forever, and the run never ends. Use the non-interactive options of the
   commands: `apt-get -y`, `sudo -n`, `ssh -o BatchMode=yes`. The prompt is in the output (after 2 seconds), so you can
-  see what it waits for. There is no timeout for the nodes yet.
-- **A process that never exits** holds up the run the same way.
+  see what it waits for. Give such steps a [`timeout`](execution.md#timeouts) (e.g. on the root node, for all of
+  them): then they fail instead of waiting forever.
+- **A process that never exits** holds up the run the same way, unless it has a `timeout`.
 - **Windows.** `runtree-headless` and the local runner work on Windows (the processes run in ConPTY pseudo consoles,
   whose output has more terminal control sequences than a Linux terminal's), but the ssh runners do not, and it has
   been tested under wine only.

@@ -46,6 +46,7 @@ func (n *Node) Start(locked bool) error {
 	}
 	n.Client = nil // the client of the previous start, its process has exited
 	n.StartError = ""
+	n.TimedOut = false
 	n.starting = true // running from now on, see calcRunStatus
 	go n.connect(n.Calculated.Runner, *n.ClientArgs, logger, output)
 	return nil

@@ -197,6 +197,9 @@ func (w *NodeFrameHeader) updateGUI() {
 		path = append(path, n)
 	}
 	st := rt.StatusName(newStatus)
+	if node.TimedOut {
+		st += ", timed out"
+	}
 	if node.SchedulerMessage != "" {
 		st += ", " + node.SchedulerMessage
 	}

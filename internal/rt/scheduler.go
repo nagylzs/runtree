@@ -56,9 +56,10 @@ func (t *Tree) schedule() {
 		return
 	}
 
-	// commit to total elapsed
+	// commit to total elapsed, and stop the processes that run longer than their timeout
 	for _, node := range t.Nodes {
 		node.commitTotalElapsed(true)
+		node.checkTimeout()
 	}
 
 	// update all statuses dependencies and resource locks

@@ -54,6 +54,9 @@ func JSONSchema() ([]byte, error) {
 // The schemas below avoid anyOf where the type of the value tells which form it is (if/then/else, or one schema
 // for several types), so that validators (and editors) report the actual problem, not just "no schema matches".
 
+// durationPattern matches the durations of time.ParseDuration without a sign, e.g. 90s, 1h30m, 0
+const durationPattern = `^\s*(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|ms|s|m|h))+)\s*$`
+
 var stringOrStringList = map[string]any{"type": []string{"string", "array"}, "items": map[string]any{"type": "string"}}
 
 // ifObject returns a schema that applies then to objects, and otherwise (for other types) to everything else
@@ -77,6 +80,14 @@ func valueSchema(p Property) map[string]any {
 	case KindExitCodes:
 		return map[string]any{"type": "array", "minItems": 1,
 			"items": map[string]any{"type": "integer", "minimum": 0, "maximum": 255}}
+	case KindDuration:
+		return map[string]any{
+			"if":   map[string]any{"type": "integer"},
+			"then": map[string]any{"const": 0},
+			"else": map[string]any{"type": "string", "pattern": durationPattern, "examples": []string{"90s", "30m", "1h30m"},
+				// used by VS Code
+				"patternErrorMessage": "expected a duration with a unit, e.g. 90s, 30m or 1h30m (or 0: no limit)"},
+		}
 	case KindStringMap:
 		return map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}}
 	case KindVarMap:

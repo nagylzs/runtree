@@ -181,6 +181,7 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	}
 	connecting := typ == rt.TypeRun && node.Starting(true)
 	sm := node.SchedulerMessage
+	timedOut := node.TimedOut
 	hasChild := node.HasChild()
 	expanded := node.Expanded
 	nProc := node.NProc
@@ -196,6 +197,9 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	}
 
 	sn := rt.StatusName(status)
+	if timedOut {
+		sn += ", timed out"
+	}
 	if connecting {
 		sn += ", connecting"
 	}

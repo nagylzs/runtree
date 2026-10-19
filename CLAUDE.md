@@ -79,7 +79,8 @@ Four binaries; `runtree`, `runtree-headless` and `rtrunner` share the runner pro
 ### Runner protocol (`internal/runner`)
 After a version handshake (`proto.go`, `runner.Version` must match on both ends — bump it when changing the wire
 format), the client sends `MsgStartPty` and the connection is upgraded to an `smux` session with two streams:
-a raw **pty stream** and a **command stream** (msgpack-encoded messages: resize, signal, proc-state, error).
+a raw **pty stream** and a **command stream** (msgpack-encoded messages: resize, signal (to the process group),
+proc-state, error).
 On the client side the pty stream is re-exposed as a local Unix domain socket (`Client.PtyPath`); the GUI attaches a
 VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `onNotify` callback.
 
@@ -102,7 +103,9 @@ VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `o
   node is starting (`Starting`): Running without a client. `NProc` is counted by `updateStatus`, when a run node starts
   or stops running.
 - `scheduler.go` — `Tree.Run` loop (ticks every `HZ`=1s or when `Awake()` is called; debounced via
-  `internal/events.Debouncer`). Each cycle: commit elapsed times → `updateStatusesDown` → `updateBlockedAll` →
+  `internal/events.Debouncer`). Each cycle: commit elapsed times and stop the nodes that ran longer than their
+  `timeout` (`timeout.go`: Ctrl+C typed into the pty with `Client.Type`, then SIGTERM and SIGKILL; the node fails) →
+  `updateStatusesDown` → `updateBlockedAll` →
   `findRunnable` (depth-first; `seq` stops at the first unfinished child, `par` scans all) → `Node.Start`.
   Only one node is started per cycle; starting re-awakes the scheduler.
 - `status.go` — status derivation. `Node.Status` must only be changed via `updateStatus`; run-node status comes from

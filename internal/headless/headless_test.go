@@ -135,6 +135,27 @@ tree:
 	}
 }
 
+// A node that runs longer than its timeout is stopped with Ctrl+C (through the runner), and it fails: it does not hold
+// up the run
+func TestRunTimeout(t *testing.T) {
+	t.Parallel()
+	r := run(t, `
+tree:
+  seq:
+    - {title: hang, timeout: 1s, on_error: paused, args: [sh, -c, "echo waiting; sleep 100"]}
+    - {title: deploy, args: ["true"]}
+`, nil)
+	r.check(t, ExitFailed, []string{"hang   | waiting\nhang   | ^C\n"}, []string{
+		"WARN hang: timed out after 1s, typing Ctrl+C\n",
+		"WARN hang: Running → Failed (timed out after 1s; on_error is paused, but nobody can decide: the tree runs " +
+			"unattended)\n",
+		": Failed.\nFailed:\n  hang: timed out after 1s (",
+	})
+	if strings.Contains(r.stderr, "deploy: starting") {
+		t.Errorf("deploy is started:\n%s", r.stderr)
+	}
+}
+
 // The run stops when nothing runs and nothing can be started: the frozen hosts of a rolling upgrade are listed
 func TestRunStopped(t *testing.T) {
 	t.Parallel()

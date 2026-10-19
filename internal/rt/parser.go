@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/nagylzs/set"
 )
@@ -268,6 +269,16 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		dsc = parent.SuccessExitCodes
 	}
 	n.SuccessExitCodes, err = getExitCodesDef(raw, "success_exit_codes", dsc)
+	if err != nil {
+		report(err)
+	}
+
+	// timeout defaults to the parent's value, for the root node it is 0 (no limit)
+	var dto time.Duration
+	if parent != nil {
+		dto = parent.Timeout
+	}
+	n.Timeout, err = getDurationDef(raw, "timeout", dto)
 	if err != nil {
 		report(err)
 	}
@@ -1013,6 +1024,30 @@ func getExitCodesDef(raw map[interface{}]interface{}, name string, defval []int)
 		res = append(res, code)
 	}
 	return res, nil
+}
+
+// getDurationDef returns a duration with a unit (e.g. 90s, 30m, 1h30m), or 0
+func getDurationDef(raw map[interface{}]interface{}, name string, defval time.Duration) (time.Duration, error) {
+	v, ok := raw[name]
+	if !ok {
+		return defval, nil
+	}
+	switch v := v.(type) {
+	case int:
+		if v == 0 {
+			return 0, nil
+		}
+		return 0, propErrorf(name, "invalid %s: %d has no unit (e.g. %ds or %dm)", name, v, v, v)
+	case string:
+		d, err := time.ParseDuration(strings.TrimSpace(v))
+		if err != nil || d < 0 {
+			return 0, propErrorf(name, "invalid %s: %q (expected a duration with a unit, e.g. 90s, 30m or 1h30m, "+
+				"or 0 for no limit)", name, v)
+		}
+		return d, nil
+	}
+	return 0, propErrorf(name, "invalid %s: it is %s, expected a duration with a unit (e.g. 30m)", name,
+		describeValue(v))
 }
 
 /*

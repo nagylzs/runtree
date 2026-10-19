@@ -187,14 +187,17 @@ func failure(n *rt.Node) string {
 	if n.Client == nil {
 		return "failed"
 	}
+	why := "failed"
 	ps := n.Client.LastState()
 	if ps.Exited && ps.ExitCode >= 0 {
-		return fmt.Sprintf("exit code %d", ps.ExitCode)
+		why = fmt.Sprintf("exit code %d", ps.ExitCode)
+	} else if ps.Error != "" {
+		why = ps.Error
 	}
-	if ps.Error != "" {
-		return ps.Error
+	if n.TimedOut {
+		return fmt.Sprintf("timed out after %s (%s)", rt.DurationText(n.Timeout), why)
 	}
-	return "failed"
+	return why
 }
 
 // formatElapsed formats a duration for humans, in seconds (or with a decimal under 10 seconds)

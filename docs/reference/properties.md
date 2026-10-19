@@ -30,6 +30,7 @@ An **inherited** property that is not set in a node gets the value of the parent
 | [`requires`](#requires) | list of strings |  |  |
 | [`max_proc`](#max_proc) | integer | yes | `-1` |
 | [`success_exit_codes`](#success_exit_codes) | list of integers (0-255) | yes | `[0]` |
+| [`timeout`](#timeout) | duration (e.g. 30m), or 0 | yes | `0` |
 | [`status`](#status) | `waiting` or `frozen` | yes | `waiting` |
 | [`on_error`](#on_error) | status and/or sibling operation | yes | `failed` |
 | [`children_on_error`](#children_on_error) | status and/or sibling operation |  |  |
@@ -163,6 +164,12 @@ Value: integer, inherited, default: `-1`. See [the guide](../execution.md#limiti
 Process exit codes that mean success, e.g. [0, 255] for "ssh host reboot". The listed codes replace the default, so list 0 too if it should also mean success.
 
 Value: list of integers (0-255), inherited, default: `[0]`. See [the guide](../execution.md#exit-codes).
+
+## timeout
+
+The longest time that a run node may run, e.g. 90s, 30m or 1h30m (0: no limit). Then its process is stopped (Ctrl+C is typed into its terminal, SIGTERM and SIGKILL follow if it does not stop), and the node fails: it gets the status of its on_error. It is inherited: on a seq or par node it is the limit of each run node below it, not of the group.
+
+Value: duration (e.g. 30m), or 0, inherited, default: `0`. See [the guide](../execution.md#timeouts).
 
 ## status
 

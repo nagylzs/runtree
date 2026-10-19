@@ -43,8 +43,9 @@ on the machine of runtree, as the user who started it, with the environment of r
 
 To run commands on other machines with the local runner, the commands can run `ssh` themselves, e.g. with
 `args_prefix: [ssh, -t, "root@{host}"]`. This works anywhere, but the `envs` and `cwd` of the node apply to the local
-`ssh` process, the signals of the GUI reach `ssh`, not the remote process, and a failed login is exit code 255, like
-any other failure of the command. An ssh runner does not have these problems.
+`ssh` process, the signals of the GUI reach `ssh`, not the remote process (but Ctrl+C typed into the terminal, also by
+a [timeout](execution.md#timeouts), reaches it through `ssh -t`), and a failed login is exit code 255, like any other
+failure of the command. An ssh runner does not have these problems.
 
 ## ssh runners
 

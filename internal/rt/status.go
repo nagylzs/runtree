@@ -3,6 +3,7 @@ package rt
 import (
 	"context"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/nagylzs/runtree/internal/runner"
@@ -84,8 +85,15 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 			n.logExit(n.Client.LastState())
 		}
 		msg := StatusName(prevStatus) + " → " + StatusName(s)
+		var why []string
+		if oe && n.Type == TypeRun && n.TimedOut {
+			why = append(why, "timed out after "+DurationText(n.Timeout))
+		}
 		if oe && s == StatusFailed && n.OnError.Status == StatusPaused {
-			msg += " (on_error is paused, but nobody can decide: the tree runs unattended)"
+			why = append(why, "on_error is paused, but nobody can decide: the tree runs unattended")
+		}
+		if len(why) > 0 {
+			msg += " (" + strings.Join(why, "; ") + ")"
 		}
 		n.log().Log(context.Background(), statusLevel(s), msg, attrEvent, EventStatus, "from", StatusName(prevStatus),
 			"to", StatusName(s))
@@ -198,7 +206,9 @@ func (n *Node) procStatus(ls runner.ProcState) (Status, bool) {
 	if ls.Alive() {
 		return StatusRunning, false
 	}
-	if n.ExitedSuccessfully(ls) {
+	// a process that was stopped because of its timeout fails, also when it exits with a success code (e.g. Ctrl+C
+	// interrupted a script that exits with 0 then)
+	if n.ExitedSuccessfully(ls) && !n.TimedOut {
 		return StatusSuccess, false
 	}
 	return n.errorStatus()

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -190,6 +191,20 @@ func (c *Client) RequestProcState(ctx context.Context, ignoreError bool) error {
 
 func (c *Client) SendSignal(ctx context.Context, name string, ignoreError bool) error {
 	return c.sendMsg(ctx, MsgProcSignal, name, ignoreError)
+}
+
+// CtrlC is the input of Ctrl+C: the terminal sends SIGINT to the processes in its foreground (unless a program reads
+// it as input, e.g. ssh -t passes it to the remote terminal)
+var CtrlC = []byte{3}
+
+// Type writes input to the terminal of the process, as if it was typed (e.g. CtrlC). When a terminal is attached too,
+// its input and this one may interleave. It must be called after StartPty.
+func (c *Client) Type(input []byte) error {
+	if c.ptyStream == nil {
+		return errors.New("the process is not started")
+	}
+	_, err := c.ptyStream.Write(input)
+	return err
 }
 
 func (c *Client) sendMsg(ctx context.Context, code CmdCode, msg any, ignoreError bool) error {

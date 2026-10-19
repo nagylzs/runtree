@@ -65,6 +65,9 @@ func (p *NodeFrameProperites) buildGui() {
 	p.addStringProp("SuccessExitCodes", "SuccessExitCodes",
 		"Exit codes that mean success, only displayed when it is not the default (0)", 0, 12)
 	p.nextRow()
+	p.addStringProp("Timeout", "Timeout",
+		"The longest time that the node may run (timeout), only displayed when it is set", 0, 12)
+	p.nextRow()
 	p.addStringProp("ChildrenOnError", "ChildrenOnError",
 		"The on_error value inherited by the sub-nodes, only displayed when it is different from on_error", 0, 12)
 	p.nextRow()
@@ -161,6 +164,17 @@ func (p *NodeFrameProperites) updateGUI() {
 		successCodes = strings.Join(codes, ", ")
 	}
 	setStringProp("SuccessExitCodes", successCodes)
+	timeout := ""
+	if node.Timeout > 0 {
+		timeout = rt.DurationText(node.Timeout)
+	}
+	if node.TimedOut {
+		timeout += ", timed out"
+		p.setPropState("Timeout", "failed", hasStates)
+	} else {
+		p.setPropState("Timeout", "", hasStates)
+	}
+	setStringProp("Timeout", timeout)
 	childrenOnError := ""
 	if node.ChildrenOnError != node.OnError {
 		childrenOnError = rt.StatusName(node.ChildrenOnError.Status)

@@ -28,8 +28,9 @@ type Node struct {
 	MaxProc            int
 	NProc              int
 	OnError            OnError
-	ChildrenOnError    OnError // inherited by the sub-nodes that do not specify on_error
-	SuccessExitCodes   []int   // exit codes that mean success, inherited from the parent, the default is [0]
+	ChildrenOnError    OnError       // inherited by the sub-nodes that do not specify on_error
+	SuccessExitCodes   []int         // exit codes that mean success, inherited from the parent, the default is [0]
+	Timeout            time.Duration // the longest time that a run node may run (0: no limit), inherited
 	Expanded           bool
 	ExpandOnActive     bool
 	CollapseOnFinished bool
@@ -41,7 +42,10 @@ type Node struct {
 	Client     *runner.Client
 	starting   bool   // connecting to the runner, see Start
 	StartError string // Only used when the client cannot be started, it indicates an error without a client state
-	Status     Status // This **must** be updated from Node.updateStatus!
+	// TimedOut: the node ran longer than its timeout, its process is stopped (see checkTimeout), until it is started
+	// again
+	TimedOut bool
+	Status   Status // This **must** be updated from Node.updateStatus!
 	// held is the status of a seq/par node that is set on the node itself, instead of being calculated from its
 	// sub-nodes: StatusFrozen (status: frozen) until it is thawed, StatusSkipped (Skip) until it is reset;
 	// StatusWaiting when there is none.
@@ -253,6 +257,7 @@ func (n *Node) loadFrom(n2 *Node) {
 	n.InheritRequires = n2.InheritRequires
 	n.MaxProc = n2.MaxProc
 	n.SuccessExitCodes = n2.SuccessExitCodes
+	n.Timeout = n2.Timeout
 	n.NProc = n2.NProc
 	n.OnError = n2.OnError
 	n.ChildrenOnError = n2.ChildrenOnError

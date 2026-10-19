@@ -11,6 +11,7 @@ const (
 	KindBool                        // a boolean (yes/no, on/off are accepted too)
 	KindInt                         // an integer
 	KindExitCodes                   // a non-empty list of integers between 0 and 255
+	KindDuration                    // a duration with a unit (90s, 30m, 1h30m), or 0
 	KindStringMap                   // an object with string values
 	KindVarMap                      // an object with string or string list values (variables)
 	KindForVars                     // an object with string list values, or names of string list variables
@@ -97,6 +98,11 @@ var NodeProperties = []Property{
 	{Name: "success_exit_codes", Kind: KindExitCodes, Inherited: true, Default: "[0]",
 		Description: "Process exit codes that mean success, e.g. [0, 255] for \"ssh host reboot\". The listed " +
 			"codes replace the default, so list 0 too if it should also mean success."},
+	{Name: "timeout", Kind: KindDuration, Inherited: true, Default: "0",
+		Description: "The longest time that a run node may run, e.g. 90s, 30m or 1h30m (0: no limit). Then its " +
+			"process is stopped (Ctrl+C is typed into its terminal, SIGTERM and SIGKILL follow if it does not " +
+			"stop), and the node fails: it gets the status of its on_error. It is inherited: on a seq or par " +
+			"node it is the limit of each run node below it, not of the group."},
 	{Name: "status", Kind: KindString, Enum: []string{"waiting", "frozen"}, Inherited: true, Default: "waiting",
 		Description: "The initial status of the node. A frozen node is not started until it is thawed manually. It " +
 			"is inherited: the sub-nodes of a frozen seq or par node are frozen too."},

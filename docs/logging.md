@@ -22,7 +22,8 @@ about a node. Their message is complete for humans; the other attributes are for
 | `exited` | info / warn | the process exited (`start`, `pid`, `exit_code`, `error`, `elapsed`, `user_time`, `system_time`) (2) |
 | `status` | info / warn | the status of a node changes (`from`, `to`), warn for failed and paused |
 | `operation` | info / warn | an operation is performed from the GUI (`op`, `recursive`), warn when it failed |
-| `signal` | info / warn | a signal is sent from the GUI, or to a remote process when runtree exits (`signal`) |
+| `signal` | info / warn | a signal is sent from the GUI, to a node that [timed out](execution.md#timeouts), or to a remote process when runtree exits (`signal`) |
+| `timeout` | warn | a node ran longer than its [`timeout`](execution.md#timeouts), Ctrl+C is typed into its terminal (`timeout`) |
 | `on-error` | info | the sibling operation of `on_error` is performed (`op`) |
 | `provided` | info | a node provides resources (`resources`) |
 | `unprovided` | info | resources are not provided anymore, by a reset to waiting or a re-run |

@@ -26,7 +26,7 @@ var propertyGuide = map[string]string{
 	"xlocks": "../coordination.md#locks", "rlocks": "../coordination.md#locks",
 	"provides": "../coordination.md#dependencies", "requires": "../coordination.md#dependencies",
 	"max_proc": "../execution.md#limiting-processes", "success_exit_codes": "../execution.md#exit-codes",
-	"status": "../execution.md#frozen-nodes", "on_error": "../execution.md#errors",
+	"timeout": "../execution.md#timeouts", "status": "../execution.md#frozen-nodes", "on_error": "../execution.md#errors",
 	"children_on_error": "../execution.md#errors", "expanded": "../gui.md#the-tree",
 	"expand_on_active": "../gui.md#the-tree", "collapse_on_finished": "../gui.md#the-tree",
 	"nodes": "../tree-files.md#nodes", "seq": "../tree-files.md#nodes", "par": "../tree-files.md#nodes",
@@ -54,6 +54,8 @@ func kindText(p Property) string {
 		return "integer"
 	case KindExitCodes:
 		return "list of integers (0-255)"
+	case KindDuration:
+		return "duration (e.g. 30m), or 0"
 	case KindStringMap:
 		return "object of strings"
 	case KindVarMap:

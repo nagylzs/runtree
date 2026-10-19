@@ -28,7 +28,8 @@
     of the navigator.
   * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
 * test on Windows: `runtree-headless`, `rtrunner` and `runtree-lsp` from `dist/windows/amd64/` on a real Windows (only
-  tested under wine so far): the local runner (ConPTY), the output, exit codes, `--lock`, Ctrl+C.
+  tested under wine so far): the local runner (ConPTY), the output, exit codes, `--lock`, Ctrl+C, `timeout` (Ctrl+C
+  typed into ConPTY; SIGTERM is not supported there, so its step is a runner error, and SIGKILL follows).
 * test on macOS: `rtrunner`, `runtree-headless` and the GUI (see macOS support above) from `dist/darwin/arm64/`.
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
@@ -194,9 +195,8 @@ Ordered by impact:
   output on stdout with the labels of the nodes, the events on stderr, on_error paused fails, the run stops when
   nothing runs and nothing can be started, exit codes 0 / 1 / 2 / 3 / 75 / 130 / 143. It also builds for Windows (the
   local runner works there: a loopback TCP pair instead of a socket pair; ConPTY finds the programs in the PATH, gets
-  the whole command line, and is closed after the exit; tested under wine only). Next:
-  * a `timeout` property for the nodes: a process that waits for input (nobody types) or never exits holds up the run
-    forever;
+  the whole command line, and is closed after the exit; tested under wine only). The `timeout` property stops the
+  steps that wait for input or never exit. Next:
   * ssh runners on Windows (`startSSH` with the pipes of `ssh.exe`; Windows OpenSSH has no ControlMaster, so no
     connection sharing);
   * test it on a real Windows (and macOS);
