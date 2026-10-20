@@ -171,8 +171,16 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize application: %w", err)
 	}
+	if args.ExitOnFinish {
+		gtkui.SetExitOnFinish()
+	}
 
 	exitCode = gtkui.RunApplication()
 	app.StopRunning(runTree)
+	if args.ExitOnFinish && exitCode == 0 {
+		runTree.RLock("exit code")
+		exitCode = finishExitCode(runTree.Root.Status)
+		runTree.RUnlock()
+	}
 	return nil
 }

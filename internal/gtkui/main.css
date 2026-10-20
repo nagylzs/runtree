@@ -150,6 +150,11 @@ vte-terminal {
     padding: 4px;
 }
 
+/* runtree --exit-on-finish counts down in it, it gets the color of the status of the root (exitonfinish.go) */
+.finish-banner {
+    padding: 6px 12px;
+}
+
 /* the warnings of the tree files, above the main pane */
 .warnings-banner {
     padding: 6px 12px;

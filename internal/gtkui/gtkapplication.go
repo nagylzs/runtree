@@ -86,6 +86,11 @@ func activateApplication() {
 	if len(Application.warnings) > 0 {
 		content.Append(newWarningsBanner(Application.warnings))
 	}
+	if exitOnFinish {
+		finish := newFinishBanner()
+		content.Append(finish)
+		finish.start()
+	}
 	content.Append(overlay)
 	window.SetChild(content)
 

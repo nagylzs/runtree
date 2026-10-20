@@ -8,7 +8,6 @@
 * create a main menu, and add menu items to toggle the various windows above
 * add extra actions for paused nodes to deal with siblings: cancel siblings, freeze siblings, thaw siblings, this is
   very low priority, you can do it on its parent...
-* command line switch to exit app when the root node succeeds or fails
 * runner sessions that survive the GUI: when the client disconnects (GUI closed or crashed, network error), keep
   the process running and buffer its recent output, so that a restarted GUI can reattach to it. Currently the
   runner terminates the process (SIGINT, then SIGTERM, then SIGKILL) when the client is gone. Needs a protocol

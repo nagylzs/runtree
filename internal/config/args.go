@@ -22,10 +22,11 @@ type RunArgs struct {
 type CLIArgs struct {
 	BaseArgs
 	RunArgs
-	CPUProfile string `long:"cpu-profile" value-name:"FILE" description:"Write a CPU profile to FILE (for developers)"`
-	MemProfile string `long:"mem-profile" value-name:"FILE" description:"Write a memory profile to FILE when runtree exits (for developers)"`
-	NetProfile uint16 `long:"net-profile-port" value-name:"PORT" description:"Serve live profiles on http://localhost:PORT/debug/pprof/ (for developers)"`
-	Schema     bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
+	CPUProfile   string `long:"cpu-profile" value-name:"FILE" description:"Write a CPU profile to FILE (for developers)"`
+	MemProfile   string `long:"mem-profile" value-name:"FILE" description:"Write a memory profile to FILE when runtree exits (for developers)"`
+	NetProfile   uint16 `long:"net-profile-port" value-name:"PORT" description:"Serve live profiles on http://localhost:PORT/debug/pprof/ (for developers)"`
+	Schema       bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
+	ExitOnFinish bool   `long:"exit-on-finish" description:"Exit 10 seconds after the root node is finished (unless Stay open is pressed); the exit code is 0 when the root is Success, 2 when it is Failed, 3 when the window is closed before it finished"`
 
 	ShowRuns   bool   `long:"show-runs" description:"List the runs of the --log-db database, then exit"`
 	ShowEvents bool   `long:"show-events" description:"Print the events of a run from the --log-db database, then exit"`

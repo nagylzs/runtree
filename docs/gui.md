@@ -99,6 +99,17 @@ When runtree exits, it stops starting nodes, terminates the processes that still
 after 10 seconds each), and waits for them, so that their exits are logged. The window closes right away, the
 messages are printed on the terminal that started runtree. See [signals and exit](practice.md#signals-and-exit).
 
+`runtree --exit-on-finish` exits by itself when the root node is finished (Success, Failed or Skipped): a banner
+above the tree, in the color of the status, counts down 10 seconds, so that the people who watch the window see the
+result. **Stay open** keeps runtree running (until you close it), and the countdown stops when the root is started
+again (e.g. Re-run). Its exit code tells how the tree ended, like the one of
+[`runtree-headless`](headless.md#exit-codes): 0 when the root is Success (or Skipped), 2 when it is Failed, 3 when the
+window was closed before the root finished. A script can run trees in the GUI one after the other this way:
+
+```bash
+runtree --exit-on-finish prepare.rt.yaml && runtree --exit-on-finish upgrade.rt.yaml
+```
+
 ## Appearance
 
 runtree is designed for dark GTK themes, e.g. `GTK_THEME=Adwaita:dark`. With light themes, some parts may still look

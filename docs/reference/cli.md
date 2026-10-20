@@ -16,6 +16,7 @@ Loads the tree file and runs it in the GUI. Without errors in the tree, the wind
 | `--version` | print the version, and exit |
 | `--check` | only check the tree file and the files it includes, and exit (see [checking](../tree-files.md#checking-a-tree-file)) |
 | `--schema` | print the JSON Schema of tree files, and exit (see [editors](../editors.md)) |
+| `--exit-on-finish` | exit 10 seconds after the root node is finished, unless **Stay open** is pressed; the exit code tells how the tree ended (see [closing runtree](../gui.md#closing-runtree)) |
 | `--max-depth=N` | the maximum depth of the tree, and of the includes (30 by default) |
 | `--runner=ADDRESS` | the runner of the nodes that do not specify one (`local` by default), see [runners](../runners.md#the-default-runner) |
 | `--rtrunner-dir=DIR` | a directory of `rtrunner-<goos>-<goarch>` binaries to upload to the hosts of ssh runners, instead of the embedded ones (also `RUNTREE_RTRUNNER_DIR`) |
@@ -34,7 +35,8 @@ Loads the tree file and runs it in the GUI. Without errors in the tree, the wind
 | `-h`, `--help` | show the options |
 
 Exit codes: 0 when the window was closed, 1 when the tree or the command line has errors, 75 when the lock file is
-locked, 143 on SIGTERM.
+locked, 143 on SIGTERM. With `--exit-on-finish`: 0 when the root node is Success, 2 when it is Failed, 3 when the
+window was closed before it finished.
 
 ## runtree-headless
 
