@@ -288,7 +288,9 @@ func (c *Client) recvProcState(ctx context.Context) {
 	c.notifyListeners()
 
 	if !ps.Alive() {
-		err = c.sendMsg(ctx, MsgDisconnect, nil, false)
+		// the exit status is final: when the runner has closed the connection already (e.g. an older one), it is not
+		// an error of the process
+		err = c.sendMsg(ctx, MsgDisconnect, nil, true)
 		if err != nil {
 			c.logger.Debug("could not send disconnect", "error", err)
 		}

@@ -295,7 +295,9 @@ func (s *Server) terminateProcess() {
 
 var errInvalidWrite = errors.New("invalid write result")
 
-// connectStreams is similar to io.Copy, but it can be soft-terminated by Server.stop
+// connectStreams is similar to io.Copy, but it can be soft-terminated by Server.stop: it returns after the read that
+// finds it set. It reads before checking: the end of the output of a process that exits quickly may set it before
+// the input (pty-send) starts, and that one must still wait for the client to close the pty stream (see ServePty).
 func (s *Server) connectStreams(dst io.Writer, src io.Reader, channel string) {
 	var written int64
 	var err error
@@ -304,10 +306,6 @@ func (s *Server) connectStreams(dst io.Writer, src io.Reader, channel string) {
 
 	buf := make([]byte, BufSize)
 	for {
-		if s.stop.Load() {
-			return
-		}
-
 		nr, er := src.Read(buf)
 
 		if s.stop.Load() {
@@ -350,12 +348,16 @@ func (s *Server) connectStreams(dst io.Writer, src io.Reader, channel string) {
 	s.requestStop(nil) // instead of s.requestStop(err)
 }
 
+// recvCommands receives the commands of the client until it disconnects (MsgDisconnect, or the stream is closed),
+// also after the process exited: the server must not close the connection before the client, or the client may lose
+// the end of the output and the exit status (smux drops the data that it has not read yet when the connection is
+// closed).
 func (s *Server) recvCommands() {
 	defer s.wg.Done()
 
 	ctx := context.Background()
 
-	for !s.stop.Load() {
+	for {
 		code, err := RecvCmdCode(ctx, s.cmdStream)
 		if err != nil {
 			s.requestStop(fmt.Errorf("could not receive command code: %w", err))
@@ -377,13 +379,13 @@ func (s *Server) recvCommands() {
 				return
 			}
 		case MsgDisconnect:
+			s.logger.Debug("the client disconnects")
 			return
 		default:
 			s.requestStop(fmt.Errorf("invalid command received: %d", code))
+			return
 		}
 	}
-
-	s.logger.Debug("recvCommands done")
 }
 
 func (s *Server) recvResize(ctx context.Context) {

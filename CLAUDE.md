@@ -83,7 +83,9 @@ format), the client sends `MsgStartPty` and the connection is upgraded to an `sm
 a raw **pty stream** and a **command stream** (msgpack-encoded messages: resize, signal (to the process group),
 proc-state, error).
 On the client side the pty stream is re-exposed as a local Unix domain socket (`Client.PtyPath`); the GUI attaches a
-VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `onNotify` callback.
+VTE terminal to it with `socat`. Process exit is reported via `ProcState` → `onNotify` callback. Then the client
+sends `MsgDisconnect` and closes the connection; the server must never close it first (smux may drop what the client
+has not read yet: the end of the output, the exit status), see `TestServerWaitsForTheClient`.
 
 ### Tree model and scheduler (`internal/rt`)
 - `source.go` / `errors.go` — files are parsed with yaml.v3 into plain maps/lists (what the parser works with), and
