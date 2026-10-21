@@ -36,6 +36,8 @@ type Client struct {
 	output     io.Writer // gets a copy of the terminal output, see SetOutput
 	noTerminal bool      // see SetNoTerminal
 	mouse      mouseModeTracker
+
+	signalErrors atomic.Uint64 // the number of signals that the runner could not send, see SignalErrors
 }
 
 // NewClient connects to a runner (see ParseAddress)
@@ -310,6 +312,9 @@ func (c *Client) recvError(ctx context.Context) {
 		return
 	}
 	c.logger.Debug("runner error", "code", e.Code, "message", e.Message)
+	if signalError(e.Code) {
+		c.signalErrors.Add(1)
+	}
 	if c.onError != nil {
 		c.onError(e)
 	}
@@ -353,6 +358,13 @@ func (c *Client) run() {
 		// the communication
 	}()
 	wg.Wait()
+}
+
+// SignalErrors is the number of the signals that the runner could not send (e.g. SIGTERM on Windows, or the process
+// is gone): the error comes back after SendSignal, a grace period after the signal can end when it grows. It can be
+// called from any goroutine.
+func (c *Client) SignalErrors() uint64 {
+	return c.signalErrors.Load()
 }
 
 // MouseTracking tells if the process turned on the mouse tracking of the terminal (e.g. vim with mouse=a, less

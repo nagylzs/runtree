@@ -41,7 +41,9 @@
   Windows (`startSSH` with the pipes of `ssh.exe`, without connection sharing: the ssh of Windows (OpenSSH 9.5) fails
   with "getsockname failed: Not a socket" with `ControlMaster`): `runtree-headless` to the Mac with the managed upload,
   exit codes, start errors, `timeout`, Ctrl+C with remote nodes (`Tree.TerminateRemote`). Fixed: an rtrunner started
-  by sshd ignores Ctrl+C, and its processes inherited that (a `timeout` did not stop them). Left:
+  by sshd ignores Ctrl+C, and its processes inherited that (a `timeout` did not stop them); SIGINT is Ctrl+C typed
+  into the pseudo console, and a `timeout` or the exit of runtree does not wait after a signal that the runner cannot
+  send (SIGTERM on Windows: SIGKILL at once, 10 s at most instead of 20). Left:
   * the command lines are quoted for a Unix shell also for a Windows runner: the CmdLine property (`shellEscape`) and
     the start event (`quoteArgs`, it doubles the backslashes); copied into cmd or PowerShell, they do not work;
   * the ConPTY control sequences in the output of runtree-headless: each node starts with `ESC[?9001h ESC[?1004h
@@ -50,10 +52,6 @@
     so two lines can be on one labeled line. Filter them on Windows: drop the private modes, the title and the
     clear/home at the start, and make a newline of a move to column 1;
   * show NTSTATUS exit codes in hex on Windows: Ctrl+C makes 3221225786, that is 0xC000013A (STATUS_CONTROL_C_EXIT);
-  * skip the grace period after a signal that the runner does not support: on Windows SIGINT and SIGTERM are runner
-    errors (logged as ERROR), so a `timeout` kills 10 s later than it could (23 s instead of 13 s for a 3 s timeout),
-    and `Tree.TerminateRemote` (runtree exits, Ctrl+C of runtree-headless) kills the processes of a Windows rtrunner
-    only after 20 s. Or the Windows runner could type Ctrl+C into the pseudo console for SIGINT, as `timeout` does;
   * the log lines of the local runner have another format than the events in runtree-headless's stderr
     (`Oct 21 08:25:24.500 WRN terminating runner=local ...` among `08:25:24 WARN ...`);
   * the holder in the lock file is `HTPC\nagyl@htpc` (os/user gives DOMAIN\user on Windows).

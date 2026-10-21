@@ -41,7 +41,14 @@ const (
 	ErrorInvalidSignal ErrorCode = iota
 	ErrorNoProcess
 	ErrorCannotSendSignal
+	ErrorSignalNotSupported // the system of the runner does not have the signal (e.g. SIGTERM on Windows)
 )
+
+// signalError tells if an error is the answer to a signal that was not sent
+func signalError(code ErrorCode) bool {
+	return code == ErrorInvalidSignal || code == ErrorNoProcess || code == ErrorCannotSendSignal ||
+		code == ErrorSignalNotSupported
+}
 
 type Error struct {
 	Code    ErrorCode

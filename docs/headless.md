@@ -118,8 +118,9 @@ GUI's `runtree --show-output NODE` prints the output of a node from there.
 
 SIGINT (Ctrl+C) and SIGTERM stop the run: `runtree-headless` stops starting nodes, and terminates the processes that
 still run like `runtree` does when it exits (SIGINT, then SIGTERM after 10 seconds and SIGKILL after 10 more), then it
-prints the summary. A second signal exits at once. On Windows the processes of the local runner are killed at once
-(there are no signals), the processes on other hosts get the signals.
+prints the summary. A second signal exits at once. On Windows, SIGINT is Ctrl+C typed into the pseudo console of the
+process, and there is no SIGTERM: a process that does not stop on Ctrl+C is killed after 10 seconds (on the local
+runner and on Windows hosts too).
 
 ## In CI and cron
 

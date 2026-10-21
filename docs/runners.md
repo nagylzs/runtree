@@ -100,7 +100,9 @@ whose platform runtree has no binary for, and for Windows hosts.
 give the path of `rtrunner.exe` with its drive and `/`, e.g. `ssh://user@host/C:/runtree/rtrunner.exe`. The processes
 run in ConPTY pseudo consoles, like on the [local runner](#the-local-runner) of Windows. The keys of the
 administrators are in `C:\ProgramData\ssh\administrators_authorized_keys` (not in `~\.ssh\authorized_keys`), and
-their processes run elevated, as administrator.
+their processes run elevated, as administrator. Windows has no signals: SIGINT is Ctrl+C typed into the pseudo console
+(it stops most console programs), SIGKILL kills the process, the others are not supported. A `timeout` and the exit of
+runtree do not wait after a signal that the runner cannot send: SIGKILL follows at once.
 
 ### Sharing the connection
 

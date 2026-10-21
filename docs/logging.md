@@ -29,7 +29,7 @@ about a node. Their message is complete for humans; the other attributes are for
 | `unprovided` | info | resources are not provided anymore, by a reset to waiting or a re-run |
 | `locked` | info | a node acquires its `xlocks` and `rlocks` |
 | `unlocked` | info | it releases them |
-| `runner-error` | error | a runner reports an error (`code`) |
+| `runner-error` | error | a runner reports an error (`code`); a warning for a signal that its system does not have (e.g. SIGTERM on Windows) |
 | `runner-upload` | info | `rtrunner` is uploaded to a host (`platform`, `sha256`, `bytes`, `elapsed`) |
 | `stopped` | warn | a [headless run](headless.md#when-the-run-ends) stopped: nothing runs, and nothing can be started |
 

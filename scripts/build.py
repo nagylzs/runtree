@@ -66,6 +66,8 @@ def run(cmd):
 
 built = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 branch = co(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+if branch == "HEAD":
+	branch = ""  # a detached HEAD, e.g. the tag of a release
 commit = co(["git", "rev-parse", "HEAD"])
 version = git_version(DIR)
 

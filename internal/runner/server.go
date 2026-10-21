@@ -44,6 +44,19 @@ type PtyRunner interface {
 // errSignalNotSupported is the error of PtyRunner.SignalGroup for a signal that the system does not have
 var errSignalNotSupported = errors.New("the signal is not supported on this system")
 
+// unsupportedSignals are the signals that the runners of this process act as if they did not have, see
+// SetUnsupportedSignals
+var unsupportedSignals sync.Map
+
+// SetUnsupportedSignals makes the runners of this process answer the requests of the clients for these signals (e.g.
+// "SIGTERM") as if the system did not have them, like Windows. It is for the tests of the clients.
+func SetUnsupportedSignals(names ...string) {
+	unsupportedSignals.Clear()
+	for _, name := range names {
+		unsupportedSignals.Store(name, true)
+	}
+}
+
 // Server runs a command in a pseudo-terminals and forward pty and command channels to a socket
 type Server struct {
 	ptyRunner PtyRunner
@@ -473,7 +486,18 @@ func (s *Server) processSignalRequest() error {
 			break
 		}
 		// to the process group, like Ctrl+C in a terminal: a script and the commands that it waits for get it too
-		err = s.ptyRunner.SignalGroup(sig)
+		if _, ok := unsupportedSignals.Load(signame); ok {
+			err = errSignalNotSupported
+		} else {
+			err = s.ptyRunner.SignalGroup(sig)
+		}
+		if errors.Is(err, errSignalNotSupported) {
+			e = &Error{
+				Code:    ErrorSignalNotSupported,
+				Message: signame + " is not supported on this system",
+			}
+			break
+		}
 		if err != nil {
 			e = &Error{
 				Code:    ErrorCannotSendSignal,

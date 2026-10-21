@@ -212,7 +212,11 @@ func (n *Node) SendSignal(locked bool, name string) (bool, error) {
 
 func (n *Node) onError(e runner.Error) {
 	defer n.Tree.recoverPanic("runner error of " + n.Id)
-	n.log().Error(e.Message, attrEvent, EventRunnerError, "code", e.Code)
+	level := slog.LevelError
+	if e.Code == runner.ErrorSignalNotSupported {
+		level = slog.LevelWarn // e.g. SIGTERM on Windows: a timeout or the exit of runtree sends SIGKILL at once then
+	}
+	n.log().Log(context.Background(), level, e.Message, attrEvent, EventRunnerError, "code", e.Code)
 	n.RLockTree("Node.onError")
 	defer n.RUnlockTree()
 	th := n.Tree.terminalHelper

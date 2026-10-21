@@ -61,9 +61,15 @@ func (w *windowsPtyRunner) Resize(ws WinSize) error {
 	return w.cpty.Resize(ws.Cols, ws.Rows)
 }
 
-// SignalGroup only supports os.Kill on Windows, and it only kills the process itself.
+// SignalGroup supports SIGINT and SIGKILL on Windows: SIGINT types Ctrl+C into the pseudo console (the console sends
+// CTRL_C_EVENT to its processes, it stops most of the console programs), SIGKILL kills the process itself. Windows has
+// no other signals.
 func (w *windowsPtyRunner) SignalGroup(sig os.Signal) error {
-	if sig == os.Kill {
+	switch sig {
+	case os.Interrupt:
+		_, err := w.cpty.InPipe().Write(CtrlC)
+		return err
+	case os.Kill:
 		return w.cmd.Process.Kill()
 	}
 	return fmt.Errorf("%v: %w", sig, errSignalNotSupported)

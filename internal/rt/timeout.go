@@ -47,7 +47,8 @@ func (n *Node) checkTimeout() {
 
 // stopTimedOut stops the process of a node that timed out, like a user would: it types Ctrl+C into its terminal
 // (with ssh -t, it reaches the remote command too), then it sends SIGTERM and SIGKILL to its process group, after the
-// grace periods, while the process of client c still runs. It is called in unlocked state.
+// grace periods, while the process of client c still runs. When the runner could not send SIGTERM (Windows has no
+// SIGTERM), SIGKILL follows at once. It is called in unlocked state.
 func (n *Node) stopTimedOut(c *runner.Client) {
 	defer n.Tree.recoverPanic("timeout of " + n.Id)
 	if err := c.Type(runner.CtrlC); err != nil {
@@ -59,12 +60,17 @@ func (n *Node) stopTimedOut(c *runner.Client) {
 		ps := c.LastState()
 		return n.Client == c && ps.Alive() // the node may be started again meanwhile
 	}
+	sigErrors := c.SignalErrors()
 	for i, sig := range []string{"SIGTERM", "SIGKILL"} {
 		for end := time.Now().Add(timeoutGrace[i]); time.Now().Before(end); time.Sleep(100 * time.Millisecond) {
 			if !running() {
 				return
 			}
+			if c.SignalErrors() != sigErrors {
+				break // the previous signal was not sent
+			}
 		}
+		sigErrors = c.SignalErrors()
 		n.LockTree("Node.stopTimedOut")
 		if n.Client == c {
 			_, _ = n.SendSignal(true, sig) // it is logged

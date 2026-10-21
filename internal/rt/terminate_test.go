@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/nagylzs/runtree/internal/runner"
 )
 
 // When runtree exits, the processes of the remote runners get SIGINT, then SIGTERM, and their exits are logged. The
@@ -83,4 +85,48 @@ tree:
 	if n := tree.TerminateRemote(time.Second); n != 0 {
 		t.Errorf("%d processes are running", n)
 	}
+}
+
+// When the runner cannot send SIGTERM (Windows has no SIGTERM), SIGKILL follows at once, not after the grace period
+func TestTerminateRemoteWithoutSIGTERM(t *testing.T) {
+	skipOnWindows(t, "needs sh and the terminal socket")
+	saved := remoteGrace
+	remoteGrace = []time.Duration{300 * time.Millisecond, 10 * time.Second}
+	t.Cleanup(func() { remoteGrace = saved })
+	runner.SetUnsupportedSignals("SIGTERM")
+	t.Cleanup(func() { runner.SetUnsupportedSignals() })
+	tree := loadTestTree(t, `
+tree:
+  id: root
+  par:
+    - id: stubborn
+      args: [sh, -c, "trap '' INT; echo ready; sleep 100"]
+`)
+	tree.SetTerminalHelper(&ptyTerminalHelper{})
+	recorder := &testRecorder{}
+	tree.SetOutputRecorder(recorder)
+	addr := startTestRunner(t)
+	tree.Lock("TestTerminateRemoteWithoutSIGTERM")
+	n := tree.NodeById["stubborn"]
+	n.Calculated.Runner = addr
+	if err := n.Start(true); err != nil {
+		t.Fatal(err)
+	}
+	tree.UnLock()
+	waitStarted(t, n)
+	recorder.check(t, "stubborn 1", "ready\r\n") // the trap is set
+
+	began := time.Now()
+	if n := tree.TerminateRemote(30 * time.Second); n != 1 {
+		t.Errorf("%d processes were terminated", n)
+	}
+	if elapsed := time.Since(began); elapsed > 5*time.Second {
+		t.Errorf("it was killed after %v", elapsed)
+	}
+	tree.RLock("TestTerminateRemoteWithoutSIGTERM")
+	events := eventTexts(tree, 0)
+	tree.RUnlock()
+	checkEventsInOrder(t, events, "stubborn signal INFO sending SIGINT", "stubborn signal INFO sending SIGTERM",
+		"stubborn runner-error WARN SIGTERM is not supported on this system", "stubborn signal INFO sending SIGKILL",
+		"stubborn exited WARN exited: signal: killed after ")
 }

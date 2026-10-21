@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -70,4 +71,42 @@ func TestCtrlCWhenIgnoredOnWindows(t *testing.T) {
 		}
 	}
 	t.Fatal("ping did not stop on Ctrl+C")
+}
+
+// SIGINT types Ctrl+C into the pseudo console: ping stops; SIGTERM is not supported, the client counts the error
+func TestSignalsOnWindows(t *testing.T) {
+	l := newTestLocalRunner()
+	conn, err := l.dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, exited := startNoTerminal(t, conn, cmdArgs("ping", "-n", "30", "127.0.0.1"), newClosedBuffer())
+	defer c.Close()
+	ctx := context.Background()
+	if err := c.SendSignal(ctx, "SIGTERM", false); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(5 * time.Second); c.SignalErrors() == 0; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("no error for SIGTERM")
+		}
+	}
+	// a Ctrl+C typed before ping started may be lost: send it until ping stops
+	for range 20 {
+		if err := c.SendSignal(ctx, "SIGINT", false); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case ps := <-exited:
+			if !ps.Exited || uint32(ps.ExitCode) != 0xC000013A {
+				t.Errorf("the process state is %s", ps.String())
+			}
+			if n := c.SignalErrors(); n != 1 {
+				t.Errorf("%d signal errors", n)
+			}
+			return
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+	t.Fatal("ping did not stop on SIGINT")
 }

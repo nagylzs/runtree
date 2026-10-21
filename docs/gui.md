@@ -75,7 +75,7 @@ texts or only the icons.
 | Freeze | Waiting | the scheduler does not start the node until it is thawed |
 | Thaw | Frozen | the node is Waiting again |
 | Run / Re-run | any status but Running | starts the node now: also a frozen, paused or finished one (Re-run), even when `max_proc` is reached or its requirements are missing; its locks must be free |
-| Signal | Running | sends a signal (chosen from a list, e.g. SIGINT for Ctrl+C, SIGTERM, SIGKILL) to the process and the commands that it runs (its process group), like Ctrl+C in a terminal |
+| Signal | Running | sends a signal (chosen from a list, e.g. SIGINT for Ctrl+C, SIGTERM, SIGKILL) to the process and the commands that it runs (its process group), like Ctrl+C in a terminal. On Windows only SIGINT (Ctrl+C typed into the pseudo console) and SIGKILL work |
 | Fail / Success | Paused | sets the final status of a paused node |
 | Skip | Waiting, Frozen | the node is Skipped: finished without error, it is not started |
 | Reset (to waiting) | Frozen, Paused, finished | the node is Waiting again, the scheduler starts it again when it can |
