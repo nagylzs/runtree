@@ -273,7 +273,10 @@ func nodeProperties(node *rt.Node, now time.Time) map[string]propertyValue {
 
 	set("provides", strings.Join(node.Calculated.Provides.List(), ", "), "")
 	set("requires", strings.Join(node.Calculated.Requires.List(), ", "), "")
-	set("missing", strings.Join(node.MissingRequired.List(), ", "), "waiting")
+	waits := waitsToStart(node)
+	if waits {
+		set("missing", strings.Join(node.MissingRequired.List(), ", "), "waiting")
+	}
 	set("locks", locksText(node.Calculated.RLocks.List(), node.Calculated.XLocks.List()), "")
 	holders := func(locks []string) []string {
 		for i, lock := range locks {
@@ -283,7 +286,9 @@ func nodeProperties(node *rt.Node, now time.Time) map[string]propertyValue {
 		}
 		return locks
 	}
-	set("blocked", locksText(holders(node.CannotRAcquire.List()), holders(node.CannotXAcquire.List())), "waiting")
+	if waits {
+		set("blocked", locksText(holders(node.CannotRAcquire.List()), holders(node.CannotXAcquire.List())), "waiting")
+	}
 
 	set("started", fmtTime(node.Started), "")
 	set("finished", fmtTime(node.Finished), "")

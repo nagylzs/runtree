@@ -1,5 +1,4 @@
 * implement "if" node type
-* implement NavBlocked navmode
 * document "include" property, explain include/reduce
 * possibly show a progress bar for each node, that shows the percentage of finished nodes
 * create a special view that shows tree total time, tree total progress and processing speed graph?

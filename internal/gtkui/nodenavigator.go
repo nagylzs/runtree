@@ -21,10 +21,13 @@ const (
 	NavModeFailed
 	NavModeSkipped
 	NavModePaused
+	NavModeBlocked // the nodes that wait for a required resource or a lock (rt.Node.Blocked), not a status
 )
 
-var AllNavModesWithStatus = []NavMode{
+// AllListNavModes are the modes that list nodes, in the order of their buttons
+var AllListNavModes = []NavMode{
 	NavModeWaiting,
+	NavModeBlocked,
 	NavModeFrozen,
 	NavModeRunning,
 	NavModeSuccess,
@@ -56,32 +59,44 @@ func NavModeToStatus(mode NavMode) rt.Status {
 	}
 }
 
-func StatusToNavMode(status rt.Status) NavMode {
-	switch status {
-	case rt.StatusWaiting:
-		return NavModeWaiting
-	case rt.StatusFrozen:
-		return NavModeFrozen
-	case rt.StatusRunning:
-		return NavModeRunning
-	case rt.StatusSuccess:
-		return NavModeSuccess
-	case rt.StatusFailed:
-		return NavModeFailed
-	case rt.StatusSkipped:
-		return NavModeSkipped
-	case rt.StatusPaused:
-		return NavModePaused
-	default:
-		panic("StatusToNavMode: invalid status")
-	}
-}
-
 func NavModeName(navMode NavMode) string {
-	if navMode == NavModeTree {
+	switch navMode {
+	case NavModeTree:
 		return "Tree"
+	case NavModeBlocked:
+		return "Blocked"
 	}
 	return rt.StatusName(NavModeToStatus(navMode))
+}
+
+// navModeTooltip explains what a mode shows
+func navModeTooltip(navMode NavMode) string {
+	switch navMode {
+	case NavModeTree:
+		return "Show the nodes in a tree"
+	case NavModeBlocked:
+		return "Show the nodes that wait for a required resource or a lock in a list"
+	}
+	return "Show the " + rt.StatusName(NavModeToStatus(navMode)) + " nodes in a list"
+}
+
+// waitsToStart tells if the scheduler may still start a node, or the sub-nodes of a seq/par node. Blocked and the
+// missing resources and locks are calculated for every node (e.g. a finished one whose lock is held by another node),
+// but they are interesting only for these.
+func waitsToStart(node *rt.Node) bool {
+	return node.Status == rt.StatusWaiting || node.Status == rt.StatusFrozen ||
+		node.Type != rt.TypeRun && node.Status == rt.StatusRunning
+}
+
+// listShows tells if a list mode shows a node (it must be called with the tree locked)
+func listShows(mode NavMode, node *rt.Node, onlyRunNodes bool) bool {
+	if onlyRunNodes && node.Type != rt.TypeRun {
+		return false
+	}
+	if mode == NavModeBlocked {
+		return node.Blocked && waitsToStart(node)
+	}
+	return node.Status == NavModeToStatus(mode)
 }
 
 // levelIndent is the indentation of a level of the tree in the navigator
@@ -253,15 +268,13 @@ func (t *NodeNavigator) ShowNode(node *rt.Node) {
 }
 
 func (t *NodeNavigator) layoutList(mode NavMode) {
-	st := NavModeToStatus(mode)
-
 	tw := navigatorRowWidth
 
 	var step float64 = 30
 	var y float64 = 0
 	for _, nodeView := range t.nodeViews {
 		node := nodeView.Node
-		nodeVisible := (node.Status == st) && (node.Type == rt.TypeRun || !t.onlyShowRunNodes)
+		nodeVisible := listShows(mode, node, t.onlyShowRunNodes)
 		added := t.added[node.Id]
 		if !nodeVisible && added {
 			//t.Fixed.Remove(nodeView)

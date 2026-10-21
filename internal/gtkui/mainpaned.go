@@ -91,10 +91,9 @@ func NewMainPaned() *MainPaned {
 		navModeButtons[navMode] = tb
 		return tb
 	}
-	tbTree := addNavModeButton("Show nodes in a tree", NavModeTree, nil)
-	for _, nm := range AllNavModesWithStatus {
-		st := NavModeToStatus(nm)
-		addNavModeButton(fmt.Sprintf("Show %s nodes in a list", rt.StatusName(st)), nm, tbTree)
+	tbTree := addNavModeButton(navModeTooltip(NavModeTree), NavModeTree, nil)
+	for _, nm := range AllListNavModes {
+		addNavModeButton(navModeTooltip(nm), nm, tbTree)
 	}
 	navRow.Append(cbRunOnly)
 	settingsMenu := newSettingsMenu()
@@ -196,19 +195,13 @@ func (m *MainPaned) updateNavModeButtons() {
 	defer RunTree.RUnlock()
 
 	counts := make(map[NavMode]int)
-	counts[NavModeTree] = 0
-	for i := range RunTree.Nodes {
-		node := RunTree.Nodes[i]
-		counts[NavModeTree] += 1
-		if m.navigator.OnlyShowRunNodes() && node.Type != rt.TypeRun {
-			continue
-		}
-		navMode := StatusToNavMode(node.Status)
-		cnt, ok := counts[navMode]
-		if !ok {
-			counts[navMode] = 1
-		} else {
-			counts[navMode] = cnt + 1
+	counts[NavModeTree] = len(RunTree.Nodes)
+	onlyRun := m.navigator.OnlyShowRunNodes()
+	for _, node := range RunTree.Nodes {
+		for _, nm := range AllListNavModes {
+			if listShows(nm, node, onlyRun) {
+				counts[nm]++
+			}
 		}
 	}
 

@@ -16,8 +16,10 @@ Each row is a node: its title (or command line), its type (`Seq`, `Par`), its st
   that the parallel runs gave (`×2.0`);
 - a terminal icon for the run nodes that have a terminal.
 
-The buttons above the tree are views: **Tree** shows the whole tree, the others (Waiting, Frozen, Running, Success,
-Failed, Skipped, Paused) list the nodes in that status, with their numbers. A check box limits the lists to run nodes.
+The button above the tree chooses the view: **Tree** shows the whole tree, the others (Waiting, Frozen, Running,
+Success, Failed, Skipped, Paused) list the nodes in that status, with their numbers; **Blocked** lists the nodes that
+wait for a [required resource or a lock](coordination.md) (its properties tell which one, and who holds the lock). A
+check box limits the lists to run nodes.
 In a list, the location button of a node shows it in the tree: it switches to the Tree view, opens the parents of the
 node, selects it, and scrolls to it.
 
