@@ -75,8 +75,9 @@ kept as artifacts of the run. The version of the VS Code extension (`editors/vsc
 
 The [Homebrew tap](https://github.com/nagylzs/homebrew-runtree) builds the source tarball of the tag
 (`Formula/runtree.rb`). Its autobump workflow opens a pull request for the new version within a day (or `brew bump
---open-pr nagylzs/runtree/runtree`); the tests of the pull request build the bottles on macOS and Linux, and the
-`brew pr-pull` workflow (Actions → Run workflow, with the number of the pull request) publishes them and merges it.
+--open-pr nagylzs/runtree/runtree`). A pull request of a workflow does not start the tests: close and reopen it. The
+tests of the pull request build the bottles on macOS and Linux, and the `brew pr-pull` workflow (Actions → Run
+workflow, with the number of the pull request) publishes them and merges it.
 
 The Windows code is tested by hand under [wine](https://www.winehq.org/), e.g.
 `GOOS=windows go test -c -o lockfile.test.exe ./internal/lockfile && wine lockfile.test.exe -test.v` (a separate
