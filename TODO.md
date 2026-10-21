@@ -41,8 +41,8 @@
   exits with the last ERRORLEVEL, e.g. 9009 after a command that was not found.) Left:
   * the command lines are quoted for a Unix shell also for a Windows runner: the CmdLine property (`shellEscape`) and
     the start event (`quoteArgs`, it doubles the backslashes); copied into cmd or PowerShell, they do not work;
-  * the `ssh://` runner from Windows is not tested: ssh needs the keys in the ssh-agent service (BatchMode), and
-    runtree turns on `ControlMaster`, which the OpenSSH of Windows may not support;
+  * the `ssh://` runner from Windows: `startSSH` is not implemented there (see Headless), and `sshOptions` must not
+    turn on `ControlMaster` there: the ssh of Windows (OpenSSH 9.5) fails with "getsockname failed: Not a socket";
   * the ConPTY control sequences in the output of runtree-headless: each node starts with `ESC[?9001h ESC[?1004h
     ESC[?25l ESC[2J ESC[m ESC[H` and the title of the console (`ESC]0;C:\WINDOWS\system32\cmd.exe BEL`), and ends
     with `ESC[?25h ESC[?9001l ESC[?1004l`, often on a line of its own; blank lines become cursor moves (`ESC[7;1H`),
@@ -157,9 +157,9 @@ connection still runs exactly one command, so a runner per run node needs no pro
    * darwin/arm64 is tested (2026-10-21, from Linux to a Mac with macOS 27): the upload, 12 parallel nodes,
      `timeout`, `Tree.TerminateRemote`. The binary has the ad-hoc signature of the linker, and a file uploaded over ssh
      has no quarantine attribute, so Gatekeeper does not check it. Not tested: darwin/amd64, `uname -m` under Rosetta
-   * Windows hosts: the OpenSSH server of Windows starts `cmd.exe` (or PowerShell), not `sh`, so the start and upload
-     scripts do not work there (sftp for the upload?), and the protocol over the stdin/stdout of a Windows ssh session
-     needs testing. A manually installed `rtrunner.exe` with a path may work already: test it.
+   * Windows hosts: `rtrunner.exe` with a path works (`ssh://user@host/C:/path/to/rtrunner.exe`, tested on 2026-10-21
+     with Windows 11). Managed runners do not: the OpenSSH server of Windows starts `cmd.exe` (or PowerShell), not
+     `sh`, so the start and upload scripts do not work there (sftp for the upload?).
 4. Later: runner sessions that survive the GUI (below) with a runner per node: when the connection drops, the
    runner keeps the process and a socket, and `rtrunner --attach ID` reattaches (like tmux/dtach). For the local
    runner it needs a detached runner process instead of the embedded one. Headless mode (below) can use the

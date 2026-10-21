@@ -37,7 +37,8 @@ func (a Address) Managed() bool {
 
 // ParseAddress parses a runner address: "local" (or empty) for the embedded runner, "host:port" or
 // "tcp://host:port" for an rtrunner daemon, and ssh://[user@]host[:port][/path/to/rtrunner] for an rtrunner that is
-// started with ssh (/~/ is the home directory of the user). Without a path, runtree uploads rtrunner (Managed).
+// started with ssh (/~/ is the home directory of the user, /C:/ is a drive on Windows). Without a path, runtree uploads
+// rtrunner (Managed).
 func ParseAddress(s string) (Address, error) {
 	if s == "" || s == LocalAddress {
 		return Address{Network: NetworkLocal}, nil
@@ -90,8 +91,16 @@ func parseSSHAddress(s string) (Address, error) {
 		a.Path = ""
 	case strings.HasPrefix(a.Path, "/~/"):
 		a.Path = a.Path[1:] // in the home directory
+	case windowsDrivePath(a.Path):
+		a.Path = a.Path[1:] // C:/path/to/rtrunner.exe on Windows
 	}
 	return a, nil
+}
+
+// windowsDrivePath tells if the path of an ssh address starts with a drive letter of Windows: /C:/...
+func windowsDrivePath(p string) bool {
+	return len(p) >= 4 && p[0] == '/' && (p[1] >= 'A' && p[1] <= 'Z' || p[1] >= 'a' && p[1] <= 'z') && p[2] == ':' &&
+		p[3] == '/'
 }
 
 func (a Address) String() string {
@@ -107,7 +116,7 @@ func (a Address) String() string {
 		if a.Port != "" {
 			s += ":" + a.Port
 		}
-		if strings.HasPrefix(a.Path, "~/") {
+		if a.Path != "" && !strings.HasPrefix(a.Path, "/") { // ~/... or C:/...
 			s += "/"
 		}
 		s += a.Path

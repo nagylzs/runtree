@@ -64,6 +64,9 @@ func TestParseSSHAddress(t *testing.T) {
 		"ssh://server01/opt/my runner/rtr":   "host=server01 user= port= path=/opt/my runner/rtr",
 		"ssh://server01/opt/my%20dir/rtr":    "host=server01 user= port= path=/opt/my dir/rtr",
 		"ssh://deploy@server01/opt/rtrunner": "host=server01 user=deploy port= path=/opt/rtrunner",
+		"ssh://nagyl@htpc/C:/rt/rtrunner":    "host=htpc user=nagyl port= path=C:/rt/rtrunner",
+		"ssh://htpc/c:/Program Files/rt.exe": "host=htpc user= port= path=c:/Program Files/rt.exe",
+		"ssh://server01/C:x":                 "host=server01 user= port= path=/C:x",
 	} {
 		a, err := ParseAddress(s)
 		got := fmt.Sprintf("host=%s user=%s port=%s path=%s", a.Host, a.User, a.Port, a.Path)
@@ -89,8 +92,13 @@ func TestSSHArgs(t *testing.T) {
 		"ssh://server01/usr/bin/rtrunner":     "-T -o BatchMode=yes -- server01 /usr/bin/rtrunner --stdio",
 		"ssh://root@server01:2222/x/rtrunner": "-T -o BatchMode=yes -p 2222 -- root@server01 /x/rtrunner --stdio",
 		"ssh://server01/~/bin/rtrunner":       "-T -o BatchMode=yes -- server01 ~/bin/rtrunner --stdio",
-		"ssh://server01/opt/it's/rtrun":       `-T -o BatchMode=yes -- server01 '/opt/it'\''s/rtrun' --stdio`,
-		"ssh://server01/opt/a b/rtrunner":     "-T -o BatchMode=yes -- server01 '/opt/a b/rtrunner' --stdio",
+		"ssh://server01/opt/it's/rtrun":       `-T -o BatchMode=yes -- server01 "/opt/it's/rtrun" --stdio`,
+		"ssh://server01/opt/a b/rtrunner":     `-T -o BatchMode=yes -- server01 "/opt/a b/rtrunner" --stdio`,
+		"ssh://server01/opt/it's $x/rtr":      `-T -o BatchMode=yes -- server01 '/opt/it'\''s $x/rtr' --stdio`,
+		"ssh://server01/opt/50%25/rtrunner":   "-T -o BatchMode=yes -- server01 '/opt/50%/rtrunner' --stdio",
+		// cmd.exe on Windows
+		"ssh://htpc/C:/rt/rtrunner.exe":      "-T -o BatchMode=yes -- htpc C:/rt/rtrunner.exe --stdio",
+		"ssh://htpc/C:/Program Files/rt.exe": `-T -o BatchMode=yes -- htpc "C:/Program Files/rt.exe" --stdio`,
 	} {
 		a, err := ParseAddress(s)
 		if err != nil {

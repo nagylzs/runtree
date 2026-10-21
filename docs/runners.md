@@ -77,8 +77,8 @@ Without a path (`ssh://root@host`), runtree manages `rtrunner` on the host:
   and macOS system.
 
 The binaries are in `runtree` when it is built with `scripts/build.py`: Linux on x86_64 (amd64), arm64, and 32 bit
-ARM (e.g. a Raspberry Pi), and macOS on x86_64 and arm64 (not tested on a Mac yet). They are in `dist/rtrunners/` too,
-for manual installs. `--rtrunner-dir DIR` (or the `RUNTREE_RTRUNNER_DIR` environment variable) is a directory of
+ARM (e.g. a Raspberry Pi), and macOS on x86_64 and arm64 (arm64 is tested on macOS 27). They are in `dist/rtrunners/`
+too, for manual installs. `--rtrunner-dir DIR` (or the `RUNTREE_RTRUNNER_DIR` environment variable) is a directory of
 `rtrunner-<goos>-<goarch>` files (e.g. `rtrunner-linux-amd64`) that are uploaded instead of the embedded ones; it can
 add `linux-386` too. A runtree that is built with `go build` has no binaries to upload: use a path then.
 
@@ -87,7 +87,13 @@ add `linux-386` too. A runtree that is built with `go build` has no binaries to 
 With a path (`ssh://root@host/usr/local/bin/rtrunner`, or `ssh://root@host/~/bin/rtrunner` in the home directory),
 that `rtrunner` is started, and nothing is uploaded. It must be the same protocol version as runtree (a different
 version is a start error), so install the `rtrunner` that was built with your runtree. A path is needed for hosts
-whose platform runtree has no binary for, and for Windows hosts (not tested).
+whose platform runtree has no binary for, and for Windows hosts.
+
+**Windows hosts.** The OpenSSH server of Windows (an optional feature of Windows) runs the commands with `cmd.exe`:
+give the path of `rtrunner.exe` with its drive and `/`, e.g. `ssh://user@host/C:/runtree/rtrunner.exe`. The processes
+run in ConPTY pseudo consoles, like on the [local runner](#the-local-runner) of Windows. The keys of the
+administrators are in `C:\ProgramData\ssh\administrators_authorized_keys` (not in `~\.ssh\authorized_keys`), and
+their processes run elevated, as administrator.
 
 ### Sharing the connection
 

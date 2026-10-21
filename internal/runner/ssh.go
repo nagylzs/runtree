@@ -93,12 +93,20 @@ func sshDest(a Address) string {
 	return a.Host
 }
 
-var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_./~+-]+$`)
+var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_./~+:-]+$`)
 
-// shellQuote quotes s for a POSIX shell, unless it is safe as it is (e.g. ~/bin/rtrunner, where ~ is expanded)
+// doubleQuoteSafe matches the strings that mean the same in double quotes for a POSIX shell and for cmd.exe
+var doubleQuoteSafe = regexp.MustCompile("^[^\"$`\\\\%!\n]+$")
+
+// shellQuote quotes s for the shell of the user on the host, unless it is safe as it is (e.g. ~/bin/rtrunner, where ~
+// is expanded). The OpenSSH server of Windows starts cmd.exe, that knows only double quotes: they are used when they
+// work in both (e.g. C:/Program Files/runtree/rtrunner.exe), and single quotes for a POSIX shell otherwise.
 func shellQuote(s string) string {
 	if shellSafe.MatchString(s) {
 		return s
+	}
+	if doubleQuoteSafe.MatchString(s) {
+		return `"` + s + `"`
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
