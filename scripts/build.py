@@ -8,6 +8,8 @@ import gzip
 import shutil
 import subprocess as sp
 
+from gitversion import git_version
+
 targets=["rtrunner", "runtree", "runtree-headless", "runtree-lsp"]
 # the ones that run with the embedded rtrunner binaries (-tags rtrunners)
 embedding=["runtree", "runtree-headless"]
@@ -62,14 +64,16 @@ def run(cmd):
 	if ret != 0:
 		raise SystemExit(ret)
 
-built=datetime.datetime.now().isoformat()
+built = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 branch = co(["git", "rev-parse", "--abbrev-ref", "HEAD"])
 commit = co(["git", "rev-parse", "HEAD"])
+version = git_version(DIR)
 
-print(f"built={built} branch={branch} commit={commit}")
+print(f"version={version} built={built} branch={branch} commit={commit}")
 
 ext = ""
 ldflags=[
+	"-X", f"{version_prefix}.Version={version}",
 	"-X", f"{version_prefix}.Built={built}",
 	"-X", f"{version_prefix}.Commit={commit}",
 	"-X", f"{version_prefix}.Branch={branch}",	

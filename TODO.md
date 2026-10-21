@@ -24,7 +24,7 @@
     (macOS has no primary selection), the close confirmation on Cmd+Q, the terminal mark of the run nodes in
     the navigator (drawn by `termmark.go` now, the emoji had no glyph in the macOS fonts), a glitch in the "Tree (" text
     of the navigator.
-  * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
+  * Done: CI builds and tests on a macOS runner (`macos-15`, arm64) with the Homebrew packages.
 * test on Windows: tested on Windows 11 on 2026-10-21 (Go 1.26, `scripts/build.py` on the Windows host, `go test`
   without the GTK packages: the tests that need sh or the terminal socket are skipped there, `windows_test.go` files
   test the same with cmd and ping). `runtree-headless` works with cmd, PowerShell and ping nodes: the output, exit
@@ -75,8 +75,9 @@
   Developer ID signature and notarization.
 * Linux, the primary target: packages at about the same time, e.g. an AUR package (Arch, Manjaro) and a `.deb`
   (Debian, Ubuntu).
-* Before the first release: version numbers and git tags (`--version` prints only the build time, the branch and the
-  commit now; a formula downloads a tagged tarball, checked by its sha256), the macOS items above, a CI job on macOS.
+* Done (2026-10-21): version numbers from the git tags (`--version`, docs/development.md "Versions and releases"),
+  a release workflow that publishes the archives of a tag (Linux, macOS, Windows, the rtrunners, SHA256SUMS), a CI
+  job on macOS. Left before the Homebrew formula: the macOS items above.
 
 # Logging (plan, 2026-10-17)
 

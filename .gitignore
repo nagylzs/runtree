@@ -5,3 +5,4 @@ scripts/deploy
 /rtrunner
 # built by scripts/build.py, embedded with -tags rtrunners
 /internal/rtrunners/bin/
+__pycache__/

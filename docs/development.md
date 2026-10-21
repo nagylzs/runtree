@@ -45,8 +45,31 @@ Some files are generated, and a test fails when they are out of date:
 Other tests check the documentation: every command line option is in `docs/reference/cli.md`, every example tree
 loads without warnings, and the relative links of the documentation point to existing files and headings.
 
-CI (GitHub Actions, `.github/workflows/build.yml`) runs the tests and `scripts/build.py` on every push to `main`, and
-keeps the Linux and Windows binaries and `dist/rtrunners/` as artifacts.
+CI (GitHub Actions, `.github/workflows/build.yml`) runs the tests and `scripts/build.py` on every push to `main`, on
+Linux and on macOS (with the Homebrew packages), and keeps the binaries and `dist/rtrunners/` as artifacts.
+
+## Versions and releases
+
+The version comes from the git tags: `v0.1.0` on the tagged commit, `v0.1.0-5-g1be6ff0e93e1` five commits later,
+with `-dirty` when there were uncommitted changes, `v0.0.0-g<commit>` before the first tag. `scripts/build.py` puts it
+in the programs with the commit, the branch and the build time (`--version`, the ☰ menu of the GUI, the runs of the
+log database, the language server); a plain `go build` or `go install` gets the version and the commit from Go's build
+information. The versions follow [semantic versioning](https://semver.org/); before 1.0 the tree format may still
+change in a minor version.
+
+To release, tag a commit of `main` and push the tag:
+
+```bash
+git tag -a v0.2.0 -m "runtree v0.2.0"
+git push origin v0.2.0
+```
+
+The release workflow (`.github/workflows/release.yml`) builds and tests it on Linux and macOS, checks that the
+programs tell the version of the tag, packages them (`scripts/package.py`: an archive for each platform with the
+programs, the README, the license and the examples, and the `rtrunner` of each platform), and publishes them as the
+GitHub release of the tag, with `SHA256SUMS` and the notes generated from the commits. A tag with a `-` (e.g.
+`v0.2.0-rc1`) is a pre-release. Started by hand (Actions → Release → Run workflow) it is a dry run: the packages are
+kept as artifacts of the run. The version of the VS Code extension (`editors/vscode/package.json`) is separate.
 
 The Windows code is tested by hand under [wine](https://www.winehq.org/), e.g.
 `GOOS=windows go test -c -o lockfile.test.exe ./internal/lockfile && wine lockfile.test.exe -test.v` (a separate

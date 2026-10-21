@@ -1,0 +1,126 @@
+name: Release
+
+# A tag v* (e.g. v0.1.0) makes a release: the binaries are built and tested on Linux and macOS, packaged
+# (scripts/package.py), and published as a GitHub release of the tag. Started by hand (workflow_dispatch), it is a
+# dry run: the packages are only kept as artifacts of the run.
+
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-26.04
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0 # the tags, for the version
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.x'
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version: stable
+        cache: true
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libgtk-4-dev libvte-2.91-gtk4-dev libgirepository1.0-dev
+
+    - name: Run tests
+      run: go test ./...
+
+    - name: Run build script
+      run: python3 scripts/build.py
+
+    - name: Check the version
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        dist/linux/amd64/runtree-headless --version
+        dist/linux/amd64/runtree-headless --version | head -1 | grep -q "^runtree-headless ${GITHUB_REF_NAME} "
+
+    - name: Package
+      run: python3 scripts/package.py linux-amd64 windows-amd64 rtrunners
+
+    - name: Upload the packages
+      uses: actions/upload-artifact@v7
+      with:
+        name: release-linux
+        path: dist/release/
+        if-no-files-found: error
+
+  macos:
+    runs-on: macos-15
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.x'
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version: stable
+        cache: true
+
+    - name: Install system dependencies
+      run: brew install pkgconf gtk4 vte3 gobject-introspection socat
+
+    - name: Run tests
+      run: go test ./...
+
+    - name: Run build script
+      run: python3 scripts/build.py
+
+    - name: Package
+      run: python3 scripts/package.py darwin-arm64
+
+    - name: Upload the packages
+      uses: actions/upload-artifact@v7
+      with:
+        name: release-macos
+        path: dist/release/
+        if-no-files-found: error
+
+  publish:
+    needs: [ linux, macos ]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write # create the release
+
+    steps:
+    - name: Download the packages
+      uses: actions/download-artifact@v7
+      with:
+        pattern: release-*
+        path: release
+        merge-multiple: true
+
+    - name: Checksums
+      working-directory: release
+      run: sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+    - name: Publish the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        prerelease=""
+        case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+        gh release create "$GITHUB_REF_NAME" release/* --verify-tag --title "runtree $GITHUB_REF_NAME" \
+          $prerelease --generate-notes --notes "Linux: \`runtree\` needs GTK 4, VTE (GTK 4) and socat (see docs/getting-started.md); the other programs are static. macOS (Apple Silicon): \`runtree\` needs \`brew install gtk4 vte3 socat\`. Windows: \`runtree-headless\`, \`rtrunner\` and \`runtree-lsp\`. \`rtrunner-<os>-<arch>\` are the runners for manual installs. Check the downloads with SHA256SUMS."

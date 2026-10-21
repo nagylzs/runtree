@@ -14,7 +14,7 @@ func main() {
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "--version", "-V":
-			version.PrintVersion()
+			version.PrintVersion("runtree-lsp")
 			return
 		case "--stdio":
 			// the default (some clients give it)

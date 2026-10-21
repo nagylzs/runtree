@@ -41,7 +41,7 @@ func main() {
 	}
 
 	if args.ShowVersion {
-		version.PrintVersion()
+		version.PrintVersion("runtree")
 		fmt.Println("GTK 4 app id: " + gtkui.ApplicationId)
 		os.Exit(0)
 	}

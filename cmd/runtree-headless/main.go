@@ -30,7 +30,7 @@ func main() {
 		os.Exit(headless.ExitError)
 	}
 	if args.ShowVersion {
-		version.PrintVersion()
+		version.PrintVersion("runtree-headless")
 		os.Exit(headless.ExitSuccess)
 	}
 	if len(posArgs) != 2 {

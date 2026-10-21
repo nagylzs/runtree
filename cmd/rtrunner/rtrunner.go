@@ -34,7 +34,7 @@ func main() {
 	}
 
 	if args.ShowVersion {
-		version.PrintVersion()
+		version.PrintVersion("rtrunner")
 		os.Exit(0)
 	}
 

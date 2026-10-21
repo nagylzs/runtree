@@ -99,7 +99,7 @@ func (s *Server) handle(m *message) {
 					"hoverProvider":      true,
 					"completionProvider": map[string]interface{}{"triggerCharacters": []string{"|"}},
 				},
-				"serverInfo": map[string]string{"name": "runtree-lsp", "version": version.Commit},
+				"serverInfo": map[string]string{"name": "runtree-lsp", "version": version.Version},
 			})
 		}
 	case "initialized", "workspace/didChangeWatchedFiles":

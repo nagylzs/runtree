@@ -17,6 +17,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
+      with:
+        fetch-depth: 0 # the tags, for the version (git describe in build.py)
 
     - name: Set up Python
       uses: actions/setup-python@v7
@@ -61,4 +63,42 @@ jobs:
           dist/linux/amd64/runtree-lsp_debug
           dist/rtrunners/
           dist/windows/amd64/
+        if-no-files-found: error
+
+  # The GUI on macOS, with the Homebrew packages (the Mac App Store is not planned, a Homebrew tap is; see TODO.md)
+  macos:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.x'
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version: stable
+        cache: true
+
+    - name: Install system dependencies
+      run: brew install pkgconf gtk4 vte3 gobject-introspection socat
+
+    - name: Run tests
+      run: go test ./...
+
+    - name: Run build script
+      run: python3 scripts/build.py
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: darwin-arm64-binaries
+        path: dist/darwin/arm64/
         if-no-files-found: error

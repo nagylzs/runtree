@@ -2,7 +2,7 @@
 
 ## Requirements
 
-runtree runs on Linux, and it builds on macOS too (the GUI is not tested there yet). The GUI (`runtree`) needs GTK 4
+runtree runs on Linux and macOS. The GUI (`runtree`) needs GTK 4
 and VTE (the terminal widget of GNOME Terminal); the runner (`rtrunner`) is a static binary without dependencies, that
 also runs on macOS and other Linux machines.
 [`runtree-headless`](headless.md) runs trees without the GUI (e.g. in CI): it is a static binary too, that also runs
@@ -13,7 +13,13 @@ start without `socat`.
 
 ## Installation
 
-There are no packages yet: build it from source. The build needs Go 1.25 or newer (with cgo), gcc, pkg-config, the
+The [releases](https://github.com/nagylzs/runtree/releases) have the programs for Linux (amd64), macOS (Apple
+silicon) and Windows (without the GUI), with the examples: unpack the archive, and put the programs in your `PATH`.
+The GUI needs the GTK 4, VTE and `socat` packages of your system (see below; on macOS `brew install gtk4 vte3 socat`).
+`runtree --version` tells the version. There are no distribution packages yet (a Homebrew tap and Linux packages are
+planned).
+
+Or build it from source. The build needs Go 1.25 or newer (with cgo), gcc, pkg-config, the
 GTK 4 and VTE development packages, git and Python 3. If the `golang` package of your distribution is older than
 1.25, install Go from [go.dev](https://go.dev/dl/).
 

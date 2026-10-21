@@ -86,11 +86,7 @@ func newSettingsMenu() *gtk.MenuButton {
 	box.Append(row)
 
 	box.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
-	v := version.LocalVersion()
-	if version.Commit == "unset" {
-		v = "development build (go build)"
-	}
-	about := gtk.NewLabel("runtree " + v)
+	about := gtk.NewLabel("runtree " + version.String())
 	about.AddCSSClass("dim-label")
 	about.SetSelectable(true)
 	about.SetWrap(true)
