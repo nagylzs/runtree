@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ActiveState/termtest/conpty"
+	"golang.org/x/sys/windows"
 )
 
 type windowsPtyRunner struct {
@@ -21,6 +22,17 @@ type windowsPtyRunner struct {
 
 // conptyDrain is the time for the pseudo console to write the rest of the output after the process exited
 const conptyDrain = 500 * time.Millisecond
+
+var procSetConsoleCtrlHandler = windows.NewLazySystemDLL("kernel32.dll").NewProc("SetConsoleCtrlHandler")
+
+// handleCtrlC clears the flag of this process that it ignores Ctrl+C. The processes it starts inherit the flag, and then
+// the Ctrl+C typed into their pseudo console (a timeout types it) does not stop them. Under sshd every process has it.
+func handleCtrlC() error {
+	if r, _, err := procSetConsoleCtrlHandler.Call(0, 0); r == 0 {
+		return err
+	}
+	return nil
+}
 
 func (w *windowsPtyRunner) StdIn() io.WriteCloser {
 	return w.cpty.InPipe()
@@ -102,6 +114,9 @@ func (s *Server) startPty(ca CmdArgs) (PtyRunner, error) {
 			_ = cpty.Close()
 			return nil, err
 		}
+	}
+	if err := handleCtrlC(); err != nil {
+		s.logger.Warn("the processes will ignore Ctrl+C", "error", err)
 	}
 	pid, _, err := cpty.Spawn(
 		name,
