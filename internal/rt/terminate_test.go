@@ -10,6 +10,7 @@ import (
 // When runtree exits, the processes of the remote runners get SIGINT, then SIGTERM, and their exits are logged. The
 // local ones are not signalled (the local runner terminates them, see runner.StopLocal).
 func TestTerminateRemote(t *testing.T) {
+	skipOnWindows(t, "needs sh and the terminal socket")
 	saved := remoteGrace
 	remoteGrace = []time.Duration{500 * time.Millisecond, 500 * time.Millisecond}
 	t.Cleanup(func() { remoteGrace = saved })

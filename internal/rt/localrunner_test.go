@@ -11,6 +11,7 @@ import (
 
 // Without a runner property, the scheduler starts the processes on the local runner, in runtree
 func TestLocalRunnerIsTheDefault(t *testing.T) {
+	skipOnWindows(t, "needs sh and the terminal socket")
 	tree := loadTestTree(t, outputTree)
 	tree.SetTerminalHelper(&ptyTerminalHelper{})
 	recorder := &testRecorder{}

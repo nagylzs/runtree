@@ -342,6 +342,7 @@ tree:
 // With real processes on the local runner: one node is started in a schedule cycle, max_proc is kept, and all of
 // them finish
 func TestSchedulerRunsProcesses(t *testing.T) {
+	skipOnWindows(t, "needs sh and the terminal socket")
 	tree := loadTestTree(t, `
 tree:
   id: root

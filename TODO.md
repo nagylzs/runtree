@@ -26,9 +26,31 @@
     the navigator (drawn by `termmark.go` now, the emoji had no glyph in the macOS fonts), a glitch in the "Tree (" text
     of the navigator.
   * CI: a build job on a macOS runner (e.g. `macos-15`, arm64) with the Homebrew packages.
-* test on Windows: `runtree-headless`, `rtrunner` and `runtree-lsp` from `dist/windows/amd64/` on a real Windows (only
-  tested under wine so far): the local runner (ConPTY), the output, exit codes, `--lock`, Ctrl+C, `timeout` (Ctrl+C
-  typed into ConPTY; SIGTERM is not supported there, so its step is a runner error, and SIGKILL follows).
+* test on Windows: tested on Windows 11 on 2026-10-21 (Go 1.26, `scripts/build.py` on the Windows host, `go test`
+  without the GTK packages: the tests that need sh or the terminal socket are skipped there, `windows_test.go` files
+  test the same with cmd and ping). `runtree-headless` works with cmd, PowerShell and ping nodes: the output, exit
+  codes (0 / 2 / 130 / 75 / 1), on_error paused, `--output failed|none`, `timeout` (Ctrl+C typed into ConPTY stops
+  ping; a process that ignores it is killed after the grace periods), Ctrl+C of runtree-headless (the local processes
+  are killed at once; nothing is left after a hard kill of runtree-headless either), `--lock` and the `lock` property,
+  `--check` (Windows paths, includes with `/` and `\`), `cwd`, `envs` (the system variables are replaced case
+  insensitively), `--log-db`. `runtree-lsp` works with the URIs of VS Code (`file:///c%3A/...`, tested with a scripted
+  client, not with VS Code itself). Fixed: build.py on a Windows host, the error of a command that cannot be started,
+  a pseudo console with 0 columns or rows. Left:
+  * `rtrunner` over TCP with the GUI on another machine (terminals of ConPTY processes in VTE, typing, resize,
+    signals);
+  * the ConPTY control sequences in the output of runtree-headless: each node starts with `ESC[?9001h ESC[?1004h
+    ESC[?25l ESC[2J ESC[m ESC[H` and the title of the console (`ESC]0;C:\WINDOWS\system32\cmd.exe BEL`), and ends
+    with `ESC[?25h ESC[?9001l ESC[?1004l`, often on a line of its own; blank lines become cursor moves (`ESC[7;1H`),
+    so two lines can be on one labeled line. Filter them on Windows: drop the private modes, the title and the
+    clear/home at the start, and make a newline of a move to column 1;
+  * show NTSTATUS exit codes in hex on Windows: Ctrl+C makes 3221225786, that is 0xC000013A (STATUS_CONTROL_C_EXIT);
+  * skip the grace period after a signal that the runner does not support: on Windows SIGINT and SIGTERM are runner
+    errors (logged as ERROR), so a `timeout` kills 10 s later than it could (23 s instead of 13 s for a 3 s timeout),
+    and `Tree.TerminateRemote` (runtree exits, Ctrl+C of runtree-headless) kills the processes of a Windows rtrunner
+    only after 20 s. Or the Windows runner could type Ctrl+C into the pseudo console for SIGINT, as `timeout` does;
+  * the log lines of the local runner have another format than the events in runtree-headless's stderr
+    (`Oct 21 08:25:24.500 WRN terminating runner=local ...` among `08:25:24 WARN ...`);
+  * the holder in the lock file is `HTPC\nagyl@htpc` (os/user gives DOMAIN\user on Windows).
 * test on macOS: `rtrunner`, `runtree-headless` and the GUI (see macOS support above) from `dist/darwin/arm64/`.
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
@@ -210,18 +232,18 @@ Ordered by impact:
   output on stdout with the labels of the nodes, the events on stderr, on_error paused fails, the run stops when
   nothing runs and nothing can be started, exit codes 0 / 1 / 2 / 3 / 75 / 130 / 143. It also builds for Windows (the
   local runner works there: a loopback TCP pair instead of a socket pair; ConPTY finds the programs in the PATH, gets
-  the whole command line, and is closed after the exit; tested under wine only). The `timeout` property stops the
-  steps that wait for input or never exit. Next:
+  the whole command line, and is closed after the exit; tested on Windows 11, see "test on Windows" above). The
+  `timeout` property stops the steps that wait for input or never exit. Next:
   * ssh runners on Windows (`startSSH` with the pipes of `ssh.exe`; Windows OpenSSH has no ControlMaster, so no
     connection sharing);
-  * test it on a real Windows (and macOS);
+  * test it on macOS;
   * Done: `--thaw NODE` opens approval gates (also in the GUI), the `lock` property of the root node locks the tree
     without `--lock` (the GUI shows the holder in a window), `--output failed` and `--output none`.
   * maybe: `--lock-wait [DURATION]` to wait for the lock instead of exit 75 (for queued CI runs).
 * Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
   substitution, the operations, reset / re-run and unprovide, the events, the scheduler (seq/par order, max_proc,
   frozen/skipped, requires, xlocks/rlocks, with real processes too), the runners (local, TCP, ssh with a fake ssh,
-  uploads, a client without a terminal), the log database, the lock file (also the Windows one, under wine), the
+  uploads, a client without a terminal, ConPTY on Windows), the log database, the lock file (also the Windows one), the
   on_error sibling operations, the language server (also its edge cases: unknown methods, invalid params, unsaved and
   non-file documents, encoded paths), unattended trees and runtree-headless (the end of the run, its output, exit
   codes). Still thin: the GUI (no tests).

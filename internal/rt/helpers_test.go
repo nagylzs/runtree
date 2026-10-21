@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -110,6 +111,15 @@ func checkUnlocked(t *testing.T, tree *Tree) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("the tree is still locked")
+	}
+}
+
+// skipOnWindows skips a test that needs Unix: its commands (sh, sleep, true), or the terminal socket of a node (it is
+// in /tmp; the GUI does not run on Windows). windows_test.go has tests for Windows.
+func skipOnWindows(t *testing.T, why string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("on Windows: " + why)
 	}
 }
 

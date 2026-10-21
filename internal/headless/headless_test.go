@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +57,14 @@ func startRunner(t *testing.T) string {
 	return l.Addr().String()
 }
 
+// skipOnWindows skips a test that runs Unix commands (sh, sleep, true): windows_test.go has tests for Windows
+func skipOnWindows(t *testing.T, why string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("on Windows: " + why)
+	}
+}
+
 type result struct {
 	code           int
 	stdout, stderr string
@@ -102,6 +111,7 @@ func (r result) check(t *testing.T, code int, stdout []string, stderr []string) 
 }
 
 func TestRunSuccess(t *testing.T) {
+	skipOnWindows(t, "needs sh")
 	t.Parallel()
 	r := run(t, `
 tree:
@@ -119,6 +129,7 @@ tree:
 
 // on_error: paused fails: nobody decides
 func TestRunFailed(t *testing.T) {
+	skipOnWindows(t, "needs sh")
 	t.Parallel()
 	r := run(t, `
 tree:
@@ -138,6 +149,7 @@ tree:
 // A node that runs longer than its timeout is stopped with Ctrl+C (through the runner), and it fails: it does not hold
 // up the run
 func TestRunTimeout(t *testing.T) {
+	skipOnWindows(t, "needs sh")
 	t.Parallel()
 	r := run(t, `
 tree:
@@ -158,6 +170,7 @@ tree:
 
 // The run stops when nothing runs and nothing can be started: the frozen hosts of a rolling upgrade are listed
 func TestRunStopped(t *testing.T) {
+	skipOnWindows(t, "needs sh")
 	t.Parallel()
 	r := run(t, `
 tree:
@@ -181,6 +194,7 @@ tree:
 
 // A signal terminates the processes
 func TestRunInterrupted(t *testing.T) {
+	skipOnWindows(t, "needs sleep")
 	t.Parallel()
 	sigs := make(chan os.Signal, 1)
 	go func() {
@@ -211,6 +225,7 @@ tree:
 
 // --thaw opens the gates (status: frozen) of the tree file, a gate inside a thawed one stays frozen
 func TestRunThaw(t *testing.T) {
+	skipOnWindows(t, "needs sh")
 	t.Parallel()
 	thaw := func(names ...string) func(*config.HeadlessCLIArgs) {
 		return func(a *config.HeadlessCLIArgs) { a.Thaw = names }
@@ -234,6 +249,7 @@ func TestRunThaw(t *testing.T) {
 // --output failed writes the output of the nodes that fail (when they fail), only the end of a long one; --output none
 // writes nothing, the events and the summary are on stderr
 func TestRunOutputModes(t *testing.T) {
+	skipOnWindows(t, "needs sh")
 	t.Parallel()
 	const tree = `
 tree:

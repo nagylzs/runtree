@@ -208,6 +208,7 @@ tree:
 
 // An unattended tree with real processes: they have no terminals, their output goes to the recorder
 func TestUnattendedRun(t *testing.T) {
+	skipOnWindows(t, "needs sh")
 	tree := loadTestTree(t, `
 tree:
   id: root

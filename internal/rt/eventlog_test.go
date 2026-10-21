@@ -311,6 +311,7 @@ tree:
 // TestExitEvents runs processes: the exit is logged once, before the status change (also when the scheduler sees the
 // exit first)
 func TestExitEvents(t *testing.T) {
+	skipOnWindows(t, "needs sh and the terminal socket")
 	tree := loadTestTree(t, exitTree)
 	tree.SetTerminalHelper(&ptyTerminalHelper{})
 	addr := startTestRunner(t)

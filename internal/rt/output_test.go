@@ -86,6 +86,7 @@ func waitFinished(t *testing.T, n *Node) {
 }
 
 func TestOutputRecorder(t *testing.T) {
+	skipOnWindows(t, "needs sh and the terminal socket")
 	tree := loadTestTree(t, outputTree)
 	tree.SetTerminalHelper(&ptyTerminalHelper{})
 	recorder := &testRecorder{}
