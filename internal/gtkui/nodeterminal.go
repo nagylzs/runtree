@@ -38,6 +38,7 @@ func (ra *RunTreeApp) createTerminal(n *rt.Node, client *runner.Client, size run
 	term.SetSize(size.Cols, size.Rows)
 
 	nt := &nodeTerminal{term: term, client: client, size: size, wanted: size, sent: size}
+	setTerminalPalette(nt)
 	ra.lock.Lock()
 	ra.terminals[n.Id] = nt
 	ra.lock.Unlock()

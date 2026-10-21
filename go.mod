@@ -8,7 +8,6 @@ require (
 	github.com/ActiveState/termtest/conpty v0.5.0
 	github.com/creack/pty v1.1.24
 	github.com/diamondburned/gotk4/pkg v0.3.1
-	github.com/diamondburned/gotkit v0.0.0-20250223060613-69614d9e70a9
 	github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/lmittmann/tint v1.1.3

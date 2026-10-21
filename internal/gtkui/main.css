@@ -1,45 +1,40 @@
 /*
-
-General problem: these colors only work well for dark themes.
-
-But gtk 4 does not provide a way to query colors from the current theme,
-so it is not trivial to create new classes that use colors from other elements
-of the current theme.
-
+The colors are named (@rt_...): they are defined by the dark and the light palette (palette.go), which is loaded with
+this file for the appearance of the GUI (appearance.go).
  */
 .node {
     background-clip: padding-box;
 }
 
 .node:hover {
-    color: #a1b5b0;
-    border-color: rgba(0, 0, 0, 0.25);
-    background-color: #38464b;
+    color: @rt_node_hover_fg;
+    border-color: @rt_node_border;
+    background-color: @rt_node_hover_bg;
 }
 
 .node:active, .node.keyboard-activating, .node:checked {
-    color: #ffffff;
-    border-color: rgba(0, 0, 0, 0.25);
-    background-color: #205246;
+    color: @rt_node_selected_fg;
+    border-color: @rt_node_border;
+    background-color: @rt_node_selected_bg;
 }
 
 .node:disabled {
-    border-color: rgba(0, 0, 0, 0.15);
-    background-color: rgba(38, 48, 52, 0.55);
+    border-color: @rt_node_disabled_border;
+    background-color: @rt_node_disabled_bg;
 }
 
 .node:disabled label, .node:disabled {
-    color: rgba(204, 215, 212, 0.45);
+    color: @rt_node_disabled_fg;
 }
 
 .node:disabled:active, .node:disabled:checked {
-    border-color: rgba(46, 179, 152, 0.75);
-    background-color: rgba(46, 179, 152, 0.75);
+    border-color: @rt_node_disabled_selected_bg;
+    background-color: @rt_node_disabled_selected_bg;
     opacity: 0.6;
 }
 
 .node:disabled:active label, .node:disabled:active, .node:disabled:checked label, .node:disabled:checked {
-    color: rgba(255, 255, 255, 0.8);
+    color: @rt_node_disabled_selected_fg;
 }
 
 .node-title {
@@ -51,8 +46,8 @@ of the current theme.
     margin: 0.2em 0.2em;
     border-radius: 0.2em;
     border: 1px solid currentColor;
-    color: #4b4b4b;
-    background-color: #ffffff;
+    color: @rt_type_fg;
+    background-color: @rt_type_bg;
 }
 
 .node-status {
@@ -100,38 +95,38 @@ button.op-button, menubutton.op-button > button {
 }
 
 .status-waiting {
-    background-color: #cb4b16;
-    color: #002b36;
+    background-color: @rt_waiting;
+    color: @rt_status_fg;
 }
 
 .status-frozen {
-    background-color: #d33682;
-    color: #002b36;
+    background-color: @rt_frozen;
+    color: @rt_status_fg;
 }
 
 .status-running {
-    background-color: #268bd2;
-    color: #002b36;
+    background-color: @rt_running;
+    color: @rt_status_fg;
 }
 
 .status-success {
-    background-color: #859900;
-    color: #002b36;
+    background-color: @rt_success;
+    color: @rt_status_fg;
 }
 
 .status-failed {
-    background-color: #dc322f;
-    color: #002b36;
+    background-color: @rt_failed;
+    color: @rt_status_fg;
 }
 
 .status-cancelled {
-    background-color: #2aa198;
-    color: #002b36;
+    background-color: @rt_cancelled;
+    color: @rt_status_fg;
 }
 
 .status-paused {
-    background-color: #6c71c4;
-    color: #002b36;
+    background-color: @rt_paused;
+    color: @rt_status_fg;
 }
 
 .tools-title {
@@ -140,8 +135,8 @@ button.op-button, menubutton.op-button > button {
 }
 
 .toast {
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
+    background-color: @rt_toast_bg;
+    color: @rt_toast_fg;
     padding: 10px;
     border-radius: 8px;
 }
@@ -153,23 +148,24 @@ button.op-button, menubutton.op-button > button {
 
 
 .button-sigkill {
-    color: #dc322f;
-    background-color: #002b36;
+    color: @rt_sigkill;
 }
 
 .button-sigint {
-    color: #cb4b16;
-    background-color: #002b36;
+    color: @rt_sigint;
 }
 
 .button-sighup {
-    color: #6c71c4;
-    background-color: #002b36;
+    color: @rt_sighup;
 }
 
 .button-sigabort {
-    color: #cb4b16;
-    background-color: #002b36;
+    color: @rt_sigabort;
+}
+
+/* the dark palette gives them a dark background */
+.button-sigkill, .button-sigint, .button-sighup, .button-sigabort {
+    background-color: @rt_signal_bg;
 }
 
 vte-terminal {
@@ -184,6 +180,6 @@ vte-terminal {
 /* the warnings of the tree files, above the main pane */
 .warnings-banner {
     padding: 6px 12px;
-    background-color: #b58900;
-    color: #002b36;
+    background-color: @rt_warning;
+    color: @rt_status_fg;
 }

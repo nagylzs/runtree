@@ -72,9 +72,27 @@ const (
 
 var buttonMode = ButtonsAuto
 
-// SetButtonMode sets how the operation buttons are shown (runtree --buttons), before the GUI starts
+// buttonModeNames are the names of the button modes in runtree --buttons and in the settings
+var buttonModeNames = map[ButtonMode]string{ButtonsAuto: "auto", ButtonsText: "text", ButtonsIcons: "icons"}
+
+// ParseButtonMode returns the button mode of a name (auto, text or icons)
+func ParseButtonMode(name string) (ButtonMode, bool) {
+	for mode, n := range buttonModeNames {
+		if n == name {
+			return mode, true
+		}
+	}
+	return ButtonsAuto, false
+}
+
+// buttonModeFixed: the mode was set by SetButtonMode, the saved setting is not used
+var buttonModeFixed bool
+
+// SetButtonMode sets how the operation buttons are shown (runtree --buttons) before the GUI starts; it overrides the
+// saved setting
 func SetButtonMode(mode ButtonMode) {
 	buttonMode = mode
+	buttonModeFixed = true
 }
 
 // opButton is a button of an operation, with an icon and a label (hidden when only the icons are shown)
@@ -447,6 +465,12 @@ func (w *NodeFrameHeader) chooseIconMode(key string) {
 	w.setIconMode(false)
 	_, width, _, _ := w.opsRow.Measure(gtk.OrientationHorizontal, -1)
 	w.setIconMode(width+w.MarginStart()+w.MarginEnd() > available)
+}
+
+// relayout chooses the icon mode again (e.g. after the button mode changed), and shows it
+func (w *NodeFrameHeader) relayout() {
+	w.layoutKey = ""
+	w.updateGUI()
 }
 
 // setIconMode shows only the icons of the operation buttons, or their texts too

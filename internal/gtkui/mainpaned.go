@@ -97,6 +97,10 @@ func NewMainPaned() *MainPaned {
 		addNavModeButton(fmt.Sprintf("Show %s nodes in a list", rt.StatusName(st)), nm, tbTree)
 	}
 	navRow.Append(cbRunOnly)
+	settingsMenu := newSettingsMenu()
+	settingsMenu.SetHExpand(true)
+	settingsMenu.SetHAlign(gtk.AlignEnd)
+	navRow.Append(settingsMenu)
 	navPopoverBox := gtk.NewBox(gtk.OrientationVertical, 8)
 	navPopoverBox.Append(navModes)
 	navModePopover.SetChild(scrollable(navPopoverBox))

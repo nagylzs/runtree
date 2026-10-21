@@ -65,7 +65,8 @@ status of the node; its tooltip tells what it does. **Signal** opens the list of
 the waiting run nodes below it), and the signals for all of them.
 
 The buttons have an icon and a text. When the texts do not fit (e.g. a large font, a narrow window), only the icons
-are shown; `runtree --buttons=text` or `--buttons=icons` shows always the texts or only the icons.
+are shown; **Text** or **Icons** in the [menu](#appearance) (or `--buttons=text`, `--buttons=icons`) shows always the
+texts or only the icons.
 
 | Operation | Allowed (run nodes) | What it does |
 |-----------|---------------------|--------------|
@@ -116,5 +117,19 @@ runtree --exit-on-finish prepare.rt.yaml && runtree --exit-on-finish upgrade.rt.
 
 ## Appearance
 
-runtree is designed for dark GTK themes, e.g. `GTK_THEME=Adwaita:dark`. With light themes, some parts may still look
-dark. On a HiDPI screen, `GDK_SCALE=2` doubles the size.
+The menu (☰, above the tree) chooses the appearance:
+
+- **System**, the default: the color scheme of the desktop, from the settings portal on Linux (GNOME, KDE...) and
+  from the appearance of macOS. It follows the changes. When it is not known (e.g. on a VNC server without a
+  desktop), it is dark.
+- **Dark** or **Light**.
+
+It asks GTK for the dark or the light variant of the theme, and runtree's own colors (the rows of the tree, the
+signals) and the terminals follow the theme in use: a theme that has only a dark variant (e.g. `GTK_THEME=Dracula`)
+keeps the dark colors whatever the choice is, and the menu tells it. (With GTK 4.20 and later, the choice also wins
+over the variant of `GTK_THEME`, e.g. `Adwaita:dark`.)
+
+The menu also chooses how the [operation buttons](#operations) are shown. The choices are saved in
+`runtree/settings.json` in the configuration directory of the user (`~/.config` on Linux, `~/Library/Application
+Support` on macOS); `--appearance` and `--buttons` override them for one run. On a HiDPI screen, `GDK_SCALE=2`
+doubles the size.

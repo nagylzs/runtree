@@ -25,6 +25,7 @@ const (
 	iconReset
 	iconAll
 	iconCopy
+	iconMenu
 )
 
 // opIconOf returns the icon of an operation; rerun is for Run on a finished node
@@ -166,6 +167,12 @@ func drawOpIcon(cr *cairo.Context, icon opIcon, width, height float64) {
 		cr.LineTo(2.5, 2.5)
 		cr.LineTo(10.5, 2.5)
 		cr.LineTo(10.5, 3)
+		cr.Stroke()
+	case iconMenu: // three lines
+		for _, y := range []float64{4, 8, 12} {
+			cr.MoveTo(2.5, y)
+			cr.LineTo(13.5, y)
+		}
 		cr.Stroke()
 	case iconAll: // a tree: a trunk with three branches
 		cr.MoveTo(4, 2.5)

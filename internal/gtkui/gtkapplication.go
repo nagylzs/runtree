@@ -7,7 +7,6 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/nagylzs/runtree/internal/rt"
 	"github.com/nagylzs/runtree/internal/runner"
 )
@@ -41,7 +40,7 @@ func RunApplication() int {
 	GtkApplication = gtk.NewApplication(ApplicationId, gio.ApplicationNonUnique)
 	GtkApplication.ConnectActivate(activateApplication)
 	go handleExitSignals()
-	cssutil.WriteCSS(mainCss)
+	loadSavedSettings()
 	// TODO: how to pass gtk4 command line parameters here?
 	return GtkApplication.Run([]string{})
 }
@@ -66,8 +65,6 @@ func setDefaultRenderer() {
 }
 
 func activateApplication() {
-	cssutil.ApplyGlobalCSS()
-
 	window := gtk.NewApplicationWindow(GtkApplication)
 	window.SetTitle("RunTree")
 	window.SetDefaultSize(1024, 768)
@@ -76,6 +73,7 @@ func activateApplication() {
 	logSlowFrames(window)
 	// Nasty!
 	Application.window = window
+	startAppearance(window)
 	window.ConnectCloseRequest(Application.onCloseRequest)
 
 	overlay := gtk.NewOverlay()

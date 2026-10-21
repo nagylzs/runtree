@@ -187,12 +187,13 @@ about 40 hard coded colors.
 * resize cursor (<->) on the dividers of the panes. GTK 4 sets `col-resize` / `row-resize` on the handle of a
   `gtk.Paned` (`mainpaned.go` uses wide handles); check why it does not show (cursor theme? CSS of the handle?), and
   set it with `SetCursorFromName` if needed.
-* dark / light / system appearance, with high contrast in all of them: replace the hard coded colors of `main.css`
-  with named colors (or `@media (prefers-color-scheme: ...)`, which GTK 4.20+ supports, 4.22 is installed), and
-  set the color scheme in `gtk.Settings` (`gtk-interface-color-scheme`). "System" follows the desktop setting
-  (org.freedesktop.appearance color-scheme of the settings portal). Choose it without taking screen space: a
-  command line flag and an item in a small menu button (see the main menu above), saved in a settings file in
-  `os.UserConfigDir()` (runtree has no settings file yet).
+* Done (2026-10-21): dark / light / system appearance (`appearance.go`): the colors of `main.css` are named, the
+  dark and the light palette (`palette.go`) define them, and the one that fits the theme in use is loaded (from its
+  text color, so `GTK_THEME` works too); the terminals get light colors with a light theme. System reads the
+  settings portal (Linux) or `AppleInterfaceStyle` (macOS), dark when unknown. The ☰ menu chooses it and the button
+  mode, saved in `runtree/settings.json` (`os.UserConfigDir()`); `--appearance`, `--buttons`. Left: high contrast
+  (`prefers-contrast`, GTK 4.20), and maybe `@media (prefers-color-scheme)` instead of reloading the palette when
+  GTK 4.20 is common.
 
 # Tree files: error positions and VS Code support (roadmap, 2026-10-17)
 

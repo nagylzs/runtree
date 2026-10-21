@@ -127,14 +127,9 @@ you type.
 
 ## Appearance
 
-runtree is designed for dark GTK themes:
-
-```bash
-GTK_THEME=Adwaita:dark runtree tree.rt.yaml
-```
-
-It works with light themes too, but some parts may still look dark. On a HiDPI screen, `GDK_SCALE=2` doubles the
-size. The application id is `com.github.nagylzs.runtree.gui`.
+runtree follows the dark or light color scheme of the desktop; the menu (☰ above the tree) or `--appearance=dark`
+or `light` chooses one (see [appearance](gui.md#appearance)). On a HiDPI screen, `GDK_SCALE=2` doubles the size. The
+application id is `com.github.nagylzs.runtree.gui`.
 
 ## A remote or virtual X server
 

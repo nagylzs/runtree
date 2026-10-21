@@ -46,7 +46,7 @@ by default, or on `startTestRunner`, an in-process TCP runner on a free port; `k
 `go test ./...`. CI (`.github/workflows/build.yml`) runs the tests and then `scripts/build.py` on `main`. Coverage is
 still small: add tests for new and changed code.
 
-Dark GTK theme is the design target: `GTK_THEME=Adwaita:dark`.
+The GUI has a dark and a light palette (`--appearance`); dark is the default when the desktop has no preference.
 
 ## Architecture
 
@@ -139,8 +139,10 @@ Package-level globals `RunTree`, `Application`, `GtkApplication` (`global.go`). 
 by event-driven `navigator.UpdateNode` calls. `mainpaned.go` splits into `nodenavigator.go` (tree list,
 `treenodeview.go` rows) and `nodeframe*.go` (the selected node: the header with the operation buttons, whose icons are
 drawn in `opicons.go`, and the tabs: properties with the dependencies, log, description, vars, envs). Styling is in
-the embedded `main.css`. All GTK calls must happen on the GTK main thread. `RunApplication` sets `GSK_RENDERER=cairo`
-when it is not set (fast without a GPU, e.g. over VNC), hidden from the node processes by `runner.HideEnv`.
+the embedded `main.css`, with named colors (`@rt_*`) from the dark or light palette (`palette.go`) that fits the
+theme in use (`appearance.go`: system/dark/light, the ☰ menu, saved in `settings.go`). All GTK calls must happen on
+the GTK main thread. `RunApplication` sets `GSK_RENDERER=cairo` when it is not set (fast without a GPU, e.g. over
+VNC), hidden from the node processes by `runner.HideEnv`.
 Goroutines must not call GLib either, not even `glib.IdleAdd`/`TimeoutAdd`: they pass the function to `runOnMain`
 (`mainqueue.go`: a queue and a pipe that the main loop watches). On macOS 27 a contended `pthread_rwlock` hangs when
 signals arrive, and GLib's sources share one, so goroutines that added sources froze the GUI.
