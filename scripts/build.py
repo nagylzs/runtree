@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 import re
@@ -9,6 +10,13 @@ import shutil
 import subprocess as sp
 
 from gitversion import git_version
+
+parser = argparse.ArgumentParser(
+	description="Builds the programs of runtree into dist/<os>/<arch>/ (see docs/development.md)")
+parser.add_argument("--no-debug", action="store_true", help="do not build the *_debug variants")
+parser.add_argument("--no-windows", action="store_true", help="do not cross-build the programs for Windows")
+parser.add_argument("--no-gui", action="store_true", help="do not build runtree (the GUI), even with GTK 4 and VTE")
+args = parser.parse_args()
 
 targets=["rtrunner", "runtree", "runtree-headless", "runtree-lsp"]
 # the ones that run with the embedded rtrunner binaries (-tags rtrunners)
@@ -48,7 +56,9 @@ try:
 	has_gui = sp.call(["pkg-config", "--exists"] + gui_packages) == 0
 except OSError:
 	has_gui = False
-if not has_gui:
+if args.no_gui:
+	targets.remove("runtree")
+elif not has_gui:
 	print(f"pkg-config does not find {' '.join(gui_packages)}: runtree (the GUI) is not built")
 	targets.remove("runtree")
 
@@ -65,11 +75,17 @@ def run(cmd):
 		raise SystemExit(ret)
 
 built = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
-branch = co(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-if branch == "HEAD":
-	branch = ""  # a detached HEAD, e.g. the tag of a release
-commit = co(["git", "rev-parse", "HEAD"])
-version = git_version(DIR)
+# RUNTREE_VERSION (and RUNTREE_COMMIT) give the version of a build without git, e.g. from the source tarball of a
+# release (the Homebrew formula)
+version = os.environ.get("RUNTREE_VERSION", "")
+if version:
+	branch, commit = "", os.environ.get("RUNTREE_COMMIT", "")
+else:
+	branch = co(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+	if branch == "HEAD":
+		branch = ""  # a detached HEAD, e.g. the tag of a release
+	commit = co(["git", "rev-parse", "HEAD"])
+	version = git_version(DIR)
 
 print(f"version={version} built={built} branch={branch} commit={commit}")
 
@@ -146,6 +162,8 @@ for target in targets:
 		run(["go-winres", "patch", "--no-backup", binary])
 
 
+	if args.no_debug:
+		continue
 	binary = os.path.join(ddir, target + "_debug" + ext)
 	sldflags = " ".join(ldflags_debug)
 	cmd = ["go", "build"] + tags + ["-ldflags", sldflags, "-o", binary, src]
@@ -155,7 +173,7 @@ for target in targets:
 		run(["go-winres", "patch", "--no-backup", binary])
 
 # The programs without cgo are cross-built for Windows too (runtree does not build there: VTE)
-if oss in ["linux", "darwin"]:
+if oss in ["linux", "darwin"] and not args.no_windows:
 	wdir = os.path.join(DIR, "dist", "windows", "amd64")
 	os.makedirs(wdir, exist_ok=True)
 	for target in targets:

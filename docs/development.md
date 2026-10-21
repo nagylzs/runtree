@@ -8,7 +8,9 @@ go build ./... && go vet ./...  # compile and vet everything
 go build -o runtree ./cmd/runtree
 ```
 
-`scripts/build.py` (it needs git, and a Linux, macOS or Windows host, on amd64 or arm64):
+`scripts/build.py` (it needs git, and a Linux, macOS or Windows host, on amd64 or arm64; `--no-debug`, `--no-windows`
+and `--no-gui` leave out the steps below, `RUNTREE_VERSION` gives the version without git, e.g. in the source tarball
+of a release):
 
 1. runs `go mod tidy`;
 2. cross-builds `rtrunner` for the platforms of the [managed ssh runners](runners.md#managed-rtrunner) (linux amd64,
@@ -70,6 +72,11 @@ programs, the README, the license and the examples, and the `rtrunner` of each p
 GitHub release of the tag, with `SHA256SUMS` and the notes generated from the commits. A tag with a `-` (e.g.
 `v0.2.0-rc1`) is a pre-release. Started by hand (Actions → Release → Run workflow) it is a dry run: the packages are
 kept as artifacts of the run. The version of the VS Code extension (`editors/vscode/package.json`) is separate.
+
+The [Homebrew tap](https://github.com/nagylzs/homebrew-runtree) builds the source tarball of the tag
+(`Formula/runtree.rb`). Its autobump workflow opens a pull request for the new version within a day (or `brew bump
+--open-pr nagylzs/runtree/runtree`); the tests of the pull request build the bottles on macOS and Linux, and the
+`brew pr-pull` workflow (Actions → Run workflow, with the number of the pull request) publishes them and merges it.
 
 The Windows code is tested by hand under [wine](https://www.winehq.org/), e.g.
 `GOOS=windows go test -c -o lockfile.test.exe ./internal/lockfile && wine lockfile.test.exe -test.v` (a separate

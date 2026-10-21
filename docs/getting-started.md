@@ -13,11 +13,20 @@ start without `socat`.
 
 ## Installation
 
+With [Homebrew](https://brew.sh):
+
+```bash
+brew install nagylzs/runtree/runtree
+```
+
+On macOS it installs all the programs, with GTK 4, VTE and `socat`. On Linux ([Homebrew on
+Linux](https://docs.brew.sh/Homebrew-on-Linux)) it installs the programs without the GUI; for the GUI, use the
+releases with the GTK 4 and VTE of your distribution, or build it from source. `brew upgrade` gets the new versions.
+
 The [releases](https://github.com/nagylzs/runtree/releases) have the programs for Linux (amd64), macOS (Apple
 silicon) and Windows (without the GUI), with the examples: unpack the archive, and put the programs in your `PATH`.
 The GUI needs the GTK 4, VTE and `socat` packages of your system (see below; on macOS `brew install gtk4 vte3 socat`).
-`runtree --version` tells the version. There are no distribution packages yet (a Homebrew tap and Linux packages are
-planned).
+`runtree --version` tells the version. There are no Linux packages yet (they are planned).
 
 Or build it from source. The build needs Go 1.25 or newer (with cgo), gcc, pkg-config, the
 GTK 4 and VTE development packages, git and Python 3. If the `golang` package of your distribution is older than

@@ -65,12 +65,15 @@
   sandboxed too (no access to the user's files, ssh keys and Homebrew tools), while runtree runs any command of the
   tree; App Review is wary of apps that run code that is not in them, and GTK, VTE and socat would have to be bundled
   in a signed `.app`. The users are sysadmins and developers, they install such tools with Homebrew.
-* macOS: a Homebrew tap first (`nagylzs/homebrew-runtree`, `brew install nagylzs/runtree/runtree`), with a formula
-  that builds from source with `scripts/build.py` (so the managed ssh runner gets its embedded `rtrunner`s):
-  `depends_on "go" => :build`, `pkgconf` and `gobject-introspection` to build, `gtk4`, `vte3`, `socat`. Maybe bottles
-  built by a GitHub Actions job of the tap (the first build of the GTK bindings takes minutes). Later `homebrew-core`,
-  when runtree is notable enough for it. A formula, not a cask: a cask installs a prebuilt `.app`, that needs a
-  Developer ID signature and notarization.
+* macOS: a Homebrew tap first. Done (2026-10-21): `nagylzs/homebrew-runtree`, `brew install
+  nagylzs/runtree/runtree`, a formula that builds the source tarball of the tag with `scripts/build.py --no-debug
+  --no-windows` (so the managed ssh runner gets its embedded `rtrunner`s): `go`, `pkgconf`, `gobject-introspection`
+  to build, `gtk4`, `vte3`, `socat`. On Linux (Homebrew on Linux) without the GUI (`--no-gui`): Homebrew's `gtk4` and
+  `vte3` build there, but they would be a second GTK next to the desktop's. The tap's workflows (from `brew
+  tap-new`): test-bot on macOS and Linux for the pull requests, which builds the bottles, pr-pull publishes them, and
+  a daily autobump opens a pull request for a new tag. Left: bottles; later `homebrew-core`, when runtree is notable
+  enough for it. A formula, not a cask: a cask installs a prebuilt `.app`, that needs a Developer ID signature and
+  notarization.
 * Linux, the primary target: packages at about the same time, e.g. an AUR package (Arch, Manjaro) and a `.deb`
   (Debian, Ubuntu).
 * Done (2026-10-21): version numbers from the git tags (`--version`, docs/development.md "Versions and releases"),

@@ -73,6 +73,12 @@ The [examples](examples/README.md) go from the simplest tree to this one, step b
 
 ## Installation
 
+With [Homebrew](https://brew.sh), on macOS (with the GUI) and on Linux (without the GUI):
+
+```bash
+brew install nagylzs/runtree/runtree
+```
+
 The [releases](https://github.com/nagylzs/runtree/releases) have the programs for Linux (amd64), macOS (Apple
 silicon) and Windows (without the GUI): unpack the archive and put the programs in your `PATH`. The GUI needs GTK 4,
 VTE and socat from your system (`brew install gtk4 vte3 socat` on macOS). Or build it from source, with Go 1.25+, GTK
@@ -105,8 +111,8 @@ runtree is used for real upgrades and deployments, but it is young: the versions
 releases, and the tree format, the options and the runner protocol may still change between minor versions. Use the
 same version of runtree and of the `rtrunner`s that you install by hand (managed ssh runners are uploaded by runtree,
 so they always match; a different version is a start error, not a silent one). The GUI runs on Linux and macOS; the
-runner (`rtrunner`) and `runtree-headless` (without the GUI, e.g. for CI) also run on Windows. There are no
-distribution packages yet (a Homebrew tap and Linux packages are planned).
+runner (`rtrunner`) and `runtree-headless` (without the GUI, e.g. for CI) also run on Windows. There is a Homebrew
+tap; Linux packages are planned.
 
 ## License
 
