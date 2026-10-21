@@ -1,0 +1,60 @@
+{
+ "1a-powershell-steps.bin": {
+  "bytes": 179,
+  "chunks": [
+   16,
+   105,
+   21,
+   21,
+   16
+  ]
+ },
+ "1b-powershell-colors.bin": {
+  "bytes": 210,
+  "chunks": [
+   16,
+   178,
+   16
+  ]
+ },
+ "1c-cmd-ansi.bin": {
+  "bytes": 135,
+  "chunks": [
+   135
+  ]
+ },
+ "2-scroll-progress.bin": {
+  "bytes": 4910,
+  "chunks": [
+   16,
+   435,
+   644,
+   647,
+   647,
+   2521
+  ]
+ },
+ "3-progress.bin": {
+  "bytes": 5192,
+  "chunks": [
+   16,
+   709,
+   643,
+   643,
+   643,
+   643,
+   643,
+   1252
+  ]
+ },
+ "4-cmd-timeout.bin": {
+  "bytes": 164,
+  "chunks": [
+   130,
+   21,
+   2,
+   4,
+   7
+  ]
+ }
+}

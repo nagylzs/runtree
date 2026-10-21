@@ -4,6 +4,7 @@ package rt
 
 import (
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -105,6 +106,16 @@ tree:
 	for _, e := range events {
 		if strings.Contains(e, "sending SIG") {
 			t.Errorf("Ctrl+C was not enough: %s", e)
+		}
+	}
+}
+
+// WindowsCommandLine quotes like Windows does (syscall.EscapeArg, the command line of the pseudo console)
+func TestWindowsCommandLineIsEscapeArg(t *testing.T) {
+	for _, arg := range []string{"", "a", "a b", `C:\Program Files\x`, `C:\dir\`, `C:\dir dir\`, `a"b`, `a\"b`,
+		`a\\"b c`, "tab\there", `"quoted"`, `\\server\share`, `trailing\\`} {
+		if got, want := WindowsCommandLine([]string{arg}), syscall.EscapeArg(arg); got != want {
+			t.Errorf("%q: got %s, want %s", arg, got, want)
 		}
 	}
 }

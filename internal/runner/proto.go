@@ -73,6 +73,9 @@ type ProcState struct {
 	SystemTime time.Duration `msgpack:"s,omitempty"`
 	UserTime   time.Duration `msgpack:"u,omitempty"`
 	Error      string        `msgpack:"err,omitempty"`
+	// System is the operating system of the runner (GOOS, e.g. linux or windows). An older runner does not send it,
+	// and an older client ignores it (unknown fields are skipped): it needs no new protocol version.
+	System string `msgpack:"os,omitempty"`
 }
 
 // Alive tells if the underlying process is still alive.

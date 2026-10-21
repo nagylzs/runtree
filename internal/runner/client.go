@@ -38,6 +38,7 @@ type Client struct {
 	mouse      mouseModeTracker
 
 	signalErrors atomic.Uint64 // the number of signals that the runner could not send, see SignalErrors
+	system       string        // the operating system of the runner (stateLock), see RunnerSystem
 }
 
 // NewClient connects to a runner (see ParseAddress)
@@ -287,6 +288,9 @@ func (c *Client) recvProcState(ctx context.Context) {
 	c.logger.Debug("process state", "pid", ps.Pid, "exited", ps.Exited, "exit_code", ps.ExitCode, "error", ps.Error)
 	c.stateLock.Lock()
 	c.lastState = ps
+	if ps.System != "" {
+		c.system = ps.System
+	}
 	c.stateLock.Unlock()
 	c.notifyListeners()
 
@@ -387,6 +391,14 @@ func (c *Client) notifyListeners() {
 	if c.onNotify != nil {
 		c.onNotify(state)
 	}
+}
+
+// RunnerSystem is the operating system of the runner (GOOS, e.g. windows) from its process states, or "" before the
+// first one, or from a runner older than 0.1.1
+func (c *Client) RunnerSystem() string {
+	c.stateLock.Lock()
+	defer c.stateLock.Unlock()
+	return c.system
 }
 
 func (c *Client) LastState() ProcState {

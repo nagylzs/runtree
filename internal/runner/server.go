@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -543,6 +544,7 @@ func (s *Server) sendProcState(e error) error {
 		ps = s.ptyRunner.Cmd().ProcessState
 	}
 	state := GetProcState(ps, es)
+	state.System = runtime.GOOS
 	// but we may already know the PID of the process before it exits
 	if s.ptyRunner != nil {
 		state.Pid = s.ptyRunner.Pid()

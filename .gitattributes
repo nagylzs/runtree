@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# raw terminal output for tests: the CRLFs in them are data
+*.bin binary

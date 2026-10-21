@@ -102,7 +102,10 @@ run in ConPTY pseudo consoles, like on the [local runner](#the-local-runner) of 
 administrators are in `C:\ProgramData\ssh\administrators_authorized_keys` (not in `~\.ssh\authorized_keys`), and
 their processes run elevated, as administrator. Windows has no signals: SIGINT is Ctrl+C typed into the pseudo console
 (it stops most console programs), SIGKILL kills the process, the others are not supported. A `timeout` and the exit of
-runtree do not wait after a signal that the runner cannot send: SIGKILL follows at once.
+runtree do not wait after a signal that the runner cannot send: SIGKILL follows at once. The exit codes that are
+status codes of Windows are shown in hex, e.g. `0xC000013A (Ctrl+C)`, and the command lines are quoted the way Windows
+gets them (the runner tells its system when the process starts: the "starting" event of a TCP runner, that is logged
+before, does not know it yet).
 
 ### Sharing the connection
 

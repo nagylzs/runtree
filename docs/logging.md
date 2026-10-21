@@ -19,7 +19,7 @@ about a node. Their message is complete for humans; the other attributes are for
 | `scheduler-started` | info | the scheduler is started (`nodes`) |
 | `start` | info | a command is started on a runner (`start`, `runner`, `args`, `cwd`) (1) |
 | `start-failed` | error | it could not be started, e.g. the runner is not available (`start`, `error`) |
-| `exited` | info / warn | the process exited (`start`, `pid`, `exit_code`, `error`, `elapsed`, `user_time`, `system_time`) (2) |
+| `exited` | info / warn | the process exited (`start`, `pid`, `exit_code`, `error`, `elapsed`, `user_time`, `system_time`) (2); a status code of Windows is in hex in the message, e.g. `0xC000013A (Ctrl+C)` |
 | `status` | info / warn | the status of a node changes (`from`, `to`), warn for failed and paused |
 | `operation` | info / warn | an operation is performed from the GUI (`op`, `recursive`), warn when it failed |
 | `signal` | info / warn | a signal is sent from the GUI, to a node that [timed out](execution.md#timeouts), or to a remote process when runtree exits (`signal`) |

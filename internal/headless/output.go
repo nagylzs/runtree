@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nagylzs/runtree/internal/rt"
+	"github.com/nagylzs/runtree/internal/runner"
 )
 
 // maxLabel is the maximum length of the labels of the nodes in the output and in the events (in runes)
@@ -67,6 +68,8 @@ func newConsole(w io.Writer, tree *rt.Tree, mode string) *console {
 	return c
 }
 
+// NodeOutput returns the output of a start of a node. It is called with the tree locked. The output of a pseudo
+// console of Windows is turned into lines (conptyFilter).
 func (c *console) NodeOutput(n *rt.Node, _ int) io.Writer {
 	c.open.Add(1)
 	l := label(n)
@@ -76,7 +79,11 @@ func (c *console) NodeOutput(n *rt.Node, _ int) io.Writer {
 		c.writers[n] = w
 		c.mu.Unlock()
 	}
-	return w
+	var size runner.WinSize
+	if n.ClientArgs != nil {
+		size = n.ClientArgs.InitialPtySize
+	}
+	return newConptyFilter(w, n.RunnerOnWindows(true), int(size.Cols), int(size.Rows))
 }
 
 // finished is called when a run node finishes: with OutputFailed, its output is written when it failed (at the end of

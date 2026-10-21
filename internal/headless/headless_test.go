@@ -161,7 +161,7 @@ tree:
 		"WARN hang: timed out after 1s, typing Ctrl+C\n",
 		"WARN hang: Running → Failed (timed out after 1s; on_error is paused, but nobody can decide: the tree runs " +
 			"unattended)\n",
-		": Failed.\nFailed:\n  hang: timed out after 1s (",
+		": Failed.\nFailed:\n  hang: timed out after 1s, ",
 	})
 	if strings.Contains(r.stderr, "deploy: starting") {
 		t.Errorf("deploy is started:\n%s", r.stderr)

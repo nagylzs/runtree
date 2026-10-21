@@ -36,7 +36,7 @@ func (n *Node) Start(locked bool) error {
 	if n.Calculated.Runner != runner.LocalAddress {
 		on = " on " + n.Calculated.Runner
 	}
-	logger.Info(fmt.Sprintf("starting%s: %s", on, quoteArgs(n.Calculated.Args)),
+	logger.Info(fmt.Sprintf("starting%s: %s", on, n.commandLine(true)),
 		attrEvent, EventStart, "start", n.Starts, "runner", n.Calculated.Runner, "args", n.Calculated.Args,
 		"cwd", n.Calculated.CWD)
 
@@ -167,7 +167,7 @@ func (n *Node) DecProc(locked bool) {
 func (n *Node) logExit(state runner.ProcState) {
 	msg := "exited"
 	if state.Exited && state.ExitCode >= 0 {
-		msg = fmt.Sprintf("exited with code %d", state.ExitCode)
+		msg = "exited with code " + ExitCodeText(state.ExitCode)
 	} else if state.Error != "" {
 		msg = "exited: " + state.Error // killed by a signal, or the connection to the runner is lost
 	}

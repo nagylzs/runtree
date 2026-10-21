@@ -146,6 +146,7 @@ From cron, with a lock file, so that a slow run is not started twice (exit code 
   them): then they fail instead of waiting forever.
 - **A process that never exits** holds up the run the same way, unless it has a `timeout`.
 - **Windows.** `runtree-headless` and the local runner work on Windows (the processes run in ConPTY pseudo consoles,
-  whose output has more terminal control sequences than a Linux terminal's), and so do the ssh runners, with the
+  which draw a screen: `runtree-headless` turns their output into lines, without the control sequences and the
+  window titles, also from Windows hosts), and so do the ssh runners, with the
   OpenSSH client of Windows (see [ssh runners](runners.md#ssh-runners)). It has been tested on Windows 11, with cmd,
   PowerShell and console programs.

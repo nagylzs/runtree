@@ -244,7 +244,11 @@ func nodeProperties(node *rt.Node, now time.Time) map[string]propertyValue {
 		text, state := resultText(node.StartError, ps, node.Client != nil, node.ExitedSuccessfully(ps),
 			node.TimedOut, node.Timeout)
 		set("result", text, state)
-		set("command", buildCommandLine(node.Calculated.Args), "")
+		command := buildCommandLine(node.Calculated.Args)
+		if node.RunnerOnWindows(true) {
+			command = rt.WindowsCommandLine(node.Calculated.Args)
+		}
+		set("command", command, "")
 		if ps.Pid != 0 {
 			if ps.Alive() {
 				set("pid", strconv.Itoa(ps.Pid), "")
@@ -330,7 +334,7 @@ func resultText(startError string, ps runner.ProcState, started, success, timedO
 	}
 	text := ps.Error // e.g. "signal: interrupt"
 	if ps.Exited && ps.ExitCode >= 0 && (ps.ExitCode != 0 || ps.Error == "") {
-		text = "exit code " + strconv.Itoa(ps.ExitCode)
+		text = "exit code " + rt.ExitCodeText(ps.ExitCode)
 	}
 	state := "success"
 	if !success {

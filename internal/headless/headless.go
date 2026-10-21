@@ -198,12 +198,12 @@ func failure(n *rt.Node) string {
 	why := "failed"
 	ps := n.Client.LastState()
 	if ps.Exited && ps.ExitCode >= 0 {
-		why = fmt.Sprintf("exit code %d", ps.ExitCode)
+		why = "exit code " + rt.ExitCodeText(ps.ExitCode)
 	} else if ps.Error != "" {
 		why = ps.Error
 	}
 	if n.TimedOut {
-		return fmt.Sprintf("timed out after %s (%s)", rt.DurationText(n.Timeout), why)
+		return fmt.Sprintf("timed out after %s, %s", rt.DurationText(n.Timeout), why)
 	}
 	return why
 }
