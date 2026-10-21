@@ -159,12 +159,12 @@ button.op-button, menubutton.op-button > button {
     color: @rt_sighup;
 }
 
-.button-sigabort {
-    color: @rt_sigabort;
+.button-sigabrt {
+    color: @rt_sigabrt;
 }
 
 /* the dark palette gives them a dark background */
-.button-sigkill, .button-sigint, .button-sighup, .button-sigabort {
+.button-sigkill, .button-sigint, .button-sighup, .button-sigabrt {
     background-color: @rt_signal_bg;
 }
 

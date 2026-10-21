@@ -146,13 +146,16 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 		}
 	}
 	if !oldActive && newActive {
+		// the elapsed time is the time of the last run (a re-run starts it again), like the timeout; the total time of
+		// the processes (totalProcElapsed) adds up the runs
 		n.Started = time.Now()
+		n.elapsed = 0
 		n.totalProcCommitedTo = n.Started
 		n.Finished = time.Time{}
 	}
 	if oldActive && !newActive {
 		n.Finished = time.Now()
-		n.elapsed += n.Finished.Sub(n.Started)
+		n.elapsed = n.Finished.Sub(n.Started)
 		if n.Type == TypeRun && !n.totalProcCommitedTo.IsZero() && !n.Finished.IsZero() {
 			n.addTotalElapsed(n.Finished.Sub(n.totalProcCommitedTo))
 			n.totalProcCommitedTo = n.Finished

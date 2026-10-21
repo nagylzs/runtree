@@ -17,7 +17,8 @@ const IconShowInTree = "find-location-symbolic"
 // TreeNodeView is a widget that can display a Node.
 // You can create your composite widget and use it as a TreeNodeView.
 type TreeNodeView struct {
-	*gtk.Box
+	*gtk.Box              // the row in the navigator: it has the size of the row (see NodeNavigator.place)
+	content      *gtk.Box // what the row shows, it fills the row; its own size is the size that its content needs
 	hbox         *gtk.Box
 	treeView     *NodeNavigator
 	expander     *gtk.ToggleButton
@@ -54,8 +55,9 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 	tl.SetHAlign(gtk.AlignStart)
 	tl.SetVAlign(gtk.AlignCenter)
 
+	// the type, the status and the elapsed time follow each other; the spare width (when the title is wider) is after
+	// the elapsed time
 	tyl := gtk.NewLabel("")
-	tyl.SetHExpand(true)
 	tyl.SetHAlign(gtk.AlignStart)
 	tyl.SetVAlign(gtk.AlignCenter)
 	tyl.AddCSSClass("type-label")
@@ -67,7 +69,6 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 	tm := newTermMark()
 	tm.SetVisible(false)
 	sbx := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	sbx.SetHExpand(true)
 	sbx.SetHAlign(gtk.AlignStart)
 	sbx.SetVAlign(gtk.AlignCenter)
 	sbx.AddCSSClass("status-label")
@@ -77,6 +78,7 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 
 	el := gtk.NewLabel("")
 	el.AddCSSClass("node-elapsed")
+	el.SetHExpand(true)
 	el.SetHAlign(gtk.AlignStart)
 	el.SetVAlign(gtk.AlignStart)
 
@@ -110,15 +112,20 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 
 	bxExpanderAndRows := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	bxExpanderAndRows.SetHExpand(true)
-	bxExpanderAndRows.SetHAlign(gtk.AlignStart)
 	bxExpanderAndRows.SetVAlign(gtk.AlignCenter)
 	bxExpanderAndRows.Append(exp)
 	bxExpanderAndRows.Append(show)
 	bxExpanderAndRows.Append(bxRows)
 	bxExpanderAndRows.AddCSSClass("node")
 
+	// The size request of the row is on this box, not on the content: GTK measures a widget at least as large as its
+	// size request, so the content could not tell that it needs less when the row gets narrower.
+	row := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	row.Append(bxExpanderAndRows)
+
 	nw := &TreeNodeView{
-		Box:          bxExpanderAndRows,
+		Box:          row,
+		content:      bxExpanderAndRows,
 		hbox:         bxRows,
 		treeView:     tv,
 		expander:     exp,
@@ -187,9 +194,10 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 	nProc := node.NProc
 	maxProc := node.MaxProc
 	selected := nw.Selected
-	failed := 0
+	failed, stopped := 0, ""
 	if hasChild && !rt.StatusFinished(status) {
 		failed = node.FailedRunNodes(true)
+		stopped = node.Stopped(true)
 	}
 
 	if lockTree {
@@ -215,7 +223,9 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 			sn += fmt.Sprintf(" (%d)", nProc)
 		}
 	}
-	if failed > 0 {
+	if stopped != "" {
+		sn += ", " + stopped // the paused nodes tell the failures
+	} else if failed > 0 {
 		sn += fmt.Sprintf(", %d failed", failed)
 	}
 	st := nodeViewState{
@@ -269,9 +279,9 @@ func (nw *TreeNodeView) show(st nodeViewState) {
 	}
 	if first || st.selected != old.selected {
 		if st.selected {
-			nw.Box.SetStateFlags(gtk.StateFlagChecked, false)
+			nw.content.SetStateFlags(gtk.StateFlagChecked, false)
 		} else {
-			nw.Box.UnsetStateFlags(gtk.StateFlagChecked)
+			nw.content.UnsetStateFlags(gtk.StateFlagChecked)
 		}
 	}
 	if first || st.elapsed != old.elapsed {

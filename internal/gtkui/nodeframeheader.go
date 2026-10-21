@@ -137,6 +137,7 @@ type NodeFrameHeader struct {
 	pathMarkup string     // set again only when it changes, so that a click on a link is not lost
 	status     *gtk.Label
 	typ        *gtk.Label
+	statusRow  *gtk.Box // the type and the status, hidden while no node is selected
 
 	opsRow     *gtk.Box
 	opButtons  []*opButton // the operations of the node, in opsRow
@@ -186,6 +187,7 @@ func NewHeaderFrame() *NodeFrameHeader {
 	statusRow := gtk.NewBox(gtk.OrientationHorizontal, 5)
 	statusRow.Append(typ)
 	statusRow.Append(status)
+	statusRow.SetVisible(false) // until a node is selected
 
 	// the buttons of the node are linked (no space between them), All is after them
 	opsRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
@@ -205,12 +207,13 @@ func NewHeaderFrame() *NodeFrameHeader {
 	bx.SetVExpand(true)
 
 	h := &NodeFrameHeader{
-		Box:    bx,
-		title:  title,
-		path:   path,
-		typ:    typ,
-		status: status,
-		opsRow: opsRow,
+		Box:       bx,
+		title:     title,
+		path:      path,
+		typ:       typ,
+		status:    status,
+		statusRow: statusRow,
+		opsRow:    opsRow,
 	}
 	h.frame = NewNodeFrame(h.updateGUI)
 
@@ -307,6 +310,21 @@ func (w *NodeFrameHeader) newSignalPopover(recursive bool) *gtk.Popover {
 	return popover
 }
 
+// signalButton is how a signal is shown in the Signal menu, when it is not just its name
+type signalButton struct {
+	label   string // ends with the name of the signal
+	tooltip string
+	class   string // its color (main.css)
+}
+
+var signalButtons = map[string]signalButton{
+	"SIGINT":  {"Ctrl+C SIGINT", "This is the default action to end a program gracefully.", "button-sigint"},
+	"SIGKILL": {"☠️ SIGKILL", "A nuclear solution to your problem. Cannot be caught or ignored.", "button-sigkill"},
+	"SIGHUP": {"⟳ SIGHUP", "Most services interpret this as 'reload your config'. Closes interactive programs.",
+		"button-sighup"},
+	"SIGABRT": {"💣 SIGABRT", "Terminate with core dump.", "button-sigabrt"},
+}
+
 // newSignalGrid returns the buttons of the signals, in a grid. A click sends the signal, and closes the popover.
 func (w *NodeFrameHeader) newSignalGrid(popover *gtk.Popover, recursive bool) *gtk.Grid {
 	grid := gtk.NewGrid()
@@ -325,25 +343,10 @@ func (w *NodeFrameHeader) newSignalGrid(popover *gtk.Popover, recursive bool) *g
 			popover.Popdown()
 			w.sendSignal(name, recursive)
 		})
-		if name == "SIGINT" {
-			btn.SetLabel("Ctrl+C️ SIGINT")
-			btn.SetTooltipText("This is the default action to end a program gracefully.")
-			btn.AddCSSClass("button-sigint")
-		}
-		if name == "SIGKILL" {
-			btn.SetLabel("☠️ SIGKILL")
-			btn.SetTooltipText("A nuclear solution to your problem. Cannot be caught or ignored.")
-			btn.AddCSSClass("button-sigkill")
-		}
-		if name == "SIGHUP" {
-			btn.SetLabel("⟳ SIGHUP")
-			btn.SetTooltipText("Most services interpret this as 'reload your config'. Closes interactive programs.")
-			btn.AddCSSClass("button-sighup")
-		}
-		if name == "SIGABRT" {
-			btn.SetLabel("💣 SIGABORT")
-			btn.SetTooltipText("Terminate with core dump.")
-			btn.AddCSSClass("button-sigabort")
+		if b, ok := signalButtons[name]; ok {
+			btn.SetLabel(b.label)
+			btn.SetTooltipText(b.tooltip)
+			btn.AddCSSClass(b.class)
 		}
 		grid.Attach(btn, i%signalColumns, i/signalColumns, 1, 1)
 	}
@@ -377,6 +380,7 @@ func (w *NodeFrameHeader) updateGUI() {
 	if node == nil {
 		return
 	}
+	w.statusRow.SetVisible(true)
 
 	var path []*rt.Node
 	node.RLockTree("NodeFrameTools.UpdateGUI")
@@ -397,7 +401,9 @@ func (w *NodeFrameHeader) updateGUI() {
 		st += ", " + node.SchedulerMessage
 	}
 	if node.HasChild() && !rt.StatusFinished(newStatus) {
-		if failed := node.FailedRunNodes(true); failed > 0 {
+		if stopped := node.Stopped(true); stopped != "" {
+			st += ", " + stopped // the paused nodes tell the failures
+		} else if failed := node.FailedRunNodes(true); failed > 0 {
 			st += fmt.Sprintf(", %d failed", failed)
 		}
 	}

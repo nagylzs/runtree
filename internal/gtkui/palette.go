@@ -33,7 +33,7 @@ const darkPalette = statusColors + `
 @define-color rt_sigkill #dc322f;
 @define-color rt_sigint #cb4b16;
 @define-color rt_sighup #6c71c4;
-@define-color rt_sigabort #cb4b16;
+@define-color rt_sigabrt #cb4b16;
 @define-color rt_signal_bg #002b36;
 `
 
@@ -51,7 +51,7 @@ const lightPalette = statusColors + `
 @define-color rt_sigkill #c0262b;
 @define-color rt_sigint #b03f0f;
 @define-color rt_sighup #4d52a8;
-@define-color rt_sigabort #b03f0f;
+@define-color rt_sigabrt #b03f0f;
 @define-color rt_signal_bg #f6f5f4;
 `
 

@@ -41,3 +41,22 @@ func TestListShows(t *testing.T) {
 		t.Error("the names of the modes")
 	}
 }
+
+// The rows fill the visible width of the navigator (it does not scroll sideways over empty rows); before the
+// navigator is shown they have a default width
+func TestRowWidth(t *testing.T) {
+	for _, tc := range []struct {
+		visible, x float64
+		want       int
+	}{
+		{440, 0, 440},
+		{440, 3 * levelIndent, 380},
+		{0, 0, navigatorRowWidth},
+		{0, 2 * levelIndent, navigatorRowWidth},
+		{30, 2 * levelIndent, 1}, // deeper than the navigator is wide: place widens it to its minimum width
+	} {
+		if got := rowWidth(tc.visible, tc.x); got != tc.want {
+			t.Errorf("rowWidth(%v, %v) = %d, want %d", tc.visible, tc.x, got, tc.want)
+		}
+	}
+}

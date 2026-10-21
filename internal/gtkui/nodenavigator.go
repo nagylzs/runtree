@@ -117,8 +117,9 @@ type NodeNavigator struct {
 	mode             NavMode
 	onlyShowRunNodes bool
 
-	viewport *gtk.Viewport // of the scrolled window that shows the navigator
-	scrollTo *TreeNodeView // ShowNode scrolls to it after the next layout (main gtk loop only)
+	viewport   *gtk.Viewport     // of the scrolled window that shows the navigator
+	scrollTo   *TreeNodeView     // ShowNode scrolls to it after the next layout (main gtk loop only)
+	widthTimer glib.SourceHandle // lays the rows out when the width has not changed for a while, see WidthChanged
 }
 
 func NewNodeNavigator() *NodeNavigator {
@@ -268,7 +269,7 @@ func (t *NodeNavigator) ShowNode(node *rt.Node) {
 }
 
 func (t *NodeNavigator) layoutList(mode NavMode) {
-	tw := navigatorRowWidth
+	tw := rowWidth(t.visibleWidth(), 0)
 
 	var step float64 = 30
 	var y float64 = 0
@@ -289,17 +290,52 @@ func (t *NodeNavigator) layoutList(mode NavMode) {
 	}
 }
 
-// navigatorRowWidth is the width of the rows of the navigator, unless a row needs more (see place)
+// navigatorRowWidth is the width of the rows before the navigator is shown
 const navigatorRowWidth = 1024
+
+// widthLayoutDelay is how long the width of the navigator does not change before the rows get the new width (ms):
+// dragging the divider does not lay out every row at every step
+const widthLayoutDelay = 150
+
+// rowWidth is the width of a row at the indentation x: the rows fill the visible width of the navigator, so it
+// scrolls sideways only when a row needs more (see place)
+func rowWidth(visible, x float64) int {
+	if visible <= 0 {
+		return navigatorRowWidth
+	}
+	return max(int(visible-x), 1)
+}
+
+// visibleWidth is the width of the navigator that is shown (0 before it is shown)
+func (t *NodeNavigator) visibleWidth() float64 {
+	if t.viewport == nil {
+		return 0
+	}
+	return t.viewport.HAdjustment().PageSize()
+}
+
+// WidthChanged lays the rows out with the new visible width, when it has not changed for widthLayoutDelay. It must be
+// called from the main gtk loop.
+func (t *NodeNavigator) WidthChanged() {
+	if t.widthTimer != 0 {
+		glib.SourceRemove(t.widthTimer)
+	}
+	t.widthTimer = glib.TimeoutAdd(widthLayoutDelay, func() bool {
+		t.widthTimer = 0
+		t.EnqueueLayoutItems()
+		return false
+	})
+}
 
 // place puts the node view to x, y with the width tw (or wider, when its title needs more), and returns its height. It
 // only changes the size and the position of the view when they changed (it would be laid out again).
 func (t *NodeNavigator) place(nodeView *TreeNodeView, x, y float64, tw int, added bool) float64 {
-	// GTK warns when a widget is measured or allocated narrower than its minimum width (e.g. with a long title)
-	if minWidth, _, _, _ := nodeView.Measure(gtk.OrientationHorizontal, -1); minWidth > tw {
+	// GTK warns when a widget is measured or allocated narrower than its minimum width (e.g. with a long title). The
+	// content is measured: the row is at least as large as its size request.
+	if minWidth, _, _, _ := nodeView.content.Measure(gtk.OrientationHorizontal, -1); minWidth > tw {
 		tw = minWidth
 	}
-	_, natural, _, _ := nodeView.Measure(gtk.OrientationVertical, tw)
+	_, natural, _, _ := nodeView.content.Measure(gtk.OrientationVertical, tw)
 	if nodeView.width != float64(tw) || nodeView.height != float64(natural) {
 		nodeView.SetSizeRequest(tw, natural)
 		nodeView.width, nodeView.height = float64(tw), float64(natural)
@@ -317,7 +353,7 @@ func (t *NodeNavigator) place(nodeView *TreeNodeView, x, y float64, tw int, adde
 }
 
 func (t *NodeNavigator) layoutTree() {
-	tw := navigatorRowWidth
+	visible := t.visibleWidth()
 
 	var step float64 = 30
 	var y float64 = 0
@@ -333,7 +369,7 @@ func (t *NodeNavigator) layoutTree() {
 			continue
 		}
 		x := float64(node.Calculated.Level) * levelIndent
-		step = t.place(nodeView, x, y, tw, added)
+		step = t.place(nodeView, x, y, rowWidth(visible, x), added)
 		y += step
 	}
 }

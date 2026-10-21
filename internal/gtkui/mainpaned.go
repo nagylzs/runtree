@@ -54,6 +54,8 @@ func NewMainPaned() *MainPaned {
 	nav.viewport = gtk.NewViewport(nil, nil)
 	nav.viewport.SetChild(nav)
 	navScroll.SetChild(nav.viewport)
+	// the rows are as wide as the navigator (see rowWidth)
+	navScroll.HAdjustment().NotifyProperty("page-size", nav.WidthChanged)
 
 	navModeMenu.SetLabel(NavModeName(nav.Mode()))
 
