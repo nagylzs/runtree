@@ -3,6 +3,7 @@ package gtkui
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"os/signal"
@@ -23,16 +24,21 @@ func handleExitSignals() {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGHUP)
 	for sig := range ch {
 		slog.Warn("received signal, closing the main window", "signal", sig)
-		runOnMain(func() {
-			if Application.window == nil {
-				// not activated yet, nothing was started
-				GtkApplication.Quit()
-				return
-			}
-			Application.window.Present()
-			Application.window.Close()
-		})
+		runOnMain(closeMainWindow)
 	}
+}
+
+// closeMainWindow closes the main window like its close button: when there are unfinished nodes, the user must
+// confirm it. It is also the "quit" action of the application (on macOS: Cmd+Q, the Quit menu item, the Dock). It must
+// be called from the main loop.
+func closeMainWindow() {
+	if Application.window == nil {
+		// not activated yet, nothing was started
+		GtkApplication.Quit()
+		return
+	}
+	Application.window.Present()
+	Application.window.Close()
 }
 
 // onCloseRequest is called from the main gtk loop when the user tries to close the main window.
@@ -102,7 +108,14 @@ func (ra *RunTreeApp) showCloseConfirmDialog(counts map[rt.Status]int) {
 	answered := func() bool {
 		return finished || strings.TrimSpace(entry.Text()) == answer
 	}
+	var shown map[rt.Status]int
+	// update shows the counts, when they changed: laying the dialog out again every second redrew its labels clipped
+	// on macOS (the top of their first line)
 	update := func(counts map[rt.Status]int) {
+		if shown != nil && maps.Equal(counts, shown) {
+			return
+		}
+		shown = counts
 		finished = len(counts) == 0
 		for child := grid.FirstChild(); child != nil; child = grid.FirstChild() {
 			grid.Remove(child)

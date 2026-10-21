@@ -51,9 +51,9 @@ The values can be selected and copied; the long ones (command line, runner, work
 Every started run node has a terminal below the tabs: the terminal of its process. It is a real terminal: programs
 can use colors, ask questions, show progress bars, and you can type into it.
 
-- **Copy** and **Paste**: Ctrl+Shift+C and Ctrl+Shift+V, or the context menu (right click), which has **Select
-  All** too. Selecting with the mouse and pasting with the middle button works as in other terminals (in programs
-  that use the mouse, e.g. vim with `mouse=a`, Shift and the middle button pastes).
+- **Copy** and **Paste**: Ctrl+Shift+C and Ctrl+Shift+V (on macOS Cmd+C and Cmd+V too), or the context menu (right
+  click), which has **Select All** too. Selecting with the mouse and pasting with the middle button works as in other
+  terminals (in programs that use the mouse, e.g. vim with `mouse=a`, Shift and the middle button pastes).
 - Pasting text with line breaks asks for confirmation first, with a preview: pasted into a shell, it can run
   commands.
 - The terminal stays when the process exits, so its output can be read later. The output can also be saved, see
@@ -100,7 +100,8 @@ its runner could not be reached).
 
 When the tree has run nodes that are not finished successfully (not Success or Skipped), closing the window asks for
 confirmation: to avoid closing it by accident, you have to type the result of a small addition. Ctrl+C in the terminal
-that started runtree (SIGINT), and closing that terminal (SIGHUP), close the window the same way.
+that started runtree (SIGINT), and closing that terminal (SIGHUP), close the window the same way, and so does quitting
+on macOS (Cmd+Q, the Quit menu item, the Dock).
 
 When runtree exits, it stops starting nodes, terminates the processes that still run (SIGINT, then SIGTERM and SIGKILL
 after 10 seconds each), and waits for them, so that their exits are logged. The window closes right away, the

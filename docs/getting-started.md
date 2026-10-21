@@ -139,11 +139,11 @@ application id is `com.github.nagylzs.runtree.gui`.
 
 ## A remote or virtual X server
 
-runtree draws its window with GTK's cairo renderer, so it works well on an X server without a GPU (VNC, Xvfb, `ssh -X`)
-too. GTK's own default is OpenGL; without a GPU it is software OpenGL, which sends the whole window to the X server on
-every change (6.4 MB on a 1600×1000 screen, and it changes every second while nodes run). The cairo renderer sends only
-the changed parts. Measured on an X server without shared memory (like one over the network), with a tree of 586
-nodes:
+On Linux, runtree draws its window with GTK's cairo renderer, so it works well on an X server without a GPU (VNC,
+Xvfb, `ssh -X`) too (on macOS it uses GTK's default: the cairo renderer clips the tops of the characters there). GTK's
+own default is OpenGL; without a GPU it is software OpenGL, which sends the whole window to the X server on every
+change (6.4 MB on a 1600×1000 screen, and it changes every second while nodes run). The cairo renderer sends only the
+changed parts. Measured on an X server without shared memory (like one over the network), with a tree of 586 nodes:
 
 | | OpenGL (`GSK_RENDERER=ngl`) | cairo (runtree's default) |
 |---|---|---|

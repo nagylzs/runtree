@@ -4,8 +4,10 @@ import (
 	_ "embed"
 	"log/slog"
 	"os"
+	"runtime"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/nagylzs/runtree/internal/rt"
 	"github.com/nagylzs/runtree/internal/runner"
@@ -39,6 +41,15 @@ func RunApplication() int {
 	// the first one (with the first tree) and exit
 	GtkApplication = gtk.NewApplication(ApplicationId, gio.ApplicationNonUnique)
 	GtkApplication.ConnectActivate(activateApplication)
+	// Quitting closes the main window, with the confirmation of the unfinished nodes. On macOS, GTK binds Cmd+Q and the
+	// Quit item of the application menu to app.quit; with register-session, it also asks app.quit when macOS wants to
+	// terminate runtree (the Dock, logging out) instead of letting it terminate at once.
+	quit := gio.NewSimpleAction("quit", nil)
+	quit.ConnectActivate(func(*glib.Variant) { closeMainWindow() })
+	GtkApplication.AddAction(quit)
+	if runtime.GOOS == "darwin" {
+		GtkApplication.SetObjectProperty("register-session", true)
+	}
 	go handleExitSignals()
 	loadSavedSettings()
 	// TODO: how to pass gtk4 command line parameters here?
@@ -50,10 +61,20 @@ func RunApplication() int {
 // parts (docs/getting-started.md).
 const DefaultRenderer = "cairo"
 
-// setDefaultRenderer sets GSK_RENDERER to DefaultRenderer when it is not set, before GTK reads it. The processes of
-// the nodes do not get it: it is for runtree only.
+// rendererFor is the renderer that runtree sets on a system: DefaultRenderer, but nothing on macOS. Its windows are
+// not sent to an X server there, and the cairo renderer clips the tops of the characters there (and leaves parts of
+// them when the text changes).
+func rendererFor(goos string) string {
+	if goos == "darwin" {
+		return ""
+	}
+	return DefaultRenderer
+}
+
+// setDefaultRenderer sets GSK_RENDERER to the renderer of the system (rendererFor) when it is not set, before GTK
+// reads it. The processes of the nodes do not get it: it is for runtree only.
 func setDefaultRenderer() {
-	if os.Getenv("GSK_RENDERER") != "" {
+	if os.Getenv("GSK_RENDERER") != "" || rendererFor(runtime.GOOS) == "" {
 		return
 	}
 	if err := os.Setenv("GSK_RENDERER", DefaultRenderer); err != nil {

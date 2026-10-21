@@ -142,7 +142,7 @@ drawn in `opicons.go`, and the tabs: properties with the dependencies, log, desc
 the embedded `main.css`, with named colors (`@rt_*`) from the dark or light palette (`palette.go`) that fits the
 theme in use (`appearance.go`: system/dark/light, the ☰ menu, saved in `settings.go`). All GTK calls must happen on
 the GTK main thread. `RunApplication` sets `GSK_RENDERER=cairo` when it is not set (fast without a GPU, e.g. over
-VNC), hidden from the node processes by `runner.HideEnv`.
+VNC; not on macOS, where it clips the tops of the characters), hidden from the node processes by `runner.HideEnv`.
 Goroutines must not call GLib either, not even `glib.IdleAdd`/`TimeoutAdd`: they pass the function to `runOnMain`
 (`mainqueue.go`: a queue and a pipe that the main loop watches). On macOS 27 a contended `pthread_rwlock` hangs when
 signals arrive, and GLib's sources share one, so goroutines that added sources froze the GUI.

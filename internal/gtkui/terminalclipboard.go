@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -61,6 +62,12 @@ func setupTerminalClipboard(term *vte.Terminal, mouseTracking func() bool) {
 	}
 	addShortcut("<Control><Shift>c", "copy")
 	addShortcut("<Control><Shift>v", "paste")
+	copyAccel, pasteAccel := "<Control><Shift>c", "<Control><Shift>v"
+	if runtime.GOOS == "darwin" { // Cmd+C and Cmd+V too (Ctrl+C is for the process on every system)
+		addShortcut("<Meta>c", "copy")
+		addShortcut("<Meta>v", "paste")
+		copyAccel, pasteAccel = "<Meta>c", "<Meta>v"
+	}
 	term.AddController(shortcuts)
 
 	menu := gio.NewMenu()
@@ -71,8 +78,8 @@ func setupTerminalClipboard(term *vte.Terminal, mouseTracking func() bool) {
 		}
 		menu.AppendItem(item)
 	}
-	addMenuItem("Copy", "copy", "<Control><Shift>c")
-	addMenuItem("Paste", "paste", "<Control><Shift>v")
+	addMenuItem("Copy", "copy", copyAccel)
+	addMenuItem("Paste", "paste", pasteAccel)
 	addMenuItem("Select All", "select-all", "")
 	term.SetContextMenuModel(menu)
 

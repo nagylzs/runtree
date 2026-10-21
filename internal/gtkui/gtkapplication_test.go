@@ -2,10 +2,11 @@ package gtkui
 
 import (
 	"os"
+	"runtime"
 	"testing"
 )
 
-// runtree uses the cairo renderer, unless GSK_RENDERER is set
+// runtree uses the cairo renderer, unless GSK_RENDERER is set, or on macOS
 func TestDefaultRenderer(t *testing.T) {
 	t.Setenv("GSK_RENDERER", "ngl")
 	setDefaultRenderer()
@@ -14,7 +15,10 @@ func TestDefaultRenderer(t *testing.T) {
 	}
 	t.Setenv("GSK_RENDERER", "")
 	setDefaultRenderer()
-	if r := os.Getenv("GSK_RENDERER"); r != DefaultRenderer {
-		t.Errorf("the renderer is %q, want %q", r, DefaultRenderer)
+	if r, want := os.Getenv("GSK_RENDERER"), rendererFor(runtime.GOOS); r != want {
+		t.Errorf("the renderer is %q, want %q", r, want)
+	}
+	if rendererFor("linux") != "cairo" || rendererFor("darwin") != "" {
+		t.Errorf("the renderers: linux %q, darwin %q", rendererFor("linux"), rendererFor("darwin"))
 	}
 }

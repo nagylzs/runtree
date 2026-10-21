@@ -1,3 +1,5 @@
+* update the screenshots of the documentation (docs/images: the GUI changed a lot on 2026-10-21: the header, the
+  properties, the navigation menu, the light appearance), and review the documentation as a whole
 * implement "if" node type
 * document "include" property, explain include/reduce
 * possibly show a progress bar for each node, that shows the percentage of finished nodes
@@ -20,10 +22,11 @@
     a contended `pthread_rwlock` hangs on macOS 27.0.1 when the waiting threads get signals (reported to Apple),
     and GLib's sources share one: goroutines no longer call GLib (`runOnMain`). gotk4 still unrefs objects from its
     finalizers with `g_main_context_invoke` (rare, but it can hit it; block the signals around it, or keep the objects
-    referenced?). Needs to be checked: clipboard shortcuts (Cmd instead of Ctrl+Shift on macOS), middle click paste
-    (macOS has no primary selection), the close confirmation on Cmd+Q, the terminal mark of the run nodes in
-    the navigator (drawn by `termmark.go` now, the emoji had no glyph in the macOS fonts), a glitch in the "Tree (" text
-    of the navigator.
+    referenced?). Checked on the Mac (2026-10-21): Cmd+C/Cmd+V copy and paste in the terminals (Ctrl+C still goes to
+    the process); quitting (Cmd+Q, the Quit menu item, the Dock) closes the window with the confirmation
+    (`app.quit`, `register-session`); the terminal mark of the navigator (`termmark.go`); the navigation menu; the
+    appearance follows macOS. Fixed: the cairo renderer clipped the tops of the characters and left parts of them
+    (runtree keeps GTK's default renderer on macOS). Not checked: middle click paste (no middle button there).
   * Done: CI builds and tests on a macOS runner (`macos-15`, arm64) with the Homebrew packages.
 * test on Windows: tested on Windows 11 on 2026-10-21 (Go 1.26, `scripts/build.py` on the Windows host, `go test`
   without the GTK packages: the tests that need sh or the terminal socket are skipped there, `windows_test.go` files
