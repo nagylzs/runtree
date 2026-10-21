@@ -174,6 +174,12 @@ func runMain(args config.CLIArgs, posArgs []string) error {
 	if args.ExitOnFinish {
 		gtkui.SetExitOnFinish()
 	}
+	switch args.Buttons {
+	case "text":
+		gtkui.SetButtonMode(gtkui.ButtonsText)
+	case "icons":
+		gtkui.SetButtonMode(gtkui.ButtonsIcons)
+	}
 
 	exitCode = gtkui.RunApplication()
 	app.StopRunning(runTree)

@@ -27,6 +27,7 @@ type CLIArgs struct {
 	NetProfile   uint16 `long:"net-profile-port" value-name:"PORT" description:"Serve live profiles on http://localhost:PORT/debug/pprof/ (for developers)"`
 	Schema       bool   `long:"schema" description:"Print the JSON Schema of tree files (for editors), then exit"`
 	ExitOnFinish bool   `long:"exit-on-finish" description:"Exit 10 seconds after the root node is finished (unless Stay open is pressed); the exit code is 0 when the root is Success, 2 when it is Failed, 3 when the window is closed before it finished"`
+	Buttons      string `long:"buttons" value-name:"MODE" choice:"auto" choice:"text" choice:"icons" default:"auto" description:"The operation buttons of the selected node: auto (icons and texts, only icons when they do not fit), text or icons"`
 
 	ShowRuns   bool   `long:"show-runs" description:"List the runs of the --log-db database, then exit"`
 	ShowEvents bool   `long:"show-events" description:"Print the events of a run from the --log-db database, then exit"`

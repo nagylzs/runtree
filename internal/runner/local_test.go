@@ -101,6 +101,26 @@ func waitOutput(t *testing.T, output <-chan string) string {
 	return ""
 }
 
+// The client follows the mouse modes of the terminal in the output of the process
+func TestClientMouseTracking(t *testing.T) {
+	l := newTestLocalRunner()
+	c, output, exited := startLocal(t, l, "sh", "-c", `printf 'vim\033[?1000;1006h'; sleep 0.2; printf 'quit\033[?1000l'`)
+	deadline := time.Now().Add(10 * time.Second)
+	for !c.MouseTracking() {
+		if time.Now().After(deadline) {
+			t.Fatal("mouse tracking is not on")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	waitExit(t, exited)
+	if out := waitOutput(t, output); !strings.Contains(out, "quit") {
+		t.Fatalf("the output is %q", out)
+	}
+	if c.MouseTracking() {
+		t.Error("mouse tracking is still on")
+	}
+}
+
 func TestLocalRunner(t *testing.T) {
 	l := newTestLocalRunner()
 	_, output, exited := startLocal(t, l, "sh", "-c", "echo hello; exit 3")

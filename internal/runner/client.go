@@ -35,6 +35,7 @@ type Client struct {
 	onError    func(Error)
 	output     io.Writer // gets a copy of the terminal output, see SetOutput
 	noTerminal bool      // see SetNoTerminal
+	mouse      mouseModeTracker
 }
 
 // NewClient connects to a runner (see ParseAddress)
@@ -342,7 +343,7 @@ func (c *Client) run() {
 		// so it will never complete...
 	}()
 	go func() {
-		var dst io.Writer = c.ptyConn
+		var dst io.Writer = teeWriter{c.ptyConn, &c.mouse}
 		if c.output != nil {
 			dst = teeWriter{dst, c.output}
 		}
@@ -352,6 +353,12 @@ func (c *Client) run() {
 		// the communication
 	}()
 	wg.Wait()
+}
+
+// MouseTracking tells if the process turned on the mouse tracking of the terminal (e.g. vim with mouse=a, less
+// --mouse): then the terminal sends the mouse clicks to the process. It can be called from any goroutine.
+func (c *Client) MouseTracking() bool {
+	return c.mouse.on()
 }
 
 // closeOutput closes the output writer, when it is an io.Closer

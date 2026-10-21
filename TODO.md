@@ -61,16 +61,6 @@
 * test on macOS: tested on 2026-10-21 from `dist/darwin/arm64/`: the GUI with a Windows `rtrunner` over TCP,
   `runtree-headless`, and `rtrunner` as a managed ssh runner (see Runners). Left: the GUI checks of "macOS support"
   above.
-* the Signal menu of a run node (`nodeframeheader.go`) closes about 0.1 s after it opens on the laptop's display (i3,
-  HiDPI); it stays open in Xvfb (also with i3 and picom) and on macOS. It is a `gtk.Popover` parented to a plain
-  `gtk.Button` with `SetParent`; a `gtk.MenuButton` would present and close it itself.
-* the last child of a seq shows "Success" without ", finished": `findRunnableHold` sets the "finished" scheduler
-  message only on the nodes that it visits, and it does not go into a finished seq.
-* the close confirmation says "There are unfinished nodes", and it counts the failed nodes too
-  (`UnfinishedRunCounts`: the run nodes that are not Success or Skipped): change the wording.
-* confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
-  already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
-  by runtree (read the primary selection, confirm, then paste it with `PasteText`).
 
 # Releases (decided 2026-10-21)
 
@@ -174,9 +164,13 @@ connection still runs exactly one command, so a runner per run node needs no pro
 
 # GUI layout and navigation (from the user, 2026-10-17)
 
-* redesign the properties tab (`NodeFrameProperites`, `nodeframeproperties.go`), so that it fits narrower screens.
-  The rows of operation buttons in the header (`nodeframeheader.go`) are the widest part: with a large font they
-  make the right side wider than the window (they could wrap, e.g. in a `gtk.FlowBox`).
+* Done (2026-10-21), so that the GUI fits narrow panes (e.g. half of a 1440 logical px screen with `GDK_SCALE=2`):
+  the header has one row of operation buttons with drawn icons (`opicons.go`), only the icons when the texts do not
+  fit (`--buttons`), the operations of the sub-nodes in the popover of **All**, the signals in a grid; the navigation
+  modes are in the popover of one menu button; the tabs scroll; the properties tab is one column of names and values
+  (the most looked-for first, the details with Show all), with the dependencies (the Dependencies tab is merged into
+  it). (A `gtk.FlowBox` was tried for the buttons and dropped: it lines its lines up in columns, so it wrapped where
+  one row would fit.) Still wide: a header row narrower than the 8 icons (about 260 px) is clipped.
 * Done: the path in the header wraps, its nodes are links that show the node in the tree; the lists of the navigator
   have a "show in the tree" button; the Log tab has an End button.
 * the GUI over VNC (2026-10-18): GTK's GL renderer without a GPU sends the whole window on every frame (18.5 MB/s
@@ -222,8 +216,8 @@ extension / yaml-language-server); the semantic checks need runtree's own parser
 * expression language for computed values (e.g. a `!expr` tag), probably with [Expr](https://expr-lang.org)
   (MIT license): concatenating lists, replacing in strings, conditionals; variables of any type (numbers converted
   to strings with their source text, e.g. `1.10`)
-* navigator layout uses a hard-coded width of 1024 (`nodenavigator.go` `layoutList`, `layoutTree`), long node titles
-  produce GTK warnings ("Trying to measure GtkBox for width of 1024, but it needs at least ...")
+* navigator layout uses a hard-coded width of 1024 (`nodenavigator.go` `navigatorRowWidth`, a row with a long title
+  is wider): the rows could follow the width of the navigator
 * GTK command line parameters cannot be passed to the application (`gtkapplication.go` `RunApplication`)
 * recursive manual operations: allow them when they are allowed on the child nodes (`op.go` `PerformOp`)
 * allow a run node with empty `args` when `args_prefix` is not empty (`parser.go` `SelfCheck`)
@@ -242,7 +236,7 @@ pause-on-error -> manual fix -> resume automation, remote execution. No mainstre
 
 Ordered by impact:
 
-* SSH transport for runners, instead of the unauthenticated TCP daemon on :5000: see "Runners" above.
+* Done: SSH transport for runners, instead of the unauthenticated TCP daemon on :5000 (see "Runners" above).
 * TUI frontend (non-GTK), so runtree works interactively over SSH, and on macOS/Windows (`runtree-headless` covers
   the unattended runs, the TUI would be its interactive sibling).
   GTK4+VTE+cgo is the biggest install/build barrier.
@@ -252,7 +246,6 @@ Ordered by impact:
   local runner works there: a loopback TCP pair instead of a socket pair; ConPTY finds the programs in the PATH, gets
   the whole command line, and is closed after the exit; tested on Windows 11, see "test on Windows" above). The
   `timeout` property stops the steps that wait for input or never exit. Next:
-  * test it on macOS;
   * Done: `--thaw NODE` opens approval gates (also in the GUI), the `lock` property of the root node locks the tree
     without `--lock` (the GUI shows the holder in a window), `--output failed` and `--output none`, the ssh
     runners on Windows.

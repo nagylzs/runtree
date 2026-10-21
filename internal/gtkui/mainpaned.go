@@ -3,6 +3,7 @@ package gtkui
 import (
 	"fmt"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	vte "github.com/nagylzs/gotk4-vte"
 	"github.com/nagylzs/runtree/internal/rt"
@@ -20,16 +21,29 @@ type MainPaned struct {
 
 	lastToggleButton *gtk.ToggleButton
 	navModeButtons   map[NavMode]*gtk.ToggleButton
+	navModeMenu      *gtk.MenuButton // shows the mode, its popover has navModeButtons
 	cbRunOnly        *gtk.CheckButton
 }
 
 func NewMainPaned() *MainPaned {
 	leftSide := gtk.NewBox(gtk.OrientationVertical, 5)
 
-	navProps := gtk.NewGrid()
-	leftSide.Append(navProps)
-	const COLS = 3
+	// The navigation mode is chosen in the popover of a menu button, that shows the current one
+	navModes := gtk.NewGrid()
+	navModes.SetRowSpacing(5)
+	navModes.SetColumnSpacing(5)
+	navModes.SetColumnHomogeneous(true)
+	const COLS = 2
 	npRow, npCol := 0, 0
+	navModeMenu := gtk.NewMenuButton()
+	navModeMenu.SetAlwaysShowArrow(true)
+	navModeMenu.SetHAlign(gtk.AlignStart)
+	navModeMenu.SetTooltipText("Show the nodes in a tree, or the nodes in a status in a list")
+	navModePopover := gtk.NewPopover()
+	navModeMenu.SetPopover(navModePopover)
+	navRow := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	navRow.Append(navModeMenu)
+	leftSide.Append(navRow)
 
 	navScroll := gtk.NewScrolledWindow()
 	navScroll.SetHExpand(true)
@@ -41,6 +55,8 @@ func NewMainPaned() *MainPaned {
 	nav.viewport.SetChild(nav)
 	navScroll.SetChild(nav.viewport)
 
+	navModeMenu.SetLabel(NavModeName(nav.Mode()))
+
 	cbRunOnly := gtk.NewCheckButton()
 	cbRunOnly.SetLabel("Run nodes only")
 	cbRunOnly.SetTooltipText("When checked, only Run nodes will be shown in the list")
@@ -49,9 +65,6 @@ func NewMainPaned() *MainPaned {
 	cbRunOnly.ConnectToggled(func() {
 		nav.SetOnlyShowRunNodes(cbRunOnly.Active())
 	})
-
-	navProps.Attach(gtk.NewLabel("Navigation mode/filter"), 0, 0, COLS, 1)
-	npRow++
 
 	navModeButtons := make(map[NavMode]*gtk.ToggleButton)
 
@@ -63,15 +76,17 @@ func NewMainPaned() *MainPaned {
 		if navMode == nav.Mode() {
 			tb.SetActive(true)
 		}
-		navProps.Attach(tb, npCol, npRow, 1, 1)
+		navModes.Attach(tb, npCol, npRow, 1, 1)
 		npCol++
-		if npCol > COLS {
+		if npCol == COLS {
 			npRow++
 			npCol = 0
 		}
 		tb.ConnectClicked(func() {
+			navModePopover.Popdown()
 			nav.SetMode(navMode)
 			cbRunOnly.SetVisible(navMode != NavModeTree)
+			Application.pane.updateNavModeButtons()
 		})
 		navModeButtons[navMode] = tb
 		return tb
@@ -81,9 +96,10 @@ func NewMainPaned() *MainPaned {
 		st := NavModeToStatus(nm)
 		addNavModeButton(fmt.Sprintf("Show %s nodes in a list", rt.StatusName(st)), nm, tbTree)
 	}
-	npCol = 0
-	npCol++
-	navProps.Attach(cbRunOnly, npCol, npRow, COLS, 1)
+	navRow.Append(cbRunOnly)
+	navPopoverBox := gtk.NewBox(gtk.OrientationVertical, 8)
+	navPopoverBox.Append(navModes)
+	navModePopover.SetChild(scrollable(navPopoverBox))
 
 	// the right side is a vertical pane, toolbox on the top
 	rightSide := gtk.NewPaned(gtk.OrientationVertical)
@@ -93,6 +109,7 @@ func NewMainPaned() *MainPaned {
 	toolsScroll := gtk.NewScrolledWindow()
 	toolsScroll.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyAutomatic)
 	toolsScroll.SetChild(tools)
+	tools.header.SetAvailableWidth(toolsScroll.Width)
 	termOverlay := gtk.NewOverlay()
 	// The probe is an invisible terminal on top of the terminal area. It is always allocated to the whole area, so
 	// its column and row count is the size of the area, even when no terminal is displayed. This is used to resize
@@ -107,7 +124,7 @@ func NewMainPaned() *MainPaned {
 	termOverlay.AddOverlay(termProbe)
 	rightSide.SetStartChild(toolsScroll)
 	rightSide.SetEndChild(termOverlay)
-	rightSide.SetPosition(600)
+	setInitialPosition(rightSide, 600)
 	// Thin separators have an invisible grab area that reaches into the terminal, so selecting text from the
 	// first column or row would move the separator. Wide separators can only be grabbed where they are visible.
 	rightSide.SetWideHandle(true)
@@ -121,14 +138,33 @@ func NewMainPaned() *MainPaned {
 		termOverlay:    termOverlay,
 		termProbe:      termProbe,
 		navModeButtons: navModeButtons,
+		navModeMenu:    navModeMenu,
 		cbRunOnly:      cbRunOnly,
 	}
 	m.SetStartChild(leftSide)
 	m.SetEndChild(rightSide)
-	m.SetPosition(700)
+	setInitialPosition(&m.Paned, 700)
 	m.SetWideHandle(true)
 
 	return m
+}
+
+// setInitialPosition sets the position of the divider of a paned, but when the paned is first allocated, at most to
+// the half of its size: the window may start smaller than its default size (e.g. tiled by the window manager), and
+// later the two sides keep their proportions.
+func setInitialPosition(p *gtk.Paned, pos int) {
+	p.SetPosition(pos)
+	var handle glib.SignalHandle
+	handle = p.NotifyProperty("max-position", func() {
+		maxPos, _ := p.ObjectProperty("max-position").(int)
+		if maxPos <= 0 {
+			return
+		}
+		p.HandlerDisconnect(handle)
+		if pos > maxPos/2 {
+			p.SetPosition(maxPos / 2)
+		}
+	})
 }
 
 // ShowInTree switches to the tree view mode, and selects the node there (see NodeNavigator.ShowNode). It must be
@@ -137,6 +173,7 @@ func (m *MainPaned) ShowInTree(node *rt.Node) {
 	m.navModeButtons[NavModeTree].SetActive(true)
 	m.cbRunOnly.SetVisible(false)
 	m.navigator.SetMode(NavModeTree)
+	m.updateNavModeButtons()
 	m.navigator.ShowNode(node)
 }
 
@@ -178,6 +215,9 @@ func (m *MainPaned) updateNavModeButtons() {
 		}
 		if tb.Label() != lbl { // a new label is laid out and drawn again
 			tb.SetLabel(lbl)
+		}
+		if nm == m.navigator.Mode() && m.navModeMenu.Label() != lbl {
+			m.navModeMenu.SetLabel(lbl)
 		}
 	}
 }

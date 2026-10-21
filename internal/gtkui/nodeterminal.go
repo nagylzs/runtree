@@ -33,7 +33,7 @@ func (ra *RunTreeApp) createTerminal(n *rt.Node, client *runner.Client, size run
 	if err != nil {
 		return err
 	}
-	setupTerminalClipboard(term)
+	setupTerminalClipboard(term, client.MouseTracking)
 	// Same size as the remote pty, until it is displayed or resized
 	term.SetSize(size.Cols, size.Rows)
 

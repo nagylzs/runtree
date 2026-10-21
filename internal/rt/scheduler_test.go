@@ -87,6 +87,49 @@ func (s schedTree) nproc(id string) int {
 	return s.tree.NodeById[id].NProc
 }
 
+// The finished nodes have the "finished" scheduler message, also the ones that finished their parent (the scheduler
+// does not visit them any more), until they are reset
+func TestSchedulerMessageFinished(t *testing.T) {
+	s := newSchedTree(t, `
+tree:
+  id: root
+  par:
+    - id: steps
+      seq:
+        - {id: a, args: ["true"]}
+        - {id: b, args: ["true"]}
+    - {id: c, args: ["true"]}
+`)
+	message := func(id string) string {
+		s.tree.RLock("TestSchedulerMessageFinished")
+		defer s.tree.RUnlock()
+		return s.tree.NodeById[id].SchedulerMessage
+	}
+	s.expect("a")
+	s.run("a")
+	s.expect("c")
+	s.run("c")
+	s.finish(StatusSuccess, "a")
+	s.expect("b")
+	s.run("b")
+	s.finish(StatusSuccess, "b", "c")
+	s.expect("")
+	for _, id := range []string{"a", "b", "c", "steps", "root"} {
+		if m := message(id); m != "finished" {
+			t.Errorf("the message of %s is %q", id, m)
+		}
+	}
+	s.tree.Lock("TestSchedulerMessageFinished")
+	if _, err := s.tree.NodeById["b"].PerformOp(OpResetToWaiting, true, false, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	s.tree.UnLock()
+	s.expect("b")
+	if m := message("b"); m != "" {
+		t.Errorf("the message of b is %q after the reset", m)
+	}
+}
+
 // A seq node starts its children one after the other
 func TestSchedulerSeq(t *testing.T) {
 	s := newSchedTree(t, `
@@ -326,6 +369,17 @@ tree:
 	s.expect("r2") // the same subtree
 	s.run("r2")
 	s.expect("") // writer is blocked by readers
+	s.tree.RLock("TestSchedulerLocks")
+	if h := s.tree.LockHolder(true, "cache"); h == nil || h.Id != "readers" {
+		t.Errorf("cache is held by %v", h)
+	}
+	if h := s.tree.LockHolder(true, "db"); h == nil || h.Id != "x1" {
+		t.Errorf("db is held by %v", h)
+	}
+	if h := s.tree.LockHolder(true, "nothing"); h != nil {
+		t.Errorf("a free lock is held by %v", h)
+	}
+	s.tree.RUnlock()
 	s.finish(StatusSuccess, "x1")
 	s.expect("x2")
 	s.run("x2")

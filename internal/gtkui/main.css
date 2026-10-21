@@ -73,6 +73,32 @@ of the current theme.
     margin-right: 0.3em;
 }
 
+/* the drawn icons of the operation buttons (opicons.go) */
+.op-icon {
+    min-width: 1.1em;
+    min-height: 1.1em;
+}
+
+/* the icon of a button that cannot be used is faded, like its text (the theme fades only labels) */
+.op-icon:disabled {
+    opacity: 0.35;
+}
+
+/* the operation buttons of the header: narrow, so that their row fits */
+button.op-button, menubutton.op-button > button {
+    padding-left: 6px;
+    padding-right: 6px;
+    min-width: 0;
+}
+
+.prop-name {
+    font-weight: bold;
+}
+
+.popover-heading {
+    font-weight: bold;
+}
+
 .status-waiting {
     background-color: #cb4b16;
     color: #002b36;

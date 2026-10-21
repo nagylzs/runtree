@@ -255,8 +255,7 @@ func (t *NodeNavigator) ShowNode(node *rt.Node) {
 func (t *NodeNavigator) layoutList(mode NavMode) {
 	st := NavModeToStatus(mode)
 
-	// TODO: max width?
-	tw := 1024
+	tw := navigatorRowWidth
 
 	var step float64 = 30
 	var y float64 = 0
@@ -277,9 +276,16 @@ func (t *NodeNavigator) layoutList(mode NavMode) {
 	}
 }
 
-// place puts the node view to x, y with the width tw, and returns its height. It only changes the size and the
-// position of the view when they changed (it would be laid out again).
+// navigatorRowWidth is the width of the rows of the navigator, unless a row needs more (see place)
+const navigatorRowWidth = 1024
+
+// place puts the node view to x, y with the width tw (or wider, when its title needs more), and returns its height. It
+// only changes the size and the position of the view when they changed (it would be laid out again).
 func (t *NodeNavigator) place(nodeView *TreeNodeView, x, y float64, tw int, added bool) float64 {
+	// GTK warns when a widget is measured or allocated narrower than its minimum width (e.g. with a long title)
+	if minWidth, _, _, _ := nodeView.Measure(gtk.OrientationHorizontal, -1); minWidth > tw {
+		tw = minWidth
+	}
 	_, natural, _, _ := nodeView.Measure(gtk.OrientationVertical, tw)
 	if nodeView.width != float64(tw) || nodeView.height != float64(natural) {
 		nodeView.SetSizeRequest(tw, natural)
@@ -298,8 +304,7 @@ func (t *NodeNavigator) place(nodeView *TreeNodeView, x, y float64, tw int, adde
 }
 
 func (t *NodeNavigator) layoutTree() {
-	// TODO: max width?
-	tw := 1024
+	tw := navigatorRowWidth
 
 	var step float64 = 30
 	var y float64 = 0

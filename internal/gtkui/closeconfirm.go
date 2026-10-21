@@ -83,7 +83,7 @@ func (ra *RunTreeApp) showCloseConfirmDialog(counts map[rt.Status]int) {
 
 	x, y := rand.IntN(90)+10, rand.IntN(90)+10
 	answer := strconv.Itoa(x + y)
-	challenge := newWrappedLabel(fmt.Sprintf("To terminate them, answer this: how much is %d + %d?", x, y))
+	challenge := newWrappedLabel(fmt.Sprintf("To close it, answer this: how much is %d + %d?", x, y))
 	entry := gtk.NewEntry()
 	entry.SetInputPurpose(gtk.InputPurposeDigits)
 
@@ -129,9 +129,15 @@ func (ra *RunTreeApp) showCloseConfirmDialog(counts map[rt.Status]int) {
 			question.SetText("All nodes are finished, nothing will be terminated.")
 			btnTerminate.SetLabel("Close application")
 			btnTerminate.RemoveCSSClass("destructive-action")
-		} else {
-			question.SetText("There are unfinished nodes, are you sure that you want to terminate them?")
+		} else if counts[rt.StatusRunning] > 0 {
+			question.SetText("These run nodes are not finished successfully, and the running processes will be " +
+				"terminated. Are you sure that you want to close runtree?")
 			btnTerminate.SetLabel("Terminate")
+			btnTerminate.AddCSSClass("destructive-action")
+		} else {
+			question.SetText("These run nodes are not finished successfully. Are you sure that you want to close " +
+				"runtree?")
+			btnTerminate.SetLabel("Close")
 			btnTerminate.AddCSSClass("destructive-action")
 		}
 		btnTerminate.SetSensitive(answered())

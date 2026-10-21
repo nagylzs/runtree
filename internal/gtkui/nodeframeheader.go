@@ -3,6 +3,7 @@ package gtkui
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	glib2 "github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -12,12 +13,106 @@ import (
 	"github.com/nagylzs/runtree/internal/signal"
 )
 
+// signalColumns is the number of columns of the signals in the popovers of the Signal buttons
+const signalColumns = 3
+
+// headerOps are the operations of the buttons of the header, in their order
+var headerOps = []rt.NodeOp{rt.OpRun, rt.OpSignal, rt.OpFreeze, rt.OpThaw, rt.OpSkip, rt.OpSuccess, rt.OpFail,
+	rt.OpResetToWaiting}
+
+// opLabel is the text of the button of an operation; rerun is for Run on a finished node
+func opLabel(op rt.NodeOp, rerun bool) string {
+	switch {
+	case op == rt.OpRun && rerun:
+		return "Re-run"
+	case op == rt.OpResetToWaiting:
+		return "Reset"
+	}
+	return rt.OpName(op)
+}
+
+// opTooltip explains an operation on the tooltip of its button
+func opTooltip(op rt.NodeOp, rerun, recursive bool) string {
+	var s string
+	switch op {
+	case rt.OpRun:
+		s = "Run: start it now"
+		if rerun {
+			s = "Re-run: start it again"
+		}
+	case rt.OpSignal:
+		s = "Signal: send a signal to the process (e.g. SIGINT, like Ctrl+C)"
+	case rt.OpFreeze:
+		s = "Freeze: the scheduler does not start it until it is thawed"
+	case rt.OpThaw:
+		s = "Thaw: it is Waiting again"
+	case rt.OpSkip:
+		s = "Skip: finish it without running it"
+	case rt.OpSuccess:
+		s = "Success: the final status of a paused node is Success"
+	case rt.OpFail:
+		s = "Fail: the final status of a paused node is Failed"
+	case rt.OpResetToWaiting:
+		s = "Reset to waiting: the scheduler starts it again when it can"
+	}
+	if recursive {
+		s += ", for all the nodes below"
+	}
+	return s
+}
+
+// ButtonMode tells how the operation buttons of the header are shown, see SetButtonMode
+type ButtonMode int
+
+const (
+	ButtonsAuto  ButtonMode = iota // with icons and texts, only icons when they do not fit
+	ButtonsText                    // with icons and texts
+	ButtonsIcons                   // only icons (the tooltips tell the operations)
+)
+
+var buttonMode = ButtonsAuto
+
+// SetButtonMode sets how the operation buttons are shown (runtree --buttons), before the GUI starts
+func SetButtonMode(mode ButtonMode) {
+	buttonMode = mode
+}
+
+// opButton is a button of an operation, with an icon and a label (hidden when only the icons are shown)
+type opButton struct {
+	op     rt.NodeOp
+	widget *gtk.Widget // a gtk.Button, or a gtk.MenuButton for Signal
+	icon   *opIconView
+	label  *gtk.Label
+}
+
+// opButtonSpacing is the space between the icon and the label of an operation button
+const opButtonSpacing = 6
+
+// newOpButtonContent returns the child of an operation button: its icon and its label
+func newOpButtonContent(icon opIcon, label string) (*gtk.Box, *opIconView, *gtk.Label) {
+	bx := gtk.NewBox(gtk.OrientationHorizontal, opButtonSpacing)
+	iv := newOpIconView(icon)
+	iv.SetVAlign(gtk.AlignCenter)
+	lbl := gtk.NewLabel(label)
+	bx.Append(iv)
+	bx.Append(lbl)
+	return bx, iv, lbl
+}
+
+// update shows the button of the operation for the node
+func (b *opButton) update(allowed, rerun, recursive bool) {
+	b.widget.SetSensitive(allowed)
+	b.icon.setIcon(opIconOf(b.op, rerun))
+	setText(b.label, opLabel(b.op, rerun))
+	if tip := opTooltip(b.op, rerun, recursive); b.widget.TooltipText() != tip {
+		b.widget.SetTooltipText(tip)
+	}
+}
+
 type NodeFrameHeader struct {
 	*gtk.Box
 
-	frame                     *NodeFrame
-	signalPopoverRecursive    *gtk.Popover
-	signalPopoverNonRecursive *gtk.Popover
+	frame *NodeFrame
 
 	title      *gtk.Label
 	path       *gtk.Label // the nodes of the path are links, see showPathNode
@@ -25,8 +120,17 @@ type NodeFrameHeader struct {
 	status     *gtk.Label
 	typ        *gtk.Label
 
-	opButtonsRecursive    map[rt.NodeOp]*gtk.Button
-	opButtonsNonRecursive map[rt.NodeOp]*gtk.Button
+	opsRow     *gtk.Box
+	opButtons  []*opButton // the operations of the node, in opsRow
+	signalMenu *gtk.MenuButton
+	allButton  *gtk.MenuButton
+	allLabel   *gtk.Label
+	allButtons []*opButton // the operations of the sub-nodes, in the popover of allButton
+	allSignals *gtk.Grid   // the signals for the sub-nodes, in the popover of allButton
+	iconMode   bool        // only the icons of opButtons are shown
+
+	availableWidth func() int // the width that the header can use, see SetAvailableWidth
+	layoutKey      string     // the node, its buttons and the available width when the mode was chosen
 
 	prevStatus  rt.Status
 	statusShown bool // the status class and tooltip are set (for prevStatus)
@@ -50,128 +154,199 @@ func NewHeaderFrame() *NodeFrameHeader {
 	path.ConnectActivateLink(showPathNode)
 
 	typ := gtk.NewLabel("")
-	typ.SetHAlign(gtk.AlignStart)
-	typ.SetVAlign(gtk.AlignStart)
-	typ.SetHExpand(false)
+	typ.SetVAlign(gtk.AlignCenter)
 	typ.AddCSSClass("type-label")
 
 	status := gtk.NewLabel("")
-	status.SetHAlign(gtk.AlignStart)
-	status.SetVAlign(gtk.AlignStart)
-	status.SetHExpand(false)
+	status.SetVAlign(gtk.AlignCenter)
+	status.SetXAlign(0)
+	status.SetWrap(true)
+	status.SetWrapMode(pango.WrapWordChar)
 	status.AddCSSClass("status-label")
 
-	ops := gtk.NewBox(gtk.OrientationHorizontal, 5)
-	ops.SetHExpand(true)
-	ops.SetHAlign(gtk.AlignStart)
-	ops.SetVAlign(gtk.AlignCenter)
-	ops.Append(typ)
+	// the type and the status are on their own row: the buttons do not move when the status changes
+	statusRow := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	statusRow.Append(typ)
+	statusRow.Append(status)
 
-	opsRec := gtk.NewBox(gtk.OrientationHorizontal, 5)
-	opsRec.SetHExpand(true)
-	opsRec.SetHAlign(gtk.AlignStart)
-	opsRec.SetVAlign(gtk.AlignCenter)
-	opsRec.Append(status)
+	// the buttons of the node are linked (no space between them), All is after them
+	opsRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	opsRow.SetHAlign(gtk.AlignStart)
+	opsGroup := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	opsGroup.AddCSSClass("linked")
+	opsRow.Append(opsGroup)
 
 	bx := gtk.NewBox(gtk.OrientationVertical, 5)
 	bx.SetMarginStart(5)
 	bx.SetMarginEnd(5)
 	bx.Append(title)
 	bx.Append(path)
-	bx.Append(ops)
-	bx.Append(opsRec)
+	bx.Append(statusRow)
+	bx.Append(opsRow)
 	bx.SetHExpand(true)
 	bx.SetVExpand(true)
 
 	h := &NodeFrameHeader{
-		Box:                   bx,
-		title:                 title,
-		path:                  path,
-		typ:                   typ,
-		status:                status,
-		opButtonsRecursive:    map[rt.NodeOp]*gtk.Button{},
-		opButtonsNonRecursive: map[rt.NodeOp]*gtk.Button{},
+		Box:    bx,
+		title:  title,
+		path:   path,
+		typ:    typ,
+		status: status,
+		opsRow: opsRow,
 	}
 	h.frame = NewNodeFrame(h.updateGUI)
 
-	createOpButton := func(op rt.NodeOp, recursive bool) *gtk.Button {
-		btn := gtk.NewButton()
-		btn.SetLabel(rt.OpName(op))
-		btn.SetSensitive(false)
-		if op != rt.OpSignal {
-			btn.ConnectClicked(func() {
-				h.onOp(op, recursive)
-			})
-		}
-		if recursive {
-			opsRec.Append(btn)
+	// the buttons of the node
+	for _, op := range headerOps {
+		content, icon, label := newOpButtonContent(opIconOf(op, false), opLabel(op, false))
+		b := &opButton{op: op, icon: icon, label: label}
+		if op == rt.OpSignal {
+			mb := gtk.NewMenuButton()
+			mb.SetChild(content)
+			mb.SetAlwaysShowArrow(true)
+			mb.SetPopover(h.newSignalPopover(false))
+			h.signalMenu = mb
+			b.widget = gtk.BaseWidget(mb)
+			opsGroup.Append(mb)
 		} else {
-			ops.Append(btn)
-		}
-		return btn
-	}
-	for _, op := range rt.AllOps {
-		h.opButtonsRecursive[op] = createOpButton(op, true)
-	}
-	for _, op := range rt.AllOps {
-		h.opButtonsNonRecursive[op] = createOpButton(op, false)
-	}
-
-	populateSignalPopover := func(btnSignal *gtk.Button, recursive bool) *gtk.Popover {
-
-		popOver := gtk.NewPopover()
-		bxs := gtk.NewBox(gtk.OrientationVertical, 5)
-		bxs.SetMarginStart(5)
-		bxs.SetMarginEnd(5)
-
-		signames := make([]string, 0, len(signal.Signals))
-		for k := range signal.Signals {
-			signames = append(signames, k)
-		}
-		sort.Strings(signames)
-		for _, name := range signames {
-			btn := gtk.NewButtonWithLabel(name)
+			btn := gtk.NewButton()
+			btn.SetChild(content)
 			btn.ConnectClicked(func() {
-				popOver.Popdown()
-				h.sendSignal(name, recursive)
+				h.onOp(op, false)
 			})
-			if name == "SIGINT" {
-				btn.SetLabel("Ctrl+C️ SIGINT")
-				btn.SetTooltipText("This is the default action to end a program gracefully.")
-				btn.AddCSSClass("button-sigint")
-			}
-			if name == "SIGKILL" {
-				btn.SetLabel("☠️ SIGKILL")
-				btn.SetTooltipText("A nuclear solution to your problem. Cannot be caught or ignored.")
-				btn.AddCSSClass("button-sigkill")
-			}
-			if name == "SIGHUP" {
-				btn.SetLabel("⟳ SIGHUP")
-				btn.SetTooltipText("Most services interpret this as 'reload your config'. Closes interactive programs.")
-				btn.AddCSSClass("button-sighup")
-			}
-			if name == "SIGABRT" {
-				btn.SetLabel("💣 SIGABORT")
-				btn.SetTooltipText("Terminate with core dump.")
-				btn.AddCSSClass("button-sigabort")
-			}
-
-			bxs.Append(btn)
+			b.widget = gtk.BaseWidget(btn)
+			opsGroup.Append(btn)
 		}
-
-		//popOver.SetHasArrow(true)
-		popOver.SetPosition(gtk.PosBottom)
-		popOver.SetParent(btnSignal)
-		popOver.SetChild(bxs)
-		btnSignal.ConnectClicked(func() { popOver.Popup() })
-		return popOver
+		b.widget.AddCSSClass("op-button")
+		b.widget.SetSensitive(false)
+		h.opButtons = append(h.opButtons, b)
 	}
 
-	h.signalPopoverRecursive = populateSignalPopover(h.opButtonsRecursive[rt.OpSignal], true)
-	h.signalPopoverNonRecursive = populateSignalPopover(h.opButtonsNonRecursive[rt.OpSignal], false)
+	// All: the operations of the sub-nodes (seq/par)
+	content, _, allLabel := newOpButtonContent(iconAll, "All")
+	h.allLabel = allLabel
+	h.allButton = gtk.NewMenuButton()
+	h.allButton.SetChild(content)
+	h.allButton.SetAlwaysShowArrow(true)
+	h.allButton.SetTooltipText("The operations of all the nodes below this one")
+	h.allButton.SetPopover(h.newAllPopover())
+	h.allButton.AddCSSClass("op-button")
+	h.allButton.SetVisible(false) // for seq/par nodes
+	opsRow.Append(h.allButton)
 
 	return h
+}
 
+// newAllPopover returns the popover of the All button: the operations of the sub-nodes, and their signals
+func (w *NodeFrameHeader) newAllPopover() *gtk.Popover {
+	popover := gtk.NewPopover()
+	grid := gtk.NewGrid()
+	grid.SetRowSpacing(5)
+	grid.SetColumnSpacing(5)
+	grid.SetColumnHomogeneous(true)
+	i := 0
+	for _, op := range headerOps {
+		if op == rt.OpSignal {
+			continue // below
+		}
+		content, icon, label := newOpButtonContent(opIconOf(op, false), opLabel(op, false))
+		btn := gtk.NewButton()
+		btn.SetChild(content)
+		btn.ConnectClicked(func() {
+			popover.Popdown()
+			w.onOp(op, true)
+		})
+		b := &opButton{op: op, widget: gtk.BaseWidget(btn), icon: icon, label: label}
+		b.widget.SetSensitive(false)
+		w.allButtons = append(w.allButtons, b)
+		grid.Attach(btn, i%signalColumns, i/signalColumns, 1, 1)
+		i++
+	}
+
+	signals := gtk.NewLabel("Signal all:")
+	signals.SetXAlign(0)
+	signals.AddCSSClass("popover-heading")
+
+	bx := gtk.NewBox(gtk.OrientationVertical, 8)
+	bx.SetMarginStart(5)
+	bx.SetMarginEnd(5)
+	bx.Append(grid)
+	bx.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
+	bx.Append(signals)
+	w.allSignals = w.newSignalGrid(popover, true)
+	bx.Append(w.allSignals)
+	popover.SetChild(scrollable(bx))
+	return popover
+}
+
+// newSignalPopover returns the popover of the Signal button
+func (w *NodeFrameHeader) newSignalPopover(recursive bool) *gtk.Popover {
+	popover := gtk.NewPopover()
+	grid := w.newSignalGrid(popover, recursive)
+	grid.SetMarginStart(5)
+	grid.SetMarginEnd(5)
+	popover.SetChild(scrollable(grid))
+	return popover
+}
+
+// newSignalGrid returns the buttons of the signals, in a grid. A click sends the signal, and closes the popover.
+func (w *NodeFrameHeader) newSignalGrid(popover *gtk.Popover, recursive bool) *gtk.Grid {
+	grid := gtk.NewGrid()
+	grid.SetRowSpacing(5)
+	grid.SetColumnSpacing(5)
+	grid.SetColumnHomogeneous(true)
+
+	signames := make([]string, 0, len(signal.Signals))
+	for k := range signal.Signals {
+		signames = append(signames, k)
+	}
+	sort.Strings(signames)
+	for i, name := range signames {
+		btn := gtk.NewButtonWithLabel(name)
+		btn.ConnectClicked(func() {
+			popover.Popdown()
+			w.sendSignal(name, recursive)
+		})
+		if name == "SIGINT" {
+			btn.SetLabel("Ctrl+C️ SIGINT")
+			btn.SetTooltipText("This is the default action to end a program gracefully.")
+			btn.AddCSSClass("button-sigint")
+		}
+		if name == "SIGKILL" {
+			btn.SetLabel("☠️ SIGKILL")
+			btn.SetTooltipText("A nuclear solution to your problem. Cannot be caught or ignored.")
+			btn.AddCSSClass("button-sigkill")
+		}
+		if name == "SIGHUP" {
+			btn.SetLabel("⟳ SIGHUP")
+			btn.SetTooltipText("Most services interpret this as 'reload your config'. Closes interactive programs.")
+			btn.AddCSSClass("button-sighup")
+		}
+		if name == "SIGABRT" {
+			btn.SetLabel("💣 SIGABORT")
+			btn.SetTooltipText("Terminate with core dump.")
+			btn.AddCSSClass("button-sigabort")
+		}
+		grid.Attach(btn, i%signalColumns, i/signalColumns, 1, 1)
+	}
+	return grid
+}
+
+// scrollable puts a widget into a scrolled window that is as large as the widget, but can be shrunk: GTK closes a
+// popover that does not fit on the screen, a scrolled one is shrunk instead
+func scrollable(child gtk.Widgetter) *gtk.ScrolledWindow {
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scroll.SetPropagateNaturalWidth(true)
+	scroll.SetPropagateNaturalHeight(true)
+	scroll.SetChild(child)
+	return scroll
+}
+
+// SetAvailableWidth sets the function that tells the width that the header can use (the width of the scrolled window
+// around it), see showIcons
+func (w *NodeFrameHeader) SetAvailableWidth(f func() int) {
+	w.availableWidth = f
 }
 
 func (w *NodeFrameHeader) SetNode(node *rt.Node) {
@@ -226,43 +401,73 @@ func (w *NodeFrameHeader) updateGUI() {
 	}
 	setText(w.status, st)
 
-	ops := node.AllowedManualOps(true, true)
-	for op, btn := range w.opButtonsRecursive {
-		_, ok := ops[op]
-		btn.SetVisible(node.HasChild())
-		btn.SetSensitive(ok)
-		title := rt.OpName(op)
-		if rt.StatusFinished(newStatus) && op == rt.OpRun {
-			title = "Re-run"
-		}
-		if node.HasChild() {
-			title += " all"
-		}
-		setButtonLabel(btn, title)
+	rerun := rt.StatusFinished(newStatus)
+	ops := node.AllowedManualOps(true, false)
+	for _, b := range w.opButtons {
+		_, ok := ops[b.op]
+		b.update(ok, rerun, false)
 	}
-	ops = node.AllowedManualOps(true, false)
-	for op, btn := range w.opButtonsNonRecursive {
-		_, ok := ops[op]
-		btn.SetSensitive(ok)
-		title := rt.OpName(op)
-		if rt.StatusFinished(newStatus) && op == rt.OpRun {
-			title = "Re-run"
-		}
-		setButtonLabel(btn, title)
+	hasChild := node.HasChild()
+	if w.allButton.Visible() != hasChild {
+		w.allButton.SetVisible(hasChild)
 	}
+	if hasChild {
+		ops = node.AllowedManualOps(true, true)
+		for _, b := range w.allButtons {
+			_, ok := ops[b.op]
+			b.update(ok, rerun, true)
+		}
+		_, canSignal := ops[rt.OpSignal]
+		w.allSignals.SetSensitive(canSignal)
+		w.allButton.SetSensitive(len(ops) > 0)
+	}
+	w.chooseIconMode(fmt.Sprintf("%s %v %v", node.Id, hasChild, rerun))
+}
+
+// chooseIconMode shows only the icons of the buttons, when buttonMode says so, or when the texts do not fit
+// (ButtonsAuto). The width of the texts is measured when the node, its buttons (key) or the available width changed:
+// the texts are shown for the measurement, then hidden if needed (before the window is drawn again).
+func (w *NodeFrameHeader) chooseIconMode(key string) {
+	if buttonMode != ButtonsAuto {
+		w.setIconMode(buttonMode == ButtonsIcons)
+		return
+	}
+	available := w.Width()
+	if w.availableWidth != nil {
+		available = w.availableWidth()
+	}
+	if available <= 0 {
+		return // not allocated yet
+	}
+	key += " " + strconv.Itoa(available)
+	if key == w.layoutKey {
+		return
+	}
+	w.layoutKey = key
+	w.setIconMode(false)
+	_, width, _, _ := w.opsRow.Measure(gtk.OrientationHorizontal, -1)
+	w.setIconMode(width+w.MarginStart()+w.MarginEnd() > available)
+}
+
+// setIconMode shows only the icons of the operation buttons, or their texts too
+func (w *NodeFrameHeader) setIconMode(icons bool) {
+	if icons == w.iconMode {
+		return
+	}
+	w.iconMode = icons
+	for _, b := range w.opButtons {
+		b.label.SetVisible(!icons)
+	}
+	w.allLabel.SetVisible(!icons)
+	// the arrows of the menu buttons only with the texts
+	w.signalMenu.SetAlwaysShowArrow(!icons)
+	w.allButton.SetAlwaysShowArrow(!icons)
 }
 
 // setText sets the text of the label when it is different
 func setText(l *gtk.Label, text string) {
 	if l.Text() != text {
 		l.SetText(text)
-	}
-}
-
-// setButtonLabel sets the label of the button when it is different
-func setButtonLabel(b *gtk.Button, label string) {
-	if b.Label() != label {
-		b.SetLabel(label)
 	}
 }
 

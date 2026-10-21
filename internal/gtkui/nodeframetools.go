@@ -11,7 +11,6 @@ type NodeFrameTools struct {
 	header      *NodeFrameHeader
 	properties  *NodeFrameProperites
 	description *NodeFrameDescription
-	deps        *NodeFrameDeps
 	log         *NodeFrameLog
 	vars        *NodeFrameVars
 	envs        *NodeFrameEnvs
@@ -23,22 +22,22 @@ func NewToolsWidget() *NodeFrameTools {
 	header.SetVExpand(false)
 
 	nb := gtk.NewNotebook()
+	nb.SetScrollable(true) // the tabs do not make the right side wider
 	nb.SetHExpand(true)
 	nb.SetVExpand(true)
 
-	addScrolledTab := func(f NodeFrameWithLabel) {
+	addScrolledTab := func(f NodeFrameWithLabel) *gtk.ScrolledWindow {
 		sc := gtk.NewScrolledWindow()
 		sc.SetHExpand(true)
 		sc.SetVExpand(true)
 		sc.SetChild(f)
 		nb.AppendPage(sc, f.TabLabel())
+		return sc
 	}
 
+	// the properties (with the dependencies) wrap their values, they do not scroll horizontally
 	properties := NewNodeFrameProperties()
-	addScrolledTab(properties)
-
-	deps := NewNodeFrameDeps()
-	addScrolledTab(deps)
+	addScrolledTab(properties).SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 
 	log := NewNodeFrameLog() // it has its own scrolled window
 	nb.AppendPage(log, log.TabLabel())
@@ -64,7 +63,6 @@ func NewToolsWidget() *NodeFrameTools {
 		Box:         bx,
 		header:      header,
 		properties:  properties,
-		deps:        deps,
 		log:         log,
 		description: description,
 		vars:        vars,
@@ -76,7 +74,6 @@ func (w *NodeFrameTools) SetNode(node *rt.Node) {
 	w.header.SetNode(node)
 	w.properties.SetNode(node)
 	w.description.SetNode(node)
-	w.deps.SetNode(node)
 	w.log.SetNode(node)
 	w.vars.SetNode(node)
 	w.envs.SetNode(node)

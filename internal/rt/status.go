@@ -97,6 +97,13 @@ func (n *Node) updateStatus(locked bool) (statusChanged bool, expandedChanged bo
 		}
 		n.log().Log(context.Background(), statusLevel(s), msg, attrEvent, EventStatus, "from", StatusName(prevStatus),
 			"to", StatusName(s))
+		// The scheduler does not visit the sub-nodes of a finished node (see findRunnableHold), so the node that
+		// finishes its parent would keep the message of its run.
+		if StatusFinished(s) {
+			n.SchedulerMessage = "finished"
+		} else if StatusFinished(prevStatus) {
+			n.SchedulerMessage = ""
+		}
 	}
 
 	// After a manual node restart, we return to auto status updates. Manual success and failed are final decisions,

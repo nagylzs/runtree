@@ -110,6 +110,18 @@ func (n *Node) registerProvided(locked bool) {
 	n.Tree.Unblock()
 }
 
+// LockHolder returns the node that holds a lock: exclusively (xlocks), or the topmost node of the readers (rlocks);
+// nil when it is free
+func (t *Tree) LockHolder(locked bool, lock string) *Node {
+	if !locked {
+		panic("must be called in locked state")
+	}
+	if n, ok := t.xAcquiredBy[lock]; ok {
+		return n
+	}
+	return t.rAcquiredBy[lock]
+}
+
 func (n *Node) CanAcquireLocks(locked bool) (bool, string) {
 	if !locked {
 		panic("CanAcquireLocks must be called tree-locked")

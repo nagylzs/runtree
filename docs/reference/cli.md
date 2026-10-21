@@ -16,6 +16,7 @@ Loads the tree file and runs it in the GUI. Without errors in the tree, the wind
 | `--version` | print the version, and exit |
 | `--check` | only check the tree file and the files it includes, and exit (see [checking](../tree-files.md#checking-a-tree-file)) |
 | `--schema` | print the JSON Schema of tree files, and exit (see [editors](../editors.md)) |
+| `--buttons=auto\|text\|icons` | the operation buttons of the selected node: icons and texts, only icons when the texts do not fit (`auto`, the default), always with texts, or only icons (see [operations](../gui.md#operations)) |
 | `--exit-on-finish` | exit 10 seconds after the root node is finished, unless **Stay open** is pressed; the exit code tells how the tree ended (see [closing runtree](../gui.md#closing-runtree)) |
 | `--max-depth=N` | the maximum depth of the tree, and of the includes (30 by default) |
 | `--runner=ADDRESS` | the runner of the nodes that do not specify one (`local` by default), see [runners](../runners.md#the-default-runner) |

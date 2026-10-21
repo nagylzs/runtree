@@ -219,5 +219,5 @@ A waiting node is **blocked** when it cannot start yet:
 
 The scheduler does not start a blocked node, and it does not look into the subtree of a blocked seq or par node. The
 GUI shows why a node waits in its status ("blocked", "max proc reached", "won't schedule" for frozen and paused
-nodes), and the Dependencies tab shows what it waits for. A tree can deadlock (e.g. two nodes that require what the
+nodes), and the Properties tab shows what it waits for. A tree can deadlock (e.g. two nodes that require what the
 other one provides): runtree does not detect it, it simply waits (`runtree-headless` stops then).

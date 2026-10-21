@@ -30,20 +30,19 @@ When the tree files have [warnings](tree-files.md#checking-a-tree-file), a banne
 
 ## The selected node
 
-The top of the right side shows the title and the path of the node, the operation buttons, and its status (its
-tooltip explains the status). The nodes of the path are links: a click shows that node in the tree. Below them are
-the tabs:
+The top of the right side shows the title and the path of the node, its type and status (the tooltip explains the
+status), and the [operation buttons](#operations). The nodes of the path are links: a click shows that node in the
+tree. Below them are the tabs:
 
 | Tab | Shows |
 |-----|-------|
-| Properties | the calculated properties: pid, exit code, start and finish times, elapsed times, runner, working directory (`cwd`), command line, `max_proc`, `on_error`, `success_exit_codes`... |
-| Dependencies | what the node requires and provides, its locks, and what it waits for |
+| Properties | what is looked for first: the result (exit code, or why it could not start), the command line, the runner and the working directory, the times, the PID while it runs, the progress of a seq or par node (running, finished and failed run nodes), the settings that differ from the default (`timeout`, `on_error`, `max_proc`, `success_exit_codes`...), and what the node requires and provides, its locks, and what it waits for. **Show all** adds the details: the default settings, the start and finish times, the process time of the sub-nodes, the message of the scheduler |
 | Log | the [events](logging.md#events) of the node and the nodes below it (of the whole tree for the root). It follows the end of the log; when it is scrolled up, the **End** button in its corner scrolls to the end and follows it again |
 | Description | the `description` of the node |
 | Vars | the variables of the node, and where each value comes from |
 | Envs | the environment variables that the node sets |
 
-The values can be copied with the button next to them.
+The values can be selected and copied; the long ones (command line, runner, working directory) have a copy button.
 
 ## Terminals
 
@@ -51,17 +50,22 @@ Every started run node has a terminal below the tabs: the terminal of its proces
 can use colors, ask questions, show progress bars, and you can type into it.
 
 - **Copy** and **Paste**: Ctrl+Shift+C and Ctrl+Shift+V, or the context menu (right click), which has **Select
-  All** too. Selecting with the mouse and pasting with the middle button works as in other terminals.
-- Pasting text with line breaks (with Ctrl+Shift+V or the menu) asks for confirmation first, with a preview: pasted
-  into a shell, it can run commands. Pasting with the middle mouse button is not confirmed.
+  All** too. Selecting with the mouse and pasting with the middle button works as in other terminals (in programs
+  that use the mouse, e.g. vim with `mouse=a`, Shift and the middle button pastes).
+- Pasting text with line breaks asks for confirmation first, with a preview: pasted into a shell, it can run
+  commands.
 - The terminal stays when the process exits, so its output can be read later. The output can also be saved, see
   [Logs and history](logging.md#saving-the-log).
 
 ## Operations
 
 The buttons of the selected node perform operations on it. A button is enabled when the operation is allowed in the
-status of the node. For a seq or par node there is a second row: the same operations with **all**, that are performed
-on every node of the subtree where they are allowed (e.g. **Freeze all** freezes the waiting run nodes below it).
+status of the node; its tooltip tells what it does. **Signal** opens the list of the signals. For a seq or par node,
+**All** opens the same operations for every node of the subtree, where they are allowed (e.g. **Freeze** there freezes
+the waiting run nodes below it), and the signals for all of them.
+
+The buttons have an icon and a text. When the texts do not fit (e.g. a large font, a narrow window), only the icons
+are shown; `runtree --buttons=text` or `--buttons=icons` shows always the texts or only the icons.
 
 | Operation | Allowed (run nodes) | What it does |
 |-----------|---------------------|--------------|
@@ -71,19 +75,19 @@ on every node of the subtree where they are allowed (e.g. **Freeze all** freezes
 | Signal | Running | sends a signal (chosen from a list, e.g. SIGINT for Ctrl+C, SIGTERM, SIGKILL) to the process and the commands that it runs (its process group), like Ctrl+C in a terminal |
 | Fail / Success | Paused | sets the final status of a paused node |
 | Skip | Waiting, Frozen | the node is Skipped: finished without error, it is not started |
-| ResetToWaiting | Frozen, Paused, finished | the node is Waiting again, the scheduler starts it again when it can |
+| Reset (to waiting) | Frozen, Paused, finished | the node is Waiting again, the scheduler starts it again when it can |
 
 For seq and par nodes:
 
 - **Skip** for a node that is not started yet (Waiting or Frozen): the node is Skipped, its sub-nodes are not started.
-  **Skip all** skips the sub-nodes too; on a running node it only skips the sub-nodes that are not started.
-- **Thaw** and **ResetToWaiting** for a node frozen by `status: frozen`, **ResetToWaiting** for a skipped one: the
+  **All › Skip** skips the sub-nodes too; on a running node it only skips the sub-nodes that are not started.
+- **Thaw** and **Reset** for a node frozen by `status: frozen`, **Reset** for a skipped one: the
   status of the node is calculated from its sub-nodes again. A node that is frozen because its sub-nodes are frozen is
-  thawed with **Thaw all**.
+  thawed with **All › Thaw**.
 - **Fail** / **Success** for a paused one. This status lasts until an operation is performed on the node or below it.
-- The "all" versions for the rest.
+- The operations of **All** for the rest.
 
-**Re-run** and **ResetToWaiting** unprovide the resources that the node (and its parents that become unfinished)
+**Re-run** and **Reset** unprovide the resources that the node (and its parents that become unfinished)
 provided, so the nodes that require them wait for the new run. When there are such resources, a dialog lists them:
 unprovide all of them (the default), or choose the ones to unprovide. A resource that is kept stays available, and the
 nodes that require it can start right away. Resetting a node also clears the error of its previous start (e.g. when

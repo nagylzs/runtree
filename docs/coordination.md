@@ -32,7 +32,7 @@ tree:
 - The names are independent of the lock names.
 
 A tree can deadlock, e.g. when nothing provides a required resource, or two nodes require what the other one provides:
-runtree does not detect it, the nodes simply wait. The Dependencies tab of the GUI shows what a node requires and
+runtree does not detect it, the nodes simply wait. The Properties tab of the GUI shows what a node requires and
 provides, and what it is waiting for.
 
 ## Locks

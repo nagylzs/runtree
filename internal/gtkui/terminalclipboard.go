@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -16,9 +17,9 @@ import (
 const pastePreviewLines = 200
 
 // setupTerminalClipboard adds copy/paste/select all actions to the terminal, with keyboard shortcuts and a
-// context menu. Selecting text with the mouse and pasting with the middle mouse button is handled by vte itself,
-// so pasting with the middle mouse button is not confirmed.
-func setupTerminalClipboard(term *vte.Terminal) {
+// context menu, and pastes the primary selection with the middle mouse button, unless the process uses the mouse
+// (mouseTracking, see runner.Client.MouseTracking). Selecting text with the mouse is handled by vte itself.
+func setupTerminalClipboard(term *vte.Terminal, mouseTracking func() bool) {
 	actions := gio.NewSimpleActionGroup()
 
 	copyAction := gio.NewSimpleAction("copy", nil)
@@ -33,7 +34,7 @@ func setupTerminalClipboard(term *vte.Terminal) {
 
 	pasteAction := gio.NewSimpleAction("paste", nil)
 	pasteAction.ConnectActivate(func(_ *glib.Variant) {
-		pasteClipboard(term)
+		pasteClipboard(term, false)
 	})
 	actions.AddAction(pasteAction)
 
@@ -74,12 +75,31 @@ func setupTerminalClipboard(term *vte.Terminal) {
 	addMenuItem("Paste", "paste", "<Control><Shift>v")
 	addMenuItem("Select All", "select-all", "")
 	term.SetContextMenuModel(menu)
+
+	// The middle mouse button pastes the primary selection. vte would paste it without a confirmation, so the press is
+	// claimed before vte gets it. A process that uses the mouse gets the click from vte, Shift+click pastes there.
+	middle := gtk.NewGestureClick()
+	middle.SetButton(gdk.BUTTON_MIDDLE)
+	middle.SetPropagationPhase(gtk.PhaseCapture)
+	middle.ConnectPressed(func(_ int, _, _ float64) {
+		if mouseTracking() && middle.CurrentEventState()&gdk.ShiftMask == 0 {
+			return
+		}
+		middle.SetState(gtk.EventSequenceClaimed)
+		term.GrabFocus()
+		pasteClipboard(term, true)
+	})
+	term.AddController(middle)
 }
 
-// pasteClipboard pastes the text from the clipboard into the terminal. Text with line breaks must be confirmed,
-// because pasting it into a shell may run commands, immediately or when the running command finishes.
-func pasteClipboard(term *vte.Terminal) {
+// pasteClipboard pastes the text from the clipboard (or from the primary selection) into the terminal. Text with line
+// breaks must be confirmed, because pasting it into a shell may run commands, immediately or when the running command
+// finishes.
+func pasteClipboard(term *vte.Terminal, primary bool) {
 	clipboard := term.Clipboard()
+	if primary {
+		clipboard = term.PrimaryClipboard()
+	}
 	clipboard.ReadTextAsync(context.Background(), func(res gio.AsyncResulter) {
 		text, err := clipboard.ReadTextFinish(res)
 		if err != nil {
@@ -90,24 +110,30 @@ func pasteClipboard(term *vte.Terminal) {
 			return
 		}
 		if strings.ContainsAny(text, "\r\n") {
-			showPasteConfirmDialog(term, text)
+			showPasteConfirmDialog(term, text, primary)
 		} else {
-			pasteText(term, text)
+			pasteText(term, text, primary)
 		}
 	})
 }
 
 // pasteText pastes the text into the terminal, as if it was pasted from the clipboard (e.g. bracketed paste
 // mode is applied).
-func pasteText(term *vte.Terminal, text string) {
-	if !term.PasteText(text) {
-		term.PasteClipboard() // vte older than 0.68
+func pasteText(term *vte.Terminal, text string, primary bool) {
+	if term.PasteText(text) {
+		return
+	}
+	// vte older than 0.68
+	if primary {
+		term.PastePrimary()
+	} else {
+		term.PasteClipboard()
 	}
 }
 
 // showPasteConfirmDialog shows the text with line breaks, and pastes it into the terminal when confirmed.
 // It must be called from the main gtk loop.
-func showPasteConfirmDialog(term *vte.Terminal, text string) {
+func showPasteConfirmDialog(term *vte.Terminal, text string, primary bool) {
 	lines := strings.Split(strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(text), "\n")
 	if lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1] // the text ends with a line break
@@ -155,7 +181,7 @@ func showPasteConfirmDialog(term *vte.Terminal, text string) {
 	})
 	btnPaste.ConnectClicked(func() {
 		dialog.Close()
-		pasteText(term, text)
+		pasteText(term, text, primary)
 	})
 	dialog.ConnectCloseRequest(func() bool {
 		term.GrabFocus()
