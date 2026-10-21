@@ -1,0 +1,58 @@
+# 12 - Windows: cmd, PowerShell and the exit codes of Windows
+#
+# runtree-headless, rtrunner and the local runner work on Windows, the processes run in pseudo consoles (ConPTY). The
+# GUI does not build there, but it can run the nodes on Windows with an rtrunner (see 10-runners). On Windows:
+#
+# - There is no sh: run `cmd /c "..."` or `powershell -NoProfile -Command "..."`. In cmd, `&` chains the commands
+#   and `%NAME%` is an environment variable (`envs` sets them).
+# - PowerShell script blocks are in { }: tag those strings !raw, or runtree reads `{name}` as its own variable.
+# - The programs that write bytes (e.g. `type` of a UTF-8 file) use the code page of the console, the OEM one by
+#   default (e.g. 437 or 852). For UTF-8, run them in a new cmd after `chcp 65001` (a cmd keeps the code page that it
+#   started with). cmd's own `echo` and PowerShell are right without it.
+# - Some programs exit with other codes than 0 on success: robocopy exits with 1 when it copied files, 0 to 7 mean
+#   success, 8 and above are errors. `success_exit_codes` lists them.
+# - `timeout` types Ctrl+C into the console of the process: it exits with 3221225786 (0xC000013A).
+# - There are no SIGINT and SIGTERM: in the GUI, only SIGKILL stops a process (exit code 1).
+# - In an interactive cmd, `exit` returns the exit code of the last command (e.g. 9009 after a mistyped command):
+#   type `exit 0`.
+#
+#   runtree-headless examples\12-windows.rt.yaml       (on Windows)
+#   runtree --runner ssh://user@winhost/C:/runtree/rtrunner.exe examples/12-windows.rt.yaml
+#                                                      (the GUI on Linux or macOS, with the OpenSSH server of Windows)
+tree:
+  title: "Windows"
+  seq:
+    - title: "cmd, envs and cwd"
+      envs:
+        GREETING: "set by runtree"
+      cwd: 'C:\Windows'
+      args: [cmd, /c, "echo %GREETING%, on %COMPUTERNAME% in %CD% & ver"]
+
+    - title: "PowerShell, !raw script block"
+      args: [powershell, -NoProfile, -Command, !raw '1..3 | ForEach-Object {
+             Write-Host "step $_" -ForegroundColor Green; Start-Sleep -Milliseconds 300 }']
+
+    - title: "UTF-8 output"
+      seq:
+        - title: "write a UTF-8 file"
+          args: [powershell, -NoProfile, -Command,
+                 '[IO.File]::WriteAllText("$env:TEMP\runtree-utf8.txt", "árvíztűrő tükörfúrógép ✓")']
+        - title: "type it"
+          args: [cmd, /c, 'chcp 65001 >nul & cmd /c type %TEMP%\runtree-utf8.txt & del %TEMP%\runtree-utf8.txt']
+
+    - title: "robocopy: 1 means copied"
+      seq:
+        - title: "prepare"
+          args: [cmd, /c, 'mkdir %TEMP%\runtree-example 2>nul & echo hello> %TEMP%\runtree-example\hello.txt']
+        # through cmd: a program that is started directly gets %TEMP% as it is
+        - title: "copy"
+          success_exit_codes: [0, 1, 2, 3, 4, 5, 6, 7]
+          args: [cmd, /c, 'robocopy %TEMP%\runtree-example %TEMP%\runtree-example-copy /NJH /NJS /NDL /NP']
+        - title: "clean up"
+          args: [cmd, /c, 'rmdir /s /q %TEMP%\runtree-example %TEMP%\runtree-example-copy']
+
+    # the timeout makes the node fail, on_error allows it here
+    - title: "timeout types Ctrl+C"
+      timeout: 3s
+      on_error: success
+      args: [ping, -n, "30", "127.0.0.1"]

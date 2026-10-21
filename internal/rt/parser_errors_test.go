@@ -310,7 +310,8 @@ func TestExampleTrees(t *testing.T) {
 	}
 	nodes := map[string]int{"01-hello.rt.yaml": 1, "02-steps.rt.yaml": 4, "03-parallel.rt.yaml": 12,
 		"04-variables.rt.yaml": 8, "05-errors.rt.yaml": 16, "06-reuse.rt.yaml": 19, "07-dependencies.rt.yaml": 7,
-		"08-locks.rt.yaml": 10, "09-breakpoints.rt.yaml": 6, "10-runners.rt.yaml": 6, "11-rolling-upgrade.rt.yaml": 44}
+		"08-locks.rt.yaml": 10, "09-breakpoints.rt.yaml": 6, "10-runners.rt.yaml": 6, "11-rolling-upgrade.rt.yaml": 44,
+		"12-windows.rt.yaml": 11}
 	if len(files) != len(nodes) {
 		t.Errorf("%d examples, want %d", len(files), len(nodes))
 	}
