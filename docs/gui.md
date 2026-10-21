@@ -3,7 +3,7 @@
 The window has two parts: the tree on the left, and the selected node on the right (the divider between them can be
 dragged).
 
-![runtree](images/runtree.png)
+![runtree upgrading web servers: one host failed and paused, the rollout stopped](images/runtree.png)
 
 ## The tree
 
@@ -11,9 +11,11 @@ Each row is a node: its title (or command line), its type (`Seq`, `Par`), its st
 
 - the status, with details: the number of running processes below it (`Running (2)`), the number of failed run nodes
   (`1 failed`), why it waits (`blocked`, `max proc reached`, `won't schedule`), `connecting` while a process is being
-  started, and the pid of the process;
-- the elapsed time; for seq and par nodes also the total time of the processes below it (`tot=`) and the speedup
-  that the parallel runs gave (`×2.0`);
+  started, and the pid of the process. A seq or par node is `stopped` when nothing runs below it and the rest waits
+  for you: e.g. `Running, stopped: 1 paused, 1 frozen` when a failed host of a rollout is paused and the hosts after
+  it are frozen;
+- the elapsed time (of the last run, when the node was run again); for seq and par nodes also the total time of the
+  processes below it (`tot=`) and the speedup that the parallel runs gave (`×2.0`);
 - a terminal icon for the run nodes that have a terminal.
 
 The button above the tree chooses the view: **Tree** shows the whole tree, the others (Waiting, Frozen, Running,
@@ -69,6 +71,8 @@ the waiting run nodes below it), and the signals for all of them.
 The buttons have an icon and a text. When the texts do not fit (e.g. a large font, a narrow window), only the icons
 are shown; **Text** or **Icons** in the [menu](#appearance) (or `--buttons=text`, `--buttons=icons`) shows always the
 texts or only the icons.
+
+![The operation buttons of a running node, with the signals](images/operations.png)
 
 | Operation | Allowed (run nodes) | What it does |
 |-----------|---------------------|--------------|
@@ -126,6 +130,8 @@ The menu (☰, above the tree) chooses the appearance:
   from the appearance of macOS. It follows the changes. When it is not known (e.g. on a VNC server without a
   desktop), it is dark.
 - **Dark** or **Light**.
+
+![runtree in the light appearance, while two hosts are upgraded in parallel](images/runtree-light.png)
 
 It asks GTK for the dark or the light variant of the theme, and runtree's own colors (the rows of the tree, the
 signals) and the terminals follow the theme in use: a theme that has only a dark variant (e.g. `GTK_THEME=Dracula`)

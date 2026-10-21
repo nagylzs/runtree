@@ -1,5 +1,5 @@
-* update the screenshots of the documentation (docs/images: the GUI changed a lot on 2026-10-21: the header, the
-  properties, the navigation menu, the light appearance), and review the documentation as a whole
+* review the documentation as a whole (the screenshots are new since 2026-10-21: docs/images, taken on Linux in
+  Xvfb with GDK_SCALE=2, Adwaita, `--appearance`, example 11)
 * implement "if" node type
 * document "include" property, explain include/reduce
 * possibly show a progress bar for each node, that shows the percentage of finished nodes
@@ -191,6 +191,12 @@ connection still runs exactly one command, so a runner per run node needs no pro
   (the most looked-for first, the details with Show all), with the dependencies (the Dependencies tab is merged into
   it). (A `gtk.FlowBox` was tried for the buttons and dropped: it lines its lines up in columns, so it wrapped where
   one row would fit.) Still wide: a header row narrower than the 8 icons (about 260 px) is clipped.
+* Done (2026-10-21): the rows of the navigator are as wide as it is (not 1024 px), so it scrolls sideways only when a
+  row needs more, and the overlay scroll indicator does not flash when rows open and close; they get the new width
+  150 ms after the divider stops (602 nodes: a layout is about 1 ms).
+* the left pane in a list view needs about 300 logical px (the menu button, "Run nodes only", ☰): when it is
+  narrower, GtkPaned cuts its left part off, with the location buttons of the list. E.g. "Run nodes only" into the
+  popover of the menu button, or a smaller minimum width of the left pane.
 * Done: the path in the header wraps, its nodes are links that show the node in the tree; the lists of the navigator
   have a "show in the tree" button; the Log tab has an End button.
 * the GUI over VNC (2026-10-18): GTK's GL renderer without a GPU sends the whole window on every frame (18.5 MB/s
