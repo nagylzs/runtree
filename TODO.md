@@ -59,6 +59,25 @@
   `runtree-headless`, and `rtrunner` as a managed ssh runner (see Runners). Left: the GUI checks of "macOS support"
   above.
 
+# Visibility (from the user, 2026-10-21)
+
+Make runtree known and easy to try, now that it is installable (releases, Homebrew). Roughly in this order:
+
+* the GitHub page: the description (it has a stray backtick, and it should say what runtree is for: runbooks of
+  commands, each in a terminal that you can step into, on this machine or others), topics (e.g. devops, sysadmin,
+  runbook, automation, terminal, ssh, gtk4, golang), a social preview image;
+* the README's first screen: one sentence on what it is and for whom, a screenshot or a short recording of stepping
+  into the terminal of a running node (needs the new screenshots, see the first item above), how to install;
+* "Why runtree": what it does that its neighbors do not (CI and task runners: no terminal to step into; Ansible,
+  Rundeck: steps must not ask anything; tmuxinator, mprocs, process-compose: services on one machine, not a tree that
+  runs once), honestly, with what they do better;
+* a real example: an upgrade or a deployment runbook, with gates, a password prompt, a remote host;
+* making it easy to contribute: CONTRIBUTING.md (the build, the tests, the three platforms), issue templates;
+* publishing the VS Code extension (Marketplace, Open VSX);
+* announcing it: a write-up (blog post), then Show HN, Reddit (r/devops, r/sysadmin, r/golang), lobste.rs; the
+  awesome lists (awesome-go has requirements: tests, docs, Go Report Card);
+* Linux packages (see Releases) and homebrew-core, when it is notable enough.
+
 # Releases (decided 2026-10-21)
 
 * Not in the Mac App Store: its apps must use the App Sandbox, and the processes that a sandboxed app starts are
@@ -71,8 +90,8 @@
   to build, `gtk4`, `vte3`, `socat`. On Linux (Homebrew on Linux) without the GUI (`--no-gui`): Homebrew's `gtk4` and
   `vte3` build there, but they would be a second GTK next to the desktop's. The tap's workflows (from `brew
   tap-new`): test-bot on macOS and Linux for the pull requests, which builds the bottles, pr-pull publishes them, and
-  a daily autobump opens a pull request for a new tag. Left: bottles; later `homebrew-core`, when runtree is notable
-  enough for it. A formula, not a cask: a cask installs a prebuilt `.app`, that needs a Developer ID signature and
+  a daily autobump opens a pull request for a new tag. Bottles since 0.1.2 (macOS arm64, Linux x86_64). Later
+  `homebrew-core`, when runtree is notable enough for it. A formula, not a cask: a cask installs a prebuilt `.app`, that needs a Developer ID signature and
   notarization.
 * Linux, the primary target: packages at about the same time, e.g. an AUR package (Arch, Manjaro) and a `.deb`
   (Debian, Ubuntu).
