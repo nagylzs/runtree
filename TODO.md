@@ -34,6 +34,23 @@
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
 
+# Releases (decided 2026-10-21)
+
+* Not in the Mac App Store: its apps must use the App Sandbox, and the processes that a sandboxed app starts are
+  sandboxed too (no access to the user's files, ssh keys and Homebrew tools), while runtree runs any command of the
+  tree; App Review is wary of apps that run code that is not in them, and GTK, VTE and socat would have to be bundled
+  in a signed `.app`. The users are sysadmins and developers, they install such tools with Homebrew.
+* macOS: a Homebrew tap first (`nagylzs/homebrew-runtree`, `brew install nagylzs/runtree/runtree`), with a formula
+  that builds from source with `scripts/build.py` (so the managed ssh runner gets its embedded `rtrunner`s):
+  `depends_on "go" => :build`, `pkgconf` and `gobject-introspection` to build, `gtk4`, `vte3`, `socat`. Maybe bottles
+  built by a GitHub Actions job of the tap (the first build of the GTK bindings takes minutes). Later `homebrew-core`,
+  when runtree is notable enough for it. A formula, not a cask: a cask installs a prebuilt `.app`, that needs a
+  Developer ID signature and notarization.
+* Linux, the primary target: packages at about the same time, e.g. an AUR package (Arch, Manjaro) and a `.deb`
+  (Debian, Ubuntu).
+* Before the first release: version numbers and git tags (`--version` prints only the build time, the branch and the
+  commit now; a formula downloads a tagged tarball, checked by its sha256), the macOS items above, a CI job on macOS.
+
 # Logging (plan, 2026-10-17)
 
 Two kinds of logs, through one slog pipeline: diagnostic logs about runtree itself (scheduler, runner connections,
