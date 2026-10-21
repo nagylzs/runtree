@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -48,11 +50,15 @@ type console struct {
 	flushAfter time.Duration
 	mode       string                   // OutputAll ("" too), OutputFailed or OutputNone
 	writers    map[*rt.Node]*lineWriter // the output of the last start of the nodes (with OutputFailed)
+	// the outputs of the nodes that failed, before the end of their output (with OutputFailed): the exit status may
+	// arrive before the end of the output, their lines are written at the end of it, or by finishAll
+	pending map[*lineWriter]struct{}
 }
 
 // newConsole returns the console for the run nodes of the tree, in an output mode (OutputAll...)
 func newConsole(w io.Writer, tree *rt.Tree, mode string) *console {
-	c := &console{w: w, flushAfter: flushAfter, mode: mode, writers: make(map[*rt.Node]*lineWriter)}
+	c := &console{w: w, flushAfter: flushAfter, mode: mode, writers: make(map[*rt.Node]*lineWriter),
+		pending: make(map[*lineWriter]struct{})}
 	for _, n := range tree.Nodes {
 		if n.Type == rt.TypeRun {
 			c.width = max(c.width, utf8.RuneCountInString(label(n)))
@@ -73,8 +79,8 @@ func (c *console) NodeOutput(n *rt.Node, _ int) io.Writer {
 	return w
 }
 
-// finished is called when a run node finishes: with OutputFailed, its output is written when it failed (the lines
-// that arrive later too), or dropped. It does not lock the tree.
+// finished is called when a run node finishes: with OutputFailed, its output is written when it failed (at the end of
+// the output, which may arrive later than the exit status), or dropped. It does not lock the tree.
 func (c *console) finished(n *rt.Node, failed bool) {
 	c.mu.Lock()
 	w := c.writers[n]
@@ -85,8 +91,8 @@ func (c *console) finished(n *rt.Node, failed bool) {
 	}
 }
 
-// finishAll writes the output of the nodes that failed, and drops the others, for the nodes that did not finish yet
-// (with OutputFailed, at the end of the run)
+// finishAll writes the output of the nodes that failed, and drops the others, for the nodes that did not finish yet,
+// and writes the output of the failed nodes whose output did not end (with OutputFailed, at the end of the run)
 func (c *console) finishAll(failed func(n *rt.Node) bool) {
 	c.mu.Lock()
 	writers := c.writers
@@ -94,6 +100,12 @@ func (c *console) finishAll(failed func(n *rt.Node) bool) {
 	c.mu.Unlock()
 	for n, w := range writers {
 		w.decide(failed(n))
+	}
+	c.mu.Lock()
+	pending := slices.Collect(maps.Keys(c.pending))
+	c.mu.Unlock()
+	for _, w := range pending {
+		w.writeHeldNow()
 	}
 }
 
@@ -145,10 +157,11 @@ type lineWriter struct {
 	timer   *time.Timer
 	closed  bool
 
-	// with OutputFailed: the lines are held until the node finishes, then they are written or dropped (drop)
-	held              [][]byte
-	heldSize, dropped int // the size of held, and the number of lines that were dropped from its beginning
-	decided, drop     bool
+	// with OutputFailed: the lines are held until the node finishes, then they are dropped (drop), or written at the
+	// end of the output (written: the later lines are written at once)
+	held                   [][]byte
+	heldSize, dropped      int // the size of held, and the number of lines that were dropped from its beginning
+	decided, drop, written bool
 }
 
 func (w *lineWriter) Write(p []byte) (int, error) {
@@ -200,7 +213,7 @@ func (w *lineWriter) emit(allowEmpty bool) {
 func (w *lineWriter) out(line []byte) {
 	switch {
 	case w.c.mode == OutputNone || w.drop:
-	case w.c.mode == OutputFailed && !w.decided:
+	case w.c.mode == OutputFailed && !w.written:
 		w.held = append(w.held, bytes.Clone(line))
 		w.heldSize += len(line)
 		for w.heldSize > maxHeld && len(w.held) > 1 {
@@ -213,8 +226,8 @@ func (w *lineWriter) out(line []byte) {
 	}
 }
 
-// decide writes the held lines when the node failed, and the later lines will be written too; otherwise they are
-// dropped (OutputFailed)
+// decide drops the lines when the node did not fail (OutputFailed). When it failed, the held lines are written at the
+// end of the output (Close), together, or by finishAll when the output does not end.
 func (w *lineWriter) decide(failed bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -222,16 +235,42 @@ func (w *lineWriter) decide(failed bool) {
 		return
 	}
 	w.decided, w.drop = true, !failed
-	if failed {
-		lines := w.held
-		if w.dropped > 0 {
-			lines = append([][]byte{fmt.Appendf(nil, "(%d earlier lines are not shown)", w.dropped)}, lines...)
-		}
-		if len(lines) > 0 {
-			w.c.writeLines(w.prefix, lines)
-		}
+	switch {
+	case !failed:
+		w.held, w.heldSize = nil, 0
+	case w.closed:
+		w.writeHeld()
+	default:
+		w.c.mu.Lock()
+		w.c.pending[w] = struct{}{}
+		w.c.mu.Unlock()
+	}
+}
+
+// writeHeldNow writes the held lines of a failed node whose output did not end, the later lines will be written at once
+func (w *lineWriter) writeHeldNow() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.writeHeld()
+}
+
+// writeHeld writes the held lines of a failed node (once), w.mu is held
+func (w *lineWriter) writeHeld() {
+	if w.written {
+		return
+	}
+	w.written = true
+	lines := w.held
+	if w.dropped > 0 {
+		lines = append([][]byte{fmt.Appendf(nil, "(%d earlier lines are not shown)", w.dropped)}, lines...)
+	}
+	if len(lines) > 0 {
+		w.c.writeLines(w.prefix, lines)
 	}
 	w.held, w.heldSize = nil, 0
+	w.c.mu.Lock()
+	delete(w.c.pending, w)
+	w.c.mu.Unlock()
 }
 
 // flush writes the line that has not ended yet (the rest of it will be on the next line). A \r at its end stays: a \n
@@ -258,6 +297,9 @@ func (w *lineWriter) Close() error {
 	w.cr = false
 	w.emit(false)
 	w.closed = true
+	if w.decided && !w.drop {
+		w.writeHeld()
+	}
 	w.c.open.Done()
 	return nil
 }

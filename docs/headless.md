@@ -77,9 +77,9 @@ web02 apt update       | Reading package lists...
 `--output` chooses what goes to stdout:
 
 - `--output all` (the default): every line, as above;
-- `--output failed`: only the output of the nodes that fail, when they fail (their lines are kept until then, the end
-  of the output if it is more than 1 MB), and the lines that arrive after it; the output of the other nodes is
-  dropped. The log of a CI job stays short, and it has the output that you need;
+- `--output failed`: only the output of the nodes that fail, when they fail, together (their lines are kept until
+  the end of their output, only its end if it is more than 1 MB); the output of the other nodes is dropped. The log
+  of a CI job stays short, and it has the output that you need;
 - `--output none`: nothing, only the events and the summary on stderr (with `--log-db`, the output is saved there).
 
 The output is read in all cases (otherwise the processes would stop when the buffer of their terminal is full), and it
