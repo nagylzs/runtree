@@ -14,7 +14,7 @@
   change (bump `runner.Version`), a session registry on the runner, and restoring node statuses in the GUI.
 * macOS support (built on a Mac, arm64, macOS 27, on 2026-10-19):
   * `scripts/build.py` builds everything on macOS, and `go test ./...` passes there (the local runner tests start
-    real processes in ptys). Test rtrunner by hand too (process groups, signals).
+    real processes in ptys).
   * runtree GUI: it builds with Homebrew's `gtk4` (4.24) and `vte3` (`vte-2.91-gtk4`, 0.84) after `brew install
     pkgconf gtk4 vte3 gobject-introspection socat`; the linker warns about duplicate libraries (`ld: warning: ignoring
     duplicate libraries`, harmless). It runs (light theme without `GTK_THEME=Adwaita:dark`). Fixed: it froze, because
@@ -35,9 +35,14 @@
   `--check` (Windows paths, includes with `/` and `\`), `cwd`, `envs` (the system variables are replaced case
   insensitively), `--log-db`. `runtree-lsp` works with the URIs of VS Code (`file:///c%3A/...`, tested with a scripted
   client, not with VS Code itself). Fixed: build.py on a Windows host, the error of a command that cannot be started,
-  a pseudo console with 0 columns or rows. Left:
-  * `rtrunner` over TCP with the GUI on another machine (terminals of ConPTY processes in VTE, typing, resize,
-    signals);
+  a pseudo console with 0 columns or rows. `rtrunner.exe` over TCP works with the GUI on the Mac and on Linux: the
+  terminals of the ConPTY processes in VTE (colors, Unicode, `Write-Progress`), typing into cmd and PowerShell, resize,
+  signals (SIGKILL ends the process with exit code 1), closing the GUI while they run. (`exit` without a code in cmd
+  exits with the last ERRORLEVEL, e.g. 9009 after a command that was not found.) Left:
+  * the command lines are quoted for a Unix shell also for a Windows runner: the CmdLine property (`shellEscape`) and
+    the start event (`quoteArgs`, it doubles the backslashes); copied into cmd or PowerShell, they do not work;
+  * the `ssh://` runner from Windows is not tested: ssh needs the keys in the ssh-agent service (BatchMode), and
+    runtree turns on `ControlMaster`, which the OpenSSH of Windows may not support;
   * the ConPTY control sequences in the output of runtree-headless: each node starts with `ESC[?9001h ESC[?1004h
     ESC[?25l ESC[2J ESC[m ESC[H` and the title of the console (`ESC]0;C:\WINDOWS\system32\cmd.exe BEL`), and ends
     with `ESC[?25h ESC[?9001l ESC[?1004l`, often on a line of its own; blank lines become cursor moves (`ESC[7;1H`),
@@ -51,7 +56,16 @@
   * the log lines of the local runner have another format than the events in runtree-headless's stderr
     (`Oct 21 08:25:24.500 WRN terminating runner=local ...` among `08:25:24 WARN ...`);
   * the holder in the lock file is `HTPC\nagyl@htpc` (os/user gives DOMAIN\user on Windows).
-* test on macOS: `rtrunner`, `runtree-headless` and the GUI (see macOS support above) from `dist/darwin/arm64/`.
+* test on macOS: tested on 2026-10-21 from `dist/darwin/arm64/`: the GUI with a Windows `rtrunner` over TCP,
+  `runtree-headless`, and `rtrunner` as a managed ssh runner (see Runners). Left: the GUI checks of "macOS support"
+  above.
+* the Signal menu of a run node (`nodeframeheader.go`) closes about 0.1 s after it opens on the laptop's display (i3,
+  HiDPI); it stays open in Xvfb (also with i3 and picom) and on macOS. It is a `gtk.Popover` parented to a plain
+  `gtk.Button` with `SetParent`; a `gtk.MenuButton` would present and close it itself.
+* the last child of a seq shows "Success" without ", finished": `findRunnableHold` sets the "finished" scheduler
+  message only on the nodes that it visits, and it does not go into a finished seq.
+* the close confirmation says "There are unfinished nodes", and it counts the failed nodes too
+  (`UnfinishedRunCounts`: the run nodes that are not Success or Skipped): change the wording.
 * confirm multi-line paste with the middle mouse button too (primary selection). Ctrl+Shift+V and the context menu
   already ask for confirmation, but middle click paste is handled inside vte, so the button 2 press must be handled
   by runtree (read the primary selection, confirm, then paste it with `PasteText`).
@@ -140,8 +154,9 @@ connection still runs exactly one command, so a runner per run node needs no pro
    Still to do:
    * Done: one shared SSH connection per host (`ControlMaster=auto`, `ControlPersist=60`, sockets in
      `$XDG_RUNTIME_DIR/runtree`; above `MaxSessions` ssh makes a new connection), `--no-ssh-share`
-   * test the macOS binaries on a Mac (darwin amd64/arm64 are embedded but not tested; Gatekeeper, the ad-hoc
-     signature of darwin/arm64, `uname -m` under Rosetta)
+   * darwin/arm64 is tested (2026-10-21, from Linux to a Mac with macOS 27): the upload, 12 parallel nodes,
+     `timeout`, `Tree.TerminateRemote`. The binary has the ad-hoc signature of the linker, and a file uploaded over ssh
+     has no quarantine attribute, so Gatekeeper does not check it. Not tested: darwin/amd64, `uname -m` under Rosetta
    * Windows hosts: the OpenSSH server of Windows starts `cmd.exe` (or PowerShell), not `sh`, so the start and upload
      scripts do not work there (sftp for the upload?), and the protocol over the stdin/stdout of a Windows ssh session
      needs testing. A manually installed `rtrunner.exe` with a path may work already: test it.

@@ -13,8 +13,8 @@ or scheduler semantics, and update it with the change. TODO.md lists planned wor
 
 Go module: `github.com/nagylzs/runtree` (Go 1.25+, cgo required for the GUI). Linux is the primary target;
 `rtrunner`, `runtree-headless` and `runtree-lsp` also build for Windows (`build.py` cross-builds them into
-`dist/windows/amd64/`; tested under wine only, with a separate `WINEPREFIX`) and macOS, `runtree` (GUI) does not build
-on Windows (VTE dependency); see TODO.md for macOS.
+`dist/windows/amd64/`, or `build.py` on a Windows host; tested on Windows 11 and under wine, with a separate
+`WINEPREFIX`) and macOS, `runtree` (GUI) does not build on Windows (VTE dependency); see TODO.md for Windows and macOS.
 
 ## Build / run
 
