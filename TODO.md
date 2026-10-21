@@ -1,12 +1,12 @@
 * review the documentation as a whole (the screenshots are new since 2026-10-21: docs/images, taken on Linux in
   Xvfb with GDK_SCALE=2, Adwaita, `--appearance`, example 11)
-* implement "if" node type
-* document "include" property, explain include/reduce
-* possibly show a progress bar for each node, that shows the percentage of finished nodes
+* implement "if" node type (a conditional node: run a condition first, and the sub-nodes depending on its result)
+* possibly show a progress bar for each node, that shows the percentage of finished nodes (the properties of a seq or
+  par node show its progress as text)
 * create a special view that shows tree total time, tree total progress and processing speed graph?
 * MAYBE after selecting a status filter in the navbar, show a graph for number of nodes for that status?
 * play a sound when a node goes paused
-* create a main menu, and add menu items to toggle the various windows above
+* the ☰ menu (above the tree) has the appearance and About: add items to show the views above
 * add extra actions for paused nodes to deal with siblings: cancel siblings, freeze siblings, thaw siblings, this is
   very low priority, you can do it on its parent...
 * runner sessions that survive the GUI: when the client disconnects (GUI closed or crashed, network error), keep
@@ -18,7 +18,7 @@
     real processes in ptys).
   * runtree GUI: it builds with Homebrew's `gtk4` (4.24) and `vte3` (`vte-2.91-gtk4`, 0.84) after `brew install
     pkgconf gtk4 vte3 gobject-introspection socat`; the linker warns about duplicate libraries (`ld: warning: ignoring
-    duplicate libraries`, harmless). It runs (light theme without `GTK_THEME=Adwaita:dark`). Fixed: it froze, because
+    duplicate libraries`, harmless). Fixed: it froze, because
     a contended `pthread_rwlock` hangs on macOS 27.0.1 when the waiting threads get signals (reported to Apple),
     and GLib's sources share one: goroutines no longer call GLib (`runOnMain`). gotk4 still unrefs objects from its
     finalizers with `g_main_context_invoke` (rare, but it can hit it; block the signals around it, or keep the objects
@@ -56,7 +56,7 @@
     (`Oct 21 08:25:24.500 WRN terminating runner=local ...` among `08:25:24 WARN ...`);
   * the holder in the lock file is `HTPC\nagyl@htpc` (os/user gives DOMAIN\user on Windows).
 * test on macOS: tested on 2026-10-21 from `dist/darwin/arm64/`: the GUI with a Windows `rtrunner` over TCP,
-  `runtree-headless`, and `rtrunner` as a managed ssh runner (see Runners). Left: the GUI checks of "macOS support"
+  `runtree-headless`, and `rtrunner` as a managed ssh runner (see Runners), and the GUI checks of "macOS support"
   above.
 
 # Visibility (from the user, 2026-10-21)
@@ -87,13 +87,13 @@ Make runtree known and easy to try, now that it is installable (releases, Homebr
   `vte3` build there, but they would be a second GTK next to the desktop's. The tap's workflows (from `brew
   tap-new`): test-bot on macOS and Linux for the pull requests, which builds the bottles, pr-pull publishes them, and
   a daily autobump opens a pull request for a new tag. Bottles since 0.1.2 (macOS arm64, Linux x86_64). Later
-  `homebrew-core`, when runtree is notable enough for it. A formula, not a cask: a cask installs a prebuilt `.app`, that needs a Developer ID signature and
-  notarization.
+  `homebrew-core`, when runtree is notable enough for it. A formula, not a cask: a cask installs a prebuilt `.app`,
+  that needs a Developer ID signature and notarization.
 * Linux, the primary target: packages at about the same time, e.g. an AUR package (Arch, Manjaro) and a `.deb`
   (Debian, Ubuntu).
 * Done (2026-10-21): version numbers from the git tags (`--version`, docs/development.md "Versions and releases"),
   a release workflow that publishes the archives of a tag (Linux, macOS, Windows, the rtrunners, SHA256SUMS), a CI
-  job on macOS. Left before the Homebrew formula: the macOS items above.
+  job on macOS.
 
 # Logging (plan, 2026-10-17)
 
@@ -123,13 +123,15 @@ started (`~` is not expanded, it is a load error now).
 
 # Ideas (from the old README)
 
-* an expression language for conditions (e.g. https://expr-lang.org/)
+* an expression language for conditions and computed values, see `!expr` under "From TODO comments in the source"
 * a strict mode: an option to make the undefined variable warnings errors
-* deadlock detectors for locks and for dependencies (`runtree-headless` stops when nothing can go on; the GUI could
-  tell it too, e.g. "nothing can be started: these nodes are frozen / blocked")
+* deadlock detectors for locks and for dependencies (`runtree-headless` stops when nothing can go on; the GUI shows
+  "stopped: 1 paused, 1 frozen" on a running seq or par node that waits for paused or frozen nodes (2026-10-21), but
+  not the nodes that block each other)
 * the default of on_error from a command line option (runtree-headless already fails the nodes that would pause)
-* signals for a subtree with different runners (which signals can be sent?)
-* a conditional node: run a condition node first, and the other sub-nodes depending on its result
+* signals for a subtree with different runners: **All** sends a signal to every node of a subtree, and a runner
+  that cannot send it (e.g. SIGTERM on Windows) reports an error for its node; the menu could show only the signals
+  that the runners of the subtree can send
 * `load` nodes, custom nodes (create, change and delete sub-nodes on the fly)
 
 # Runners (plan, 2026-10-18)
@@ -169,10 +171,10 @@ connection still runs exactly one command, so a runner per run node needs no pro
    * Windows hosts: `rtrunner.exe` with a path works (`ssh://user@host/C:/path/to/rtrunner.exe`, tested on 2026-10-21
      with Windows 11). Managed runners do not: the OpenSSH server of Windows starts `cmd.exe` (or PowerShell), not
      `sh`, so the start and upload scripts do not work there (sftp for the upload?).
-4. Later: runner sessions that survive the GUI (below) with a runner per node: when the connection drops, the
-   runner keeps the process and a socket, and `rtrunner --attach ID` reattaches (like tmux/dtach). For the local
-   runner it needs a detached runner process instead of the embedded one. Headless mode (below) can use the
-   embedded runner, so a tree in CI is a single command.
+4. Later: runner sessions that survive the GUI (see the first list) with a runner per node: when the connection
+   drops, the runner keeps the process and a socket, and `rtrunner --attach ID` reattaches (like tmux/dtach). For the
+   local runner it needs a detached runner process instead of the embedded one. (`runtree-headless` keeps using the
+   embedded runner, so a tree in CI stays a single command.)
 5. Later, not urgent: remote locks, held by an rtrunner on a host (like `--lock`, but there), so that runtrees on
    different machines (e.g. on the laptops of several users) do not run the same tree, or use the same hosts, at the
    same time. E.g. a `lock` property with a runner and a path; the rtrunner holds the flock while the connection is
@@ -203,8 +205,7 @@ connection still runs exactly one command, so a runner per run node needs no pro
 
 # Appearance (from the user, 2026-10-17)
 
-The GUI is designed for a dark theme (`GTK_THEME=Adwaita:dark` or Dracula, with `GDK_DPI_SCALE`); `main.css` has
-about 40 hard coded colors.
+The GUI has a dark and a light palette (see below); it was designed for a dark theme first.
 
 * resize cursor (<->) on the dividers of the panes. GTK 4 sets `col-resize` / `row-resize` on the handle of a
   `gtk.Paned` (`mainpaned.go` uses wide handles); check why it does not show (cursor theme? CSS of the handle?), and
@@ -231,16 +232,14 @@ extension / yaml-language-server); the semantic checks need runtree's own parser
 3. Done: the language server `runtree-lsp` (`internal/lsp`, without GTK): the errors and warnings of `--check` as you
    type (with the unsaved changes, in the included files too), go to definition for includes, hover on variables
    (their values in the nodes, and where they are set), completion of include arguments; the VS Code extension
-   starts it. Still to do: find the includes of an object (references), and publish `runtree-lsp` binaries for
-   Windows and macOS (it builds without cgo).
+   starts it. Still to do: find the includes of an object (references). (The releases have `runtree-lsp` for Linux,
+   macOS and Windows since 0.1.0.)
 
 # From TODO comments in the source (2026-10-17)
 
 * expression language for computed values (e.g. a `!expr` tag), probably with [Expr](https://expr-lang.org)
   (MIT license): concatenating lists, replacing in strings, conditionals; variables of any type (numbers converted
   to strings with their source text, e.g. `1.10`)
-* navigator layout uses a hard-coded width of 1024 (`nodenavigator.go` `navigatorRowWidth`, a row with a long title
-  is wider): the rows could follow the width of the navigator
 * GTK command line parameters cannot be passed to the application (`gtkapplication.go` `RunApplication`)
 * recursive manual operations: allow them when they are allowed on the child nodes (`op.go` `PerformOp`)
 * allow a run node with empty `args` when `args_prefix` is not empty (`parser.go` `SelfCheck`)
@@ -260,9 +259,9 @@ pause-on-error -> manual fix -> resume automation, remote execution. No mainstre
 Ordered by impact:
 
 * Done: SSH transport for runners, instead of the unauthenticated TCP daemon on :5000 (see "Runners" above).
-* TUI frontend (non-GTK), so runtree works interactively over SSH, and on macOS/Windows (`runtree-headless` covers
-  the unattended runs, the TUI would be its interactive sibling).
-  GTK4+VTE+cgo is the biggest install/build barrier.
+* TUI frontend (non-GTK), so runtree works interactively over SSH, and on Windows (`runtree-headless` covers the
+  unattended runs, the TUI would be its interactive sibling). GTK4+VTE+cgo is the biggest build barrier (on macOS
+  Homebrew installs them, on Windows the GUI does not build).
 * Headless mode: done, `runtree-headless` (docs/headless.md, `internal/headless`, `rt.Tree.SetUnattended`): the
   output on stdout with the labels of the nodes, the events on stderr, on_error paused fails, the run stops when
   nothing runs and nothing can be started, exit codes 0 / 1 / 2 / 3 / 75 / 130 / 143. It also builds for Windows (the
@@ -279,7 +278,8 @@ Ordered by impact:
   also on Windows, uploads, a client without a terminal, ConPTY on Windows), the log database, the lock file (also the
   Windows one), the on_error sibling operations, the language server (also its edge cases: unknown methods, invalid
   params, unsaved and non-file documents, encoded paths), unattended trees and runtree-headless (the end of the run,
-  its output, exit codes). Still thin: the GUI (no tests).
+  its output, exit codes). Still thin: the GUI (its logic is tested, e.g. the lists, the appearance, the row widths,
+  the signal labels; there are no tests of the widgets).
 * Reduce DSL friction: avoid duplicating inventory via per-node `runner`; make it easy for
   a leaf node to call an existing Ansible playbook / script.
-* Pitch: "`make -j` for ops, where every job is a terminal you can step into".
+* Pitch: "`make -j` for ops, where every job is a terminal you can step into" (the tagline of the README).

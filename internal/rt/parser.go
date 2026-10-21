@@ -134,8 +134,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	} else {
 		n.Type = defType
 	}
-	// TODO: document this, if a node does not specify but it specifies include, then the default
-	// becomes Seq
+	// a node with include (and without type) is a seq node (docs/tree-files.md)
 	if hasInclude && !hasType {
 		n.Type = TypeSeq
 	}
