@@ -78,7 +78,6 @@ ldflags_debug = copy.copy(ldflags)
 ldflags += ["-s", "-w"]
 ldflags_gui = copy.copy(ldflags)
 if oss=="windows" and not is_mingw:
-	ldflags += ["-tags", "timetzdata"]
 	ldflags_gui += ["-H=windowsgui"]
 	ext = ".exe"
 
