@@ -39,7 +39,8 @@ the ones that wait for a host with `ping`) should say `runner: local`.
 
 The local runner is built into `runtree` (and `runtree-headless`): nothing else needs to be started. The processes run
 on the machine of runtree, as the user who started it, with the environment of runtree (see
-[environment](variables.md#environment)). It works on Windows too (`runtree-headless`), the ssh runners do not yet.
+[environment](variables.md#environment)). It works on Windows too (`runtree-headless`), and so do the
+[ssh runners](#ssh-runners).
 
 To run commands on other machines with the local runner, the commands can run `ssh` themselves, e.g. with
 `args_prefix: [ssh, -t, "root@{host}"]`. This works anywhere, but the `envs` and `cwd` of the node apply to the local
@@ -61,6 +62,12 @@ runs `rtrunner --stdio` on the host through it. The process runs on the host, in
 `ssh` is the ssh client of the system: it uses `~/.ssh/config` (host aliases, ports, `ProxyJump`...), the keys and
 `ssh-agent`. It runs in the background, without a terminal, so it cannot ask for passwords or passphrases
 (`BatchMode`), and the host key must be known already: connect to the host with `ssh` once.
+
+**From Windows.** `runtree-headless` starts the first `ssh` in the `PATH`, normally the OpenSSH client of Windows
+(`C:\Windows\System32\OpenSSH\ssh.exe`): it uses the keys of the `ssh-agent` service of Windows (add them with
+`ssh-add`) and `~\.ssh\known_hosts`. In Git Bash, the `ssh` of Git is the first one, and it does not use that agent.
+`ssh` runs without a console window, Ctrl+C in the console of `runtree-headless` does not reach it, and the
+connections are not shared (see below).
 
 ### Managed rtrunner
 
@@ -103,6 +110,7 @@ after runtree exits). Above the `MaxSessions` limit of the ssh server (10 by def
 
 The sockets of the connections are in `$XDG_RUNTIME_DIR/runtree`, or in the cache directory of the user when it is not
 set (e.g. `~/.cache/runtree/ssh`, `~/Library/Caches/runtree/ssh` on macOS). `--no-ssh-share` turns the sharing off.
+On Windows the connections are not shared: its OpenSSH has no `ControlMaster`, so each process logs in.
 
 ## rtrunner daemons
 

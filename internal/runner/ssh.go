@@ -55,11 +55,12 @@ func SetSSHShare(enabled bool) {
 const maxSocketPath = 103
 
 // controlDir returns the private directory of the control sockets of the shared ssh connections, or "" when they are
-// not shared: $XDG_RUNTIME_DIR/runtree, or the cache directory of the user (e.g. on macOS)
+// not shared (never on Windows, see sshShareSupported): $XDG_RUNTIME_DIR/runtree, or the cache directory of the user
+// (e.g. on macOS)
 func controlDir() string {
 	sshShare.lock.Lock()
 	defer sshShare.lock.Unlock()
-	if sshShare.disabled {
+	if sshShare.disabled || !sshShareSupported {
 		return ""
 	}
 	if sshShare.dir != nil {

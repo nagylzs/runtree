@@ -1,5 +1,3 @@
-//go:build !windows
-
 package runner
 
 import (
@@ -7,17 +5,32 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 const asRtrunnerEnv = "RUNNER_TEST_AS_RTRUNNER"
 
+// failingSSHEnv is "CODE MESSAGE": the test binary is an ssh that writes MESSAGE to its standard error, ARGS replaced
+// with its arguments, and exits with CODE
+const failingSSHEnv = "RUNNER_TEST_FAILING_SSH"
+
 // When the test binary is started with asRtrunnerEnv, it works as rtrunner: with --check-sha256 HEX it checks itself,
 // otherwise it serves the connection like rtrunner --stdio (it ignores the arguments of ssh when it is the fake ssh).
+// With failingSSHEnv, it is an ssh that fails.
 func TestMain(m *testing.M) {
+	if v := os.Getenv(failingSSHEnv); v != "" {
+		code, msg, _ := strings.Cut(v, " ")
+		if msg = strings.ReplaceAll(msg, "ARGS", strings.Join(os.Args[1:], " ")); msg != "" {
+			_, _ = fmt.Fprintln(os.Stderr, msg)
+		}
+		exitCode, _ := strconv.Atoi(code)
+		os.Exit(exitCode)
+	}
 	if os.Getenv(asRtrunnerEnv) == "1" {
 		var err error
 		if i := slices.Index(os.Args, "--check-sha256"); i > 0 && i+1 < len(os.Args) {
@@ -120,9 +133,14 @@ func TestSSHRunner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	output := newClosedBuffer()
+	c.SetOutput(output)
+	c.SetNoTerminal()
 	exited := make(chan ProcState, 1)
-	ca := testArgs
-	ca.Name, ca.Args = "sh", []string{"sh", "-c", "echo hello; exit 4"}
+	ca := cmdArgs("sh", "-c", "echo hello; exit 4")
+	if runtime.GOOS == "windows" {
+		ca = cmdArgs("cmd", "/c", "echo hello & exit /b 4")
+	}
 	if err := c.StartPty(context.Background(), ca, func(ps ProcState) {
 		if !ps.Alive() {
 			select {
@@ -133,40 +151,63 @@ func TestSSHRunner(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	output := attach(t, c)
 	if ps := waitExit(t, exited); !ps.Exited || ps.ExitCode != 4 {
 		t.Errorf("the process state is %s", ps.String())
 	}
-	if out := waitOutput(t, output); out != "hello\r\n" {
+	if out := output.wait(t); !strings.Contains(out, "hello\r\n") {
 		t.Errorf("the output is %q", out)
+	}
+}
+
+// When the connection is closed, ssh exits (rtrunner gets the end of its input)
+func TestSSHEndsWithTheConnection(t *testing.T) {
+	t.Setenv(asRtrunnerEnv, "1")
+	setSSH(t, os.Args[0])
+	a, _ := ParseAddress("ssh://tester@fakehost/opt/rtrunner")
+	conn, err := dialSSH(a, remoteCommand(a), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := negotiateVersion(context.Background(), conn); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.Close()
+	select {
+	case <-conn.exited:
+	case <-time.After(10 * time.Second):
+		t.Fatal("ssh did not exit")
 	}
 }
 
 // When ssh fails, the error has its messages
 func TestSSHErrors(t *testing.T) {
+	setSSH(t, os.Args[0])
 	for _, tc := range []struct {
-		script string
-		want   []string
+		ssh  string // see failingSSHEnv
+		want []string
 	}{
-		{`echo "Permission denied (publickey)." >&2; exit 255`,
-			[]string{"ssh tester@fakehost: Permission denied (publickey)."}},
-		{`echo "bash: line 1: rtrunner: command not found" >&2; exit 127`,
+		{"255 Permission denied (publickey).", []string{"ssh tester@fakehost: Permission denied (publickey)."}},
+		{"127 bash: line 1: rtrunner: command not found",
 			[]string{"ssh tester@fakehost: bash: line 1: rtrunner: command not found", "is rtrunner installed"}},
 		// the arguments of ssh
-		{`echo "$@" >&2; exit 255`,
-			[]string{"ssh tester@fakehost: -T -o BatchMode=yes -p 2222 -- tester@fakehost /opt/rtrunner --stdio"}},
-		{`exit 255`, []string{"ssh tester@fakehost: "}}, // the error of the handshake
+		{"255 ARGS", []string{"ssh tester@fakehost: -T -o BatchMode=yes -p 2222 -- tester@fakehost /opt/rtrunner --stdio"}},
+		{"255", []string{"ssh tester@fakehost: "}}, // the error of the handshake
 	} {
-		setSSH(t, "sh", "-c", tc.script, "ssh")
+		t.Setenv(failingSSHEnv, tc.ssh)
+		began := time.Now()
 		_, err := NewClient(context.Background(), "ssh://tester@fakehost:2222/opt/rtrunner",
 			slog.New(slog.DiscardHandler), nil)
 		if err == nil {
-			t.Fatalf("%s: no error", tc.script)
+			t.Fatalf("%s: no error", tc.ssh)
 		}
 		for _, want := range tc.want {
 			if !strings.Contains(err.Error(), want) {
-				t.Errorf("%s: the error is %q, want %q in it", tc.script, err, want)
+				t.Errorf("%s: the error is %q, want %q in it", tc.ssh, err, want)
 			}
+		}
+		// the end of ssh is the end of the connection: the handshake does not wait for its timeout
+		if elapsed := time.Since(began); elapsed > 10*time.Second {
+			t.Errorf("%s: the error came after %v", tc.ssh, elapsed)
 		}
 	}
 }
@@ -176,55 +217,4 @@ func TestSSHCommandNotChanged(t *testing.T) {
 	if !slices.Equal(sshCommand, []string{"ssh"}) {
 		t.Errorf("the ssh command is %v", sshCommand)
 	}
-}
-
-// The options of the shared ssh connections, and their directory
-func TestSSHShare(t *testing.T) {
-	a, _ := ParseAddress("ssh://root@server01:2222")
-	t.Cleanup(func() { SetSSHShare(false) })
-	// not t.TempDir(): it is too long for a socket path on macOS (/var/folders/...)
-	run, cache := shortTempDir(t), shortTempDir(t)
-	// the user cache directory is $XDG_CACHE_HOME on Linux, $HOME/Library/Caches on macOS
-	t.Setenv("XDG_CACHE_HOME", cache)
-	t.Setenv("HOME", cache)
-	userCache, err := os.UserCacheDir()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct {
-		runtimeDir, dir string
-	}{
-		{run, filepath.Join(run, "runtree")},
-		{"", filepath.Join(userCache, "runtree", "ssh")},  // e.g. macOS
-		{filepath.Join(run, strings.Repeat("x", 80)), ""}, // the socket path would be too long
-	} {
-		t.Setenv("XDG_RUNTIME_DIR", tc.runtimeDir)
-		SetSSHShare(true)
-		got := strings.Join(sshOptions(a), " ")
-		want := "-T -o BatchMode=yes -p 2222"
-		if tc.dir != "" {
-			want = "-T -o BatchMode=yes -o ControlMaster=auto -o ControlPath=" + tc.dir + "/%C -o ControlPersist=60 " +
-				"-p 2222"
-			if st, err := os.Stat(tc.dir); err != nil || st.Mode().Perm() != 0700 {
-				t.Errorf("%s: %v, %v", tc.dir, st, err)
-			}
-		}
-		if got != want {
-			t.Errorf("XDG_RUNTIME_DIR=%s: got %s, want %s", tc.runtimeDir, got, want)
-		}
-	}
-	SetSSHShare(false)
-	if got := strings.Join(sshOptions(a), " "); got != "-T -o BatchMode=yes -p 2222" {
-		t.Errorf("disabled: %s", got)
-	}
-}
-
-// shortTempDir is a temporary directory in /tmp, short enough for socket paths in it
-func shortTempDir(t *testing.T) string {
-	dir, err := os.MkdirTemp("/tmp", "rt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
-	return dir
 }

@@ -118,8 +118,8 @@ GUI's `runtree --show-output NODE` prints the output of a node from there.
 
 SIGINT (Ctrl+C) and SIGTERM stop the run: `runtree-headless` stops starting nodes, and terminates the processes that
 still run like `runtree` does when it exits (SIGINT, then SIGTERM after 10 seconds and SIGKILL after 10 more), then it
-prints the summary. A second signal exits at once. On Windows the processes are killed at once (there are no
-signals).
+prints the summary. A second signal exits at once. On Windows the processes of the local runner are killed at once
+(there are no signals), the processes on other hosts get the signals.
 
 ## In CI and cron
 
@@ -145,5 +145,6 @@ From cron, with a lock file, so that a slow run is not started twice (exit code 
   them): then they fail instead of waiting forever.
 - **A process that never exits** holds up the run the same way, unless it has a `timeout`.
 - **Windows.** `runtree-headless` and the local runner work on Windows (the processes run in ConPTY pseudo consoles,
-  whose output has more terminal control sequences than a Linux terminal's), but the ssh runners do not. It has been
-  tested on Windows 11, with cmd, PowerShell and console programs.
+  whose output has more terminal control sequences than a Linux terminal's), and so do the ssh runners, with the
+  OpenSSH client of Windows (see [ssh runners](runners.md#ssh-runners)). It has been tested on Windows 11, with cmd,
+  PowerShell and console programs.

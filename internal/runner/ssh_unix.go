@@ -9,6 +9,9 @@ import (
 	"syscall"
 )
 
+// sshShareSupported tells whether ssh can share connections (ControlMaster)
+const sshShareSupported = true
+
 // startSSH starts ssh with its standard input and output connected to the returned connection
 func startSSH(name string, args []string, stderr io.Writer) (net.Conn, *exec.Cmd, error) {
 	conn, f, err := socketPairFile()

@@ -38,11 +38,13 @@
   a pseudo console with 0 columns or rows. `rtrunner.exe` over TCP works with the GUI on the Mac and on Linux: the
   terminals of the ConPTY processes in VTE (colors, Unicode, `Write-Progress`), typing into cmd and PowerShell, resize,
   signals (SIGKILL ends the process with exit code 1), closing the GUI while they run. (`exit` without a code in cmd
-  exits with the last ERRORLEVEL, e.g. 9009 after a command that was not found.) Left:
+  exits with the last ERRORLEVEL, e.g. 9009 after a command that was not found.) The `ssh://` runner works from
+  Windows (`startSSH` with the pipes of `ssh.exe`, without connection sharing: the ssh of Windows (OpenSSH 9.5) fails
+  with "getsockname failed: Not a socket" with `ControlMaster`): `runtree-headless` to the Mac with the managed upload,
+  exit codes, start errors, `timeout`, Ctrl+C with remote nodes (`Tree.TerminateRemote`). Fixed: an rtrunner started
+  by sshd ignores Ctrl+C, and its processes inherited that (a `timeout` did not stop them). Left:
   * the command lines are quoted for a Unix shell also for a Windows runner: the CmdLine property (`shellEscape`) and
     the start event (`quoteArgs`, it doubles the backslashes); copied into cmd or PowerShell, they do not work;
-  * the `ssh://` runner from Windows: `startSSH` is not implemented there (see Headless), and `sshOptions` must not
-    turn on `ControlMaster` there: the ssh of Windows (OpenSSH 9.5) fails with "getsockname failed: Not a socket";
   * the ConPTY control sequences in the output of runtree-headless: each node starts with `ESC[?9001h ESC[?1004h
     ESC[?25l ESC[2J ESC[m ESC[H` and the title of the console (`ESC]0;C:\WINDOWS\system32\cmd.exe BEL`), and ends
     with `ESC[?25h ESC[?9001l ESC[?1004l`, often on a line of its own; blank lines become cursor moves (`ESC[7;1H`),
@@ -153,7 +155,8 @@ connection still runs exactly one command, so a runner per run node needs no pro
    it is renamed; the binaries are embedded (`build.py`, `-tags rtrunners`), `--rtrunner-dir` overrides them.
    Still to do:
    * Done: one shared SSH connection per host (`ControlMaster=auto`, `ControlPersist=60`, sockets in
-     `$XDG_RUNTIME_DIR/runtree`; above `MaxSessions` ssh makes a new connection), `--no-ssh-share`
+     `$XDG_RUNTIME_DIR/runtree`; above `MaxSessions` ssh makes a new connection), `--no-ssh-share`; not on
+     Windows (no `ControlMaster`)
    * darwin/arm64 is tested (2026-10-21, from Linux to a Mac with macOS 27): the upload, 12 parallel nodes,
      `timeout`, `Tree.TerminateRemote`. The binary has the ad-hoc signature of the linker, and a file uploaded over ssh
      has no quarantine attribute, so Gatekeeper does not check it. Not tested: darwin/amd64, `uname -m` under Rosetta
@@ -249,19 +252,18 @@ Ordered by impact:
   local runner works there: a loopback TCP pair instead of a socket pair; ConPTY finds the programs in the PATH, gets
   the whole command line, and is closed after the exit; tested on Windows 11, see "test on Windows" above). The
   `timeout` property stops the steps that wait for input or never exit. Next:
-  * ssh runners on Windows (`startSSH` with the pipes of `ssh.exe`; Windows OpenSSH has no ControlMaster, so no
-    connection sharing);
   * test it on macOS;
   * Done: `--thaw NODE` opens approval gates (also in the GUI), the `lock` property of the root node locks the tree
-    without `--lock` (the GUI shows the holder in a window), `--output failed` and `--output none`.
+    without `--lock` (the GUI shows the holder in a window), `--output failed` and `--output none`, the ssh
+    runners on Windows.
   * maybe: `--lock-wait [DURATION]` to wait for the lock instead of exit 75 (for queued CI runs).
 * Better test coverage. The test suite (`go test ./...`, run by CI) covers the parser and its errors, vars
   substitution, the operations, reset / re-run and unprovide, the events, the scheduler (seq/par order, max_proc,
   frozen/skipped, requires, xlocks/rlocks, with real processes too), the runners (local, TCP, ssh with a fake ssh,
-  uploads, a client without a terminal, ConPTY on Windows), the log database, the lock file (also the Windows one), the
-  on_error sibling operations, the language server (also its edge cases: unknown methods, invalid params, unsaved and
-  non-file documents, encoded paths), unattended trees and runtree-headless (the end of the run, its output, exit
-  codes). Still thin: the GUI (no tests).
+  also on Windows, uploads, a client without a terminal, ConPTY on Windows), the log database, the lock file (also the
+  Windows one), the on_error sibling operations, the language server (also its edge cases: unknown methods, invalid
+  params, unsaved and non-file documents, encoded paths), unattended trees and runtree-headless (the end of the run,
+  its output, exit codes). Still thin: the GUI (no tests).
 * Reduce DSL friction: avoid duplicating inventory via per-node `runner`; make it easy for
   a leaf node to call an existing Ansible playbook / script.
 * Pitch: "`make -j` for ops, where every job is a terminal you can step into".
