@@ -182,9 +182,15 @@ func (s *Server) ServePty(ctx context.Context) error {
 		ca.Env = append(environ(), ca.Env...)
 	}
 
-	ptyRunner, err := s.startPty(ca)
+	err = checkDir(ca.Cwd)
+	var ptyRunner PtyRunner
+	if err == nil {
+		ptyRunner, err = s.startPty(ca)
+	}
 	if err != nil {
-		return err
+		// the error of the start is not an error of the server, the client gets it
+		s.startFailed(ca.Args, err)
+		return nil
 	}
 	s.startLock.Lock()
 	s.ptyRunner = ptyRunner
@@ -233,6 +239,38 @@ func (s *Server) ServePty(ctx context.Context) error {
 	return nil
 }
 
+// checkDir returns an error when the working directory of the command does not exist: the error of the start would not
+// tell it (on Unix it is "fork/exec PROGRAM: no such file or directory", on Windows "The directory name is invalid.").
+// os.StartProcess checks it the same way, but not with the SysProcAttr of the pty.
+func checkDir(dir string) error {
+	if dir == "" {
+		return nil
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		var pe *os.PathError
+		if errors.As(err, &pe) {
+			pe.Op = "chdir"
+		}
+		return err
+	}
+	if !fi.IsDir() {
+		// not syscall.ENOTDIR: on Windows that is "The system cannot find the path specified."
+		return fmt.Errorf("chdir %s: not a directory", dir)
+	}
+	return nil
+}
+
+// startFailed sends the error of the start to the client as the state of the process, and receives its commands until
+// it disconnects: as after an exit, the server must not close the connection first (see recvCommands)
+func (s *Server) startFailed(args []string, err error) {
+	s.logger.Error("could not start the command", "args", args, "error", err)
+	s.logError(s.sendProcState(err))
+	s.wg.Add(1)
+	go s.recvCommands()
+	s.wg.Wait()
+}
+
 func (s *Server) logError(err error) {
 	if err != nil {
 		s.logger.Error(err.Error())
@@ -254,6 +292,9 @@ func (s *Server) requestStop(err error) {
 // the grace periods. Without this, a process that ignores SIGINT (e.g. an interactive shell) would keep running,
 // and it would block as soon as its output buffer is full.
 func (s *Server) terminateProcess() {
+	if s.ptyRunner == nil { // it could not be started
+		return
+	}
 	steps := []struct {
 		sig   os.Signal
 		grace time.Duration
@@ -396,6 +437,9 @@ func (s *Server) recvResize(ctx context.Context) {
 		return
 	}
 	s.logger.Debug("resize", "size", ws)
+	if s.ptyRunner == nil { // it could not be started
+		return
+	}
 	err = s.ptyRunner.Resize(ws)
 	if err != nil {
 		s.requestStop(fmt.Errorf("could not resize pty: %w", err))

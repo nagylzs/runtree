@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -42,14 +41,6 @@ func TestParseAddress(t *testing.T) {
 	}
 }
 
-func newTestLocalRunner() *localRunner {
-	l := newLocalRunner()
-	l.handler = slog.DiscardHandler
-	return l
-}
-
-var testArgs = CmdArgs{InheritSysEnvs: true, InitialPtySize: WinSize{Rows: 24, Cols: 80}}
-
 // startLocal starts a command on the local runner l, and returns its client, its terminal output when it exits, and
 // its exit status
 func startLocal(t *testing.T, l *localRunner, args ...string) (*Client, <-chan string, <-chan ProcState) {
@@ -69,9 +60,7 @@ func startOn(t *testing.T, conn net.Conn, args ...string) (*Client, <-chan strin
 		t.Fatal(err)
 	}
 	exited := make(chan ProcState, 1)
-	ca := testArgs
-	ca.Name, ca.Args = args[0], args
-	err = c.StartPty(context.Background(), ca, func(ps ProcState) {
+	err = c.StartPty(context.Background(), cmdArgs(args...), func(ps ProcState) {
 		if !ps.Alive() {
 			select {
 			case exited <- ps:
@@ -110,26 +99,6 @@ func waitOutput(t *testing.T, output <-chan string) string {
 		t.Fatal("the terminal was not closed")
 	}
 	return ""
-}
-
-func waitExit(t *testing.T, exited <-chan ProcState) ProcState {
-	t.Helper()
-	select {
-	case ps := <-exited:
-		return ps
-	case <-time.After(10 * time.Second):
-		t.Fatal("the process did not exit")
-	}
-	return ProcState{}
-}
-
-func waitServers(t *testing.T, l *localRunner) {
-	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); l.running() > 0; time.Sleep(50 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatalf("%d servers are running", l.running())
-		}
-	}
 }
 
 func TestLocalRunner(t *testing.T) {
@@ -218,24 +187,6 @@ func TestVersionMismatch(t *testing.T) {
 	}
 }
 
-// closedBuffer is an output writer that tells when it is closed
-type closedBuffer struct {
-	mu     sync.Mutex
-	b      strings.Builder
-	closed chan struct{}
-}
-
-func (w *closedBuffer) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.b.Write(p)
-}
-
-func (w *closedBuffer) Close() error {
-	close(w.closed)
-	return nil
-}
-
 // Without a terminal, the output only goes to the output writer, and it is closed at the end of the output. A process
 // with a lot of output does not block, also when the writer fails.
 func TestNoTerminal(t *testing.T) {
@@ -245,55 +196,22 @@ func TestNoTerminal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		c, err := newClient(context.Background(), conn, HandshakeTimeout, slog.New(slog.DiscardHandler), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		out := &closedBuffer{closed: make(chan struct{})}
+		out := newClosedBuffer()
 		var w io.Writer = out
 		if failing {
 			w = failingWriter{out}
 		}
-		c.SetOutput(w)
-		c.SetNoTerminal()
-		exited := make(chan ProcState, 1)
-		ca := testArgs
-		ca.Name, ca.Args = "sh", []string{"sh", "-c", "seq 1 100000; echo done"}
-		err = c.StartPty(context.Background(), ca, func(ps ProcState) {
-			if !ps.Alive() {
-				select {
-				case exited <- ps:
-				default:
-				}
-			}
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		c, exited := startNoTerminal(t, conn, cmdArgs("sh", "-c", "seq 1 100000; echo done"), w)
 		if c.PtyPath != "" {
 			t.Errorf("there is a terminal socket: %s", c.PtyPath)
 		}
 		if ps := waitExit(t, exited); !ps.Exited || ps.ExitCode != 0 {
 			t.Errorf("the process state is %s", ps.String())
 		}
-		select {
-		case <-out.closed:
-		case <-time.After(10 * time.Second):
-			t.Fatal("the output is not closed")
-		}
-		if !failing && !strings.HasSuffix(out.b.String(), "100000\r\ndone\r\n") {
-			t.Errorf("the end of the output is %q", out.b.String()[max(0, out.b.Len()-30):])
+		output := out.wait(t)
+		if !failing && !strings.HasSuffix(output, "100000\r\ndone\r\n") {
+			t.Errorf("the end of the output is %q", output[max(0, len(output)-30):])
 		}
 	}
 	waitServers(t, l)
-}
-
-// failingWriter writes to w, and returns an error
-type failingWriter struct {
-	*closedBuffer
-}
-
-func (w failingWriter) Write(p []byte) (int, error) {
-	_, _ = w.closedBuffer.Write(p)
-	return 0, errors.New("failing writer")
 }
