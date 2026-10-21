@@ -81,7 +81,15 @@ func (w *windowsPtyRunner) Close() error {
 }
 
 func (s *Server) startPty(ca CmdArgs) (PtyRunner, error) {
-	cpty, err := conpty.New(int16(ca.InitialPtySize.Cols), int16(ca.InitialPtySize.Rows))
+	// conpty.New fails with 0 columns or rows (a pty on Unix does not), e.g. when the terminal of the GUI has no size
+	cols, rows := ca.InitialPtySize.Cols, ca.InitialPtySize.Rows
+	if cols == 0 {
+		cols = 80
+	}
+	if rows == 0 {
+		rows = 24
+	}
+	cpty, err := conpty.New(int16(cols), int16(rows))
 	if err != nil {
 		return nil, err
 	}
