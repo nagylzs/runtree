@@ -73,7 +73,10 @@ The [examples](examples/README.md) go from the simplest tree to this one, step b
 
 ## Installation
 
-runtree runs on Linux, and it is built from source for now. With Go 1.25+, GTK 4 and VTE development packages:
+The [releases](https://github.com/nagylzs/runtree/releases) have the programs for Linux (amd64), macOS (Apple
+silicon) and Windows (without the GUI): unpack the archive and put the programs in your `PATH`. The GUI needs GTK 4,
+VTE and socat from your system (`brew install gtk4 vte3 socat` on macOS). Or build it from source, with Go 1.25+, GTK
+4 and VTE development packages:
 
 ```bash
 sudo apt install -y build-essential pkg-config golang git python3 socat \
@@ -98,10 +101,12 @@ See [Getting started](docs/getting-started.md) for the details and other distrib
 
 ## Status
 
-runtree is used for real upgrades and deployments, but it is young: the tree format and the options may still
-change. The GUI runs on Linux, and it builds on macOS (not tested there yet); the runner (`rtrunner`) also runs on
-macOS and Windows, and `runtree-headless` (without the GUI, e.g. for CI) on Windows too (tested under wine only).
-There are no packages or releases yet.
+runtree is used for real upgrades and deployments, but it is young: the versions before 1.0 are development
+releases, and the tree format, the options and the runner protocol may still change between minor versions. Use the
+same version of runtree and of the `rtrunner`s that you install by hand (managed ssh runners are uploaded by runtree,
+so they always match; a different version is a start error, not a silent one). The GUI runs on Linux and macOS; the
+runner (`rtrunner`) and `runtree-headless` (without the GUI, e.g. for CI) also run on Windows. There are no
+distribution packages yet (a Homebrew tap and Linux packages are planned).
 
 ## License
 

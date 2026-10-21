@@ -54,8 +54,8 @@ The version comes from the git tags: `v0.1.0` on the tagged commit, `v0.1.0-5-g1
 with `-dirty` when there were uncommitted changes, `v0.0.0-g<commit>` before the first tag. `scripts/build.py` puts it
 in the programs with the commit, the branch and the build time (`--version`, the ☰ menu of the GUI, the runs of the
 log database, the language server); a plain `go build` or `go install` gets the version and the commit from Go's build
-information. The versions follow [semantic versioning](https://semver.org/); before 1.0 the tree format may still
-change in a minor version.
+information. The versions follow [semantic versioning](https://semver.org/); before 1.0 the tree format, the options
+and the runner protocol (`runner.Version`) may still change in a minor version.
 
 To release, tag a commit of `main` and push the tag:
 
