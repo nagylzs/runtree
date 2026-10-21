@@ -63,14 +63,10 @@
 
 Make runtree known and easy to try, now that it is installable (releases, Homebrew). Roughly in this order:
 
-* the GitHub page: the description (it has a stray backtick, and it should say what runtree is for: runbooks of
-  commands, each in a terminal that you can step into, on this machine or others), topics (e.g. devops, sysadmin,
-  runbook, automation, terminal, ssh, gtk4, golang), a social preview image;
-* the README's first screen: one sentence on what it is and for whom, a screenshot or a short recording of stepping
-  into the terminal of a running node (needs the new screenshots, see the first item above), how to install;
-* "Why runtree": what it does that its neighbors do not (CI and task runners: no terminal to step into; Ansible,
-  Rundeck: steps must not ask anything; tmuxinator, mprocs, process-compose: services on one machine, not a tree that
-  runs once), honestly, with what they do better;
+* Done (2026-10-21): the GitHub page (the description, the topics; the social preview is
+  docs/images/social-preview.png, uploaded by hand in Settings → General), the README's first screen (who it is for,
+  the new screenshot, how to install), "Why runtree" in the README (CI systems; Ansible, Rundeck; tmuxinator, mprocs,
+  process-compose), the new screenshots;
 * a real example: an upgrade or a deployment runbook, with gates, a password prompt, a remote host;
 * making it easy to contribute: CONTRIBUTING.md (the build, the tests, the three platforms), issue templates;
 * publishing the VS Code extension (Marketplace, Open VSX);

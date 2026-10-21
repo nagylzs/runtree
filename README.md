@@ -8,11 +8,16 @@
 **`make -j` for operations, where every job is a terminal you can step into.**
 
 runtree runs the steps of an operations task (upgrading a fleet of servers, a deployment, a build pipeline) as a tree
-of commands: in order where they must be, in parallel where they can be. Every command runs in its own live terminal,
-and a GUI shows the whole tree, so you can watch it, answer a prompt, and when something fails: pause, fix it, re-run
-the step, and let the automation continue.
+of commands: in order where they must be, in parallel where they can be, on this machine or on other hosts over ssh.
+Every command runs in its own live terminal, and a GUI shows the whole tree, so you can watch it, answer a prompt, and
+when something fails: pause, fix it, re-run the step, and let the automation continue. It is for sysadmins and
+developers whose upgrades and deployments are mostly automated, but still need a person now and then.
 
 ![runtree upgrading web servers: one host failed and paused, the rollout stopped](docs/images/runtree.png)
+
+**Install:** `brew install nagylzs/runtree/runtree` (macOS; on Linux without the GUI), or the programs of the
+[releases](https://github.com/nagylzs/runtree/releases) (Linux, macOS, and Windows without the GUI). See
+[Installation](#installation).
 
 ## Features
 
@@ -31,6 +36,25 @@ the step, and let the automation continue.
 - **Without the GUI too:** `runtree-headless` runs the same trees in CI or from cron, with the output of every step
   on stdout and an exit code that tells how the run ended (it also stops when nothing can go on, e.g. frozen nodes).
 - **Editor support:** a JSON Schema, a language server and a VS Code extension, with errors as you type.
+
+## Why runtree
+
+Many tools run commands for you, and most of them assume that a step either works on its own or fails. Operations are
+often messier: a package asks a question, a host needs a look before the rollout goes on, a step fails and you would
+rather fix it by hand and go on than start over.
+
+- **CI systems** (Jenkins, GitHub Actions, GitLab CI) run pipelines of steps, but the output of a step is a log that
+  you cannot type into. They are the better choice when nobody should be needed at all.
+- **Configuration management and runbook automation** (Ansible, Rundeck) reach many hosts, and Ansible keeps them in
+  a declared state, but the commands that they run cannot ask you anything, and you follow the run in its log. They
+  are the better choice for keeping a fleet in a known state.
+- **Terminal multiplexers and process managers** (tmux with tmuxinator, mprocs, process-compose) give every process a
+  live terminal, but they are made mainly to keep the services of a development environment running on one machine.
+  They are the better choice for that.
+
+runtree sits between them: a tree of steps that runs to its end, every step in a real terminal that you can step
+into, here or on other hosts over ssh, with you in the loop when you are needed; and the same tree runs unattended
+with [`runtree-headless`](docs/headless.md) when you are not.
 
 ## Example
 
