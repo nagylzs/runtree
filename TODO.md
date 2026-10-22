@@ -192,7 +192,8 @@ connection still runs exactly one command, so a runner per run node needs no pro
 * Done (2026-10-21): the rows of the navigator are as wide as it is (not 1024 px), so it scrolls sideways only when a
   row needs more, and the overlay scroll indicator does not flash when rows open and close; they get the new width
   150 ms after the divider stops (602 nodes: a layout is about 1 ms).
-* the left pane in a list view needs about 300 logical px (the menu button, "Run nodes only", ☰): when it is
+* the left pane in a list view needs about 300 logical px (the menu button, "Run nodes only", ☰), about 85 more while
+  the numbers of the failed and the paused nodes are shown (2026-10-22): when it is
   narrower, GtkPaned cuts its left part off, with the location buttons of the list. E.g. "Run nodes only" into the
   popover of the menu button, or a smaller minimum width of the left pane.
 * Done: the path in the header wraps, its nodes are links that show the node in the tree; the lists of the navigator

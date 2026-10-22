@@ -22,6 +22,9 @@ The button above the tree chooses the view: **Tree** shows the whole tree, the o
 Success, Failed, Skipped, Paused) list the nodes in that status, with their numbers; **Blocked** lists the nodes that
 wait for a [required resource or a lock](coordination.md) (its properties tell which one, and who holds the lock). A
 check box limits the lists to run nodes.
+The nodes that may need you are counted next to them in every view: a red ✕ with the number of the failed nodes and a
+violet ⏸ with the number of the paused ones (only when there are any, counted like their lists); a click opens their
+list.
 In a list, the location button of a node shows it in the tree: it switches to the Tree view, opens the parents of the
 node, selects it, and scrolls to it.
 

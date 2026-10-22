@@ -2,6 +2,8 @@ package gtkui
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -23,6 +25,17 @@ type MainPaned struct {
 	navModeButtons   map[NavMode]*gtk.ToggleButton
 	navModeMenu      *gtk.MenuButton // shows the mode, its popover has navModeButtons
 	cbRunOnly        *gtk.CheckButton
+	attention        map[NavMode]*attentionButton // next to cbRunOnly, see attentionModes
+}
+
+// attentionModes are the lists of the nodes that may need the user: next to the view switcher, a button shows how
+// many nodes they have (when they have any), and opens the list
+var attentionModes = []NavMode{NavModeFailed, NavModePaused}
+
+// attentionButton shows the number of the nodes of an attention mode, in the color of their status
+type attentionButton struct {
+	*gtk.Button
+	count *gtk.Label
 }
 
 func NewMainPaned() *MainPaned {
@@ -66,6 +79,7 @@ func NewMainPaned() *MainPaned {
 	cbRunOnly.SetVisible(nav.Mode() != NavModeTree)
 	cbRunOnly.ConnectToggled(func() {
 		nav.SetOnlyShowRunNodes(cbRunOnly.Active())
+		Application.pane.updateNavModeButtons() // the counts
 	})
 
 	navModeButtons := make(map[NavMode]*gtk.ToggleButton)
@@ -86,9 +100,7 @@ func NewMainPaned() *MainPaned {
 		}
 		tb.ConnectClicked(func() {
 			navModePopover.Popdown()
-			nav.SetMode(navMode)
-			cbRunOnly.SetVisible(navMode != NavModeTree)
-			Application.pane.updateNavModeButtons()
+			Application.pane.setNavMode(navMode)
 		})
 		navModeButtons[navMode] = tb
 		return tb
@@ -98,6 +110,26 @@ func NewMainPaned() *MainPaned {
 		addNavModeButton(navModeTooltip(nm), nm, tbTree)
 	}
 	navRow.Append(cbRunOnly)
+	attention := make(map[NavMode]*attentionButton)
+	for _, nm := range attentionModes {
+		icon := iconFail
+		if nm == NavModePaused {
+			icon = iconPause
+		}
+		content, _, count := newOpButtonContent(icon, "")
+		content.SetSpacing(3)
+		b := &attentionButton{Button: gtk.NewButton(), count: count}
+		b.SetChild(content)
+		b.SetVAlign(gtk.AlignCenter)
+		b.AddCSSClass("attention")
+		b.AddCSSClass("status-" + strings.ToLower(NavModeName(nm)))
+		b.SetVisible(false) // until there are such nodes
+		b.ConnectClicked(func() {
+			Application.pane.setNavMode(nm)
+		})
+		attention[nm] = b
+		navRow.Append(b)
+	}
 	settingsMenu := newSettingsMenu()
 	settingsMenu.SetHExpand(true)
 	settingsMenu.SetHAlign(gtk.AlignEnd)
@@ -145,6 +177,7 @@ func NewMainPaned() *MainPaned {
 		navModeButtons: navModeButtons,
 		navModeMenu:    navModeMenu,
 		cbRunOnly:      cbRunOnly,
+		attention:      attention,
 	}
 	m.SetStartChild(leftSide)
 	m.SetEndChild(rightSide)
@@ -175,11 +208,16 @@ func setInitialPosition(p *gtk.Paned, pos int) {
 // ShowInTree switches to the tree view mode, and selects the node there (see NodeNavigator.ShowNode). It must be
 // called from the main gtk loop, with the tree unlocked.
 func (m *MainPaned) ShowInTree(node *rt.Node) {
-	m.navModeButtons[NavModeTree].SetActive(true)
-	m.cbRunOnly.SetVisible(false)
-	m.navigator.SetMode(NavModeTree)
-	m.updateNavModeButtons()
+	m.setNavMode(NavModeTree)
 	m.navigator.ShowNode(node)
+}
+
+// setNavMode switches the navigator to a view mode (main gtk loop, the tree unlocked)
+func (m *MainPaned) setNavMode(mode NavMode) {
+	m.navModeButtons[mode].SetActive(true)
+	m.cbRunOnly.SetVisible(mode != NavModeTree)
+	m.navigator.SetMode(mode)
+	m.updateNavModeButtons()
 }
 
 func (m *MainPaned) SetTerminalWidget(child gtk.Widgetter) {
@@ -196,16 +234,8 @@ func (m *MainPaned) updateNavModeButtons() {
 	RunTree.RLock("NewNodeNavigator")
 	defer RunTree.RUnlock()
 
-	counts := make(map[NavMode]int)
-	counts[NavModeTree] = len(RunTree.Nodes)
 	onlyRun := m.navigator.OnlyShowRunNodes()
-	for _, node := range RunTree.Nodes {
-		for _, nm := range AllListNavModes {
-			if listShows(nm, node, onlyRun) {
-				counts[nm]++
-			}
-		}
-	}
+	counts := navModeCounts(RunTree.Nodes, onlyRun)
 
 	for nm, tb := range m.navModeButtons {
 		lbl := NavModeName(nm)
@@ -219,4 +249,41 @@ func (m *MainPaned) updateNavModeButtons() {
 			m.navModeMenu.SetLabel(lbl)
 		}
 	}
+
+	for nm, b := range m.attention {
+		cnt := counts[nm]
+		if b.Visible() != (cnt > 0) {
+			b.SetVisible(cnt > 0)
+		}
+		setText(b.count, strconv.Itoa(cnt))
+		if tip := attentionTooltip(nm, cnt, onlyRun); b.TooltipText() != tip {
+			b.SetTooltipText(tip)
+		}
+	}
+}
+
+// navModeCounts returns the number of the nodes in the tree and in each list (with the tree locked)
+func navModeCounts(nodes []*rt.Node, onlyRun bool) map[NavMode]int {
+	counts := make(map[NavMode]int)
+	counts[NavModeTree] = len(nodes)
+	for _, node := range nodes {
+		for _, nm := range AllListNavModes {
+			if listShows(nm, node, onlyRun) {
+				counts[nm]++
+			}
+		}
+	}
+	return counts
+}
+
+// attentionTooltip is the tooltip of the button of an attention mode, e.g. "3 failed run nodes: show them"
+func attentionTooltip(mode NavMode, count int, onlyRun bool) string {
+	what, them := "node", "it"
+	if onlyRun {
+		what = "run node"
+	}
+	if count != 1 {
+		what, them = what+"s", "them"
+	}
+	return fmt.Sprintf("%d %s %s: show %s", count, strings.ToLower(NavModeName(mode)), what, them)
 }

@@ -30,6 +30,7 @@ const (
 	iconMenu
 	iconSkull // SIGKILL
 	iconBomb  // SIGABRT
+	iconPause // the paused nodes (mainpaned.go)
 )
 
 // opIconOf returns the icon of an operation; rerun is for Run on a finished node
@@ -189,6 +190,10 @@ func drawOpIcon(cr *cairo.Context, icon opIcon, width, height float64) {
 		for _, y := range []float64{4.5, 8.5, 12.5} {
 			cr.Rectangle(8.5, y-1.5, 5, 3)
 		}
+		cr.Fill()
+	case iconPause: // two bars
+		roundedRect(cr, 3.5, 2.5, 3, 11, 0.8)
+		roundedRect(cr, 9.5, 2.5, 3, 11, 0.8)
 		cr.Fill()
 	case iconSkull: // a skull: the cranium and the jaw, with the eyes, the nose and the teeth cut out
 		cr.Arc(8, 7, 6, 0.75*math.Pi, 2.25*math.Pi)

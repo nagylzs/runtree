@@ -129,6 +129,26 @@ button.op-button, menubutton.op-button > button {
     color: @rt_status_fg;
 }
 
+/* the numbers of the failed and the paused nodes next to the view switcher (mainpaned.go): buttons that look like the
+   status labels, with the color of the status (.status-failed, .status-paused) */
+button.attention {
+    padding: 0.1em 0.4em;
+    min-height: 0;
+    min-width: 0;
+    border: 1px solid currentColor;
+    border-radius: 0.2em;
+    background-image: none;
+    box-shadow: none;
+}
+
+button.attention:hover {
+    box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.2);
+}
+
+button.attention:active {
+    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.15);
+}
+
 .tools-title {
     font-size: 150%;
     font-weight: bold;

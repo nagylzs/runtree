@@ -36,18 +36,7 @@ func TestSignalButtons(t *testing.T) {
 // The icons of the signals are drawn in the middle of the area, with their holes (the eyes of the skull, the highlight
 // of the bomb) cut out
 func TestDrawSignalIcons(t *testing.T) {
-	const size = 64
-	s := float64(size) / opIconSize
-	draw := func(icon opIcon) func(x, y float64) bool {
-		surface := cairo.CreateImageSurface(cairo.FormatARGB32, size, size)
-		cr := cairo.Create(surface)
-		cr.SetSourceRGBA(1, 1, 1, 1)
-		drawOpIcon(cr, icon, size, size)
-		surface.Flush()
-		data, stride := surface.Data(), surface.Stride()
-		return func(x, y float64) bool { return data[int(y*s)*stride+int(x*s)*4+3] > 0 }
-	}
-	skull := draw(iconSkull)
+	skull := drawnIcon(iconSkull)
 	for _, p := range [][2]float64{{8, 3}, {3, 7}, {13, 7}, {8, 13}} {
 		if !skull(p[0], p[1]) {
 			t.Errorf("the skull is not drawn at %v", p)
@@ -58,7 +47,7 @@ func TestDrawSignalIcons(t *testing.T) {
 			t.Errorf("the skull is drawn at %v (an eye, the nose, a gap between the teeth, or outside)", p)
 		}
 	}
-	bomb := draw(iconBomb)
+	bomb := drawnIcon(iconBomb)
 	for _, p := range [][2]float64{{6.3, 11}, {9.6, 6.9}, {13, 3}, {15.5, 3}} {
 		if !bomb(p[0], p[1]) {
 			t.Errorf("the bomb is not drawn at %v", p)
@@ -67,7 +56,7 @@ func TestDrawSignalIcons(t *testing.T) {
 	if a := 1.25 * math.Pi; bomb(6.3+2.95*math.Cos(a), 10.2+2.95*math.Sin(a)) { // the middle of the highlight
 		t.Errorf("the highlight of the bomb is not cut out")
 	}
-	none := draw(iconNone)
+	none := drawnIcon(iconNone)
 	for y := 0.0; y < opIconSize; y++ {
 		for x := 0.0; x < opIconSize; x++ {
 			if none(x, y) {
@@ -75,4 +64,18 @@ func TestDrawSignalIcons(t *testing.T) {
 			}
 		}
 	}
+}
+
+// drawnIcon draws an icon in 64x64 pixels, and returns a function that tells if it is drawn at a point of the icon (in
+// the 16x16 coordinates of drawOpIcon)
+func drawnIcon(icon opIcon) func(x, y float64) bool {
+	const size = 64
+	s := float64(size) / opIconSize
+	surface := cairo.CreateImageSurface(cairo.FormatARGB32, size, size)
+	cr := cairo.Create(surface)
+	cr.SetSourceRGBA(1, 1, 1, 1)
+	drawOpIcon(cr, icon, size, size)
+	surface.Flush()
+	data, stride := surface.Data(), surface.Stride()
+	return func(x, y float64) bool { return data[int(y*s)*stride+int(x*s)*4+3] > 0 } // ARGB32 is BGRA in memory
 }
