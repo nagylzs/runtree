@@ -312,17 +312,19 @@ func (w *NodeFrameHeader) newSignalPopover(recursive bool) *gtk.Popover {
 
 // signalButton is how a signal is shown in the Signal menu, when it is not just its name
 type signalButton struct {
+	icon    opIcon // drawn before the label (not an emoji: fonts do not have them on every system)
 	label   string // ends with the name of the signal
 	tooltip string
 	class   string // its color (main.css)
 }
 
 var signalButtons = map[string]signalButton{
-	"SIGINT":  {"Ctrl+C SIGINT", "This is the default action to end a program gracefully.", "button-sigint"},
-	"SIGKILL": {"☠️ SIGKILL", "A nuclear solution to your problem. Cannot be caught or ignored.", "button-sigkill"},
-	"SIGHUP": {"⟳ SIGHUP", "Most services interpret this as 'reload your config'. Closes interactive programs.",
+	"SIGINT": {iconNone, "Ctrl+C SIGINT", "This is the default action to end a program gracefully.", "button-sigint"},
+	"SIGKILL": {iconSkull, "SIGKILL", "A nuclear solution to your problem. Cannot be caught or ignored.",
+		"button-sigkill"},
+	"SIGHUP": {iconRerun, "SIGHUP", "Most services interpret this as 'reload your config'. Closes interactive programs.",
 		"button-sighup"},
-	"SIGABRT": {"💣 SIGABRT", "Terminate with core dump.", "button-sigabrt"},
+	"SIGABRT": {iconBomb, "SIGABRT", "Terminate with core dump.", "button-sigabrt"},
 }
 
 // newSignalGrid returns the buttons of the signals, in a grid. A click sends the signal, and closes the popover.
@@ -344,7 +346,13 @@ func (w *NodeFrameHeader) newSignalGrid(popover *gtk.Popover, recursive bool) *g
 			w.sendSignal(name, recursive)
 		})
 		if b, ok := signalButtons[name]; ok {
-			btn.SetLabel(b.label)
+			if b.icon != iconNone {
+				content, _, _ := newOpButtonContent(b.icon, b.label)
+				content.SetHAlign(gtk.AlignCenter)
+				btn.SetChild(content)
+			} else {
+				btn.SetLabel(b.label)
+			}
 			btn.SetTooltipText(b.tooltip)
 			btn.AddCSSClass(b.class)
 		}

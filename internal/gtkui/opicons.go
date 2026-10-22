@@ -8,13 +8,15 @@ import (
 	"github.com/nagylzs/runtree/internal/rt"
 )
 
-// opIcon is an icon of the operation buttons. They are drawn (like the terminal mark, see termmark.go), so they do
-// not depend on fonts or icon themes (macOS has no Adwaita icons): their size comes from the CSS (.op-icon in
-// main.css, in em), and their color is the color of the text, also when the button is insensitive.
+// opIcon is an icon of the operation buttons and of some signals. They are drawn (like the terminal mark, see
+// termmark.go), so they do not depend on fonts or icon themes (macOS has no Adwaita icons, some systems have no emoji
+// fonts): their size comes from the CSS (.op-icon in main.css, in em), and their color is the color of the text, also
+// when the button is insensitive.
 type opIcon int
 
 const (
-	iconRun opIcon = iota
+	iconNone opIcon = iota // nothing is drawn
+	iconRun
 	iconRerun
 	iconFreeze
 	iconThaw
@@ -26,6 +28,8 @@ const (
 	iconAll
 	iconCopy
 	iconMenu
+	iconSkull // SIGKILL
+	iconBomb  // SIGABRT
 )
 
 // opIconOf returns the icon of an operation; rerun is for Run on a finished node
@@ -97,7 +101,7 @@ func drawOpIcon(cr *cairo.Context, icon opIcon, width, height float64) {
 		cr.LineTo(4.5, 13.5)
 		cr.ClosePath()
 		cr.Fill()
-	case iconRerun: // a circle arrow, clockwise
+	case iconRerun: // a circle arrow, clockwise (also SIGHUP: reload)
 		cr.Arc(8, 8, 5, -math.Pi/2+0.5, 2*math.Pi-math.Pi/2-0.2)
 		cr.Stroke()
 		arrowHead(cr, 8+5*math.Cos(-math.Pi/2+0.5), 8+5*math.Sin(-math.Pi/2+0.5), -math.Pi/2+0.5-math.Pi/2)
@@ -185,6 +189,57 @@ func drawOpIcon(cr *cairo.Context, icon opIcon, width, height float64) {
 		for _, y := range []float64{4.5, 8.5, 12.5} {
 			cr.Rectangle(8.5, y-1.5, 5, 3)
 		}
+		cr.Fill()
+	case iconSkull: // a skull: the cranium and the jaw, with the eyes, the nose and the teeth cut out
+		cr.Arc(8, 7, 6, 0.75*math.Pi, 2.25*math.Pi)
+		cr.LineTo(11, 12)
+		cr.LineTo(11, 14.5)
+		cr.LineTo(5, 14.5)
+		cr.LineTo(5, 12)
+		cr.ClosePath()
+		for _, x := range []float64{5.6, 10.4} {
+			cr.NewSubPath()
+			cr.Arc(x, 7.5, 1.7, 0, 2*math.Pi)
+		}
+		cr.MoveTo(8, 9.3)
+		cr.LineTo(8.9, 11)
+		cr.LineTo(7.1, 11)
+		cr.ClosePath()
+		for _, x := range []float64{6.6, 8.6} {
+			cr.Rectangle(x, 12.6, 0.8, 1.9)
+		}
+		cr.SetFillRule(cairo.FillRuleEvenOdd)
+		cr.Fill()
+	case iconBomb: // a bomb: a ball with a highlight, a cap, a fuse and a spark
+		cr.Arc(6.3, 10.2, 4.8, 0, 2*math.Pi)
+		cr.NewSubPath() // the highlight, cut out
+		cr.Arc(6.3, 10.2, 3.4, 1.1*math.Pi, 1.4*math.Pi)
+		cr.ArcNegative(6.3, 10.2, 2.5, 1.4*math.Pi, 1.1*math.Pi)
+		cr.ClosePath()
+		cr.SetFillRule(cairo.FillRuleEvenOdd)
+		cr.Fill()
+		cr.SetLineWidth(3.2)
+		cr.SetLineCap(cairo.LineCapButt)
+		cr.MoveTo(9, 7.5)
+		cr.LineTo(10.1, 6.4)
+		cr.Stroke()
+		cr.SetLineWidth(1.2)
+		cr.SetLineCap(cairo.LineCapRound)
+		cr.MoveTo(10.1, 6.4)
+		cr.CurveTo(10.6, 5.6, 11, 5, 11.6, 4.6)
+		cr.Stroke()
+		for i := 0; i < 16; i++ { // the spark: a star with 8 points, the diagonal ones are shorter
+			a := float64(i) * math.Pi / 8
+			r := 0.9
+			switch {
+			case i%4 == 0:
+				r = 2.9
+			case i%2 == 0:
+				r = 2
+			}
+			cr.LineTo(13+r*math.Cos(a), 3+r*math.Sin(a))
+		}
+		cr.ClosePath()
 		cr.Fill()
 	}
 }
