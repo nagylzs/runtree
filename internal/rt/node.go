@@ -99,7 +99,7 @@ type Parsed struct {
 // Calculated contains all values that already went through variable substitution
 type Calculated struct {
 	Idx         uint
-	Level       uint
+	Level       uint // the depth in the tree (the root is 0), the indentation in the GUI
 	Vars        map[string]interface{}
 	IfEq        map[string]interface{}
 	IfNEq       map[string]interface{}

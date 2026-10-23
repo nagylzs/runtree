@@ -40,8 +40,13 @@ func checkCWD(cwd string) error {
 	return propErrorf("cwd", "invalid cwd: %q: ~ is not expanded; %s", cwd, hint)
 }
 
-func (n *Node) calculate(idx *uint, level uint) (bool, error) {
-	c := &Calculated{Idx: *idx, Level: level}
+func (n *Node) calculate(idx *uint) (bool, error) {
+	c := &Calculated{Idx: *idx}
+	// the depth in the tree: an included object that replaces its parent (a single include) gets the level of the
+	// parent in loadFrom
+	if n.Parent != nil {
+		c.Level = n.Parent.Calculated.Level + 1
+	}
 	n.undefinedRefs = nil
 	// records the references to undefined variables in prop (key, item)
 	undefined := func(prop, key string, item int) undefinedFunc {

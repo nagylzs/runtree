@@ -155,7 +155,7 @@ func loadTree(sources *Sources, filename string, id string, maxDepth uint) (*Tre
 	tree.unblocker = events.NewDebouncer(tree.debouncedUnblock, false)
 
 	var ord uint = 0
-	_, err := LoadNode(TypeRun, root, nil, tree, sources, filename, maxDepth, &ord, 0, nil, nil)
+	_, err := LoadNode(TypeRun, root, nil, tree, sources, filename, maxDepth, &ord, nil, nil)
 	if err != nil {
 		sources.report(err)
 	}

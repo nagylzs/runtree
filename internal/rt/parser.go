@@ -38,7 +38,7 @@ func ParseToDom(sources *Sources, filePath string, maxDepth uint) (*Tree, error)
 // The returned errors are ParseErrors, with the position of the problem in the source file.
 func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree *Tree,
 	sources *Sources, filePath string,
-	maxDepth uint, idx *uint, level uint, loadInto *Node, overrideVars map[string]interface{}) (n *Node, err error) {
+	maxDepth uint, idx *uint, loadInto *Node, overrideVars map[string]interface{}) (n *Node, err error) {
 	defer func() {
 		if err != nil {
 			err = locateError(err, sources, raw, n, parent)
@@ -349,7 +349,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 	// Calculate all variables **before** loading sub-nodes.
 	// It is crucial that you do not load/change additional node properties below this line,
 	// except for adding new sub-nodes.
-	ok, err := n.calculate(idx, level)
+	ok, err := n.calculate(idx)
 	if err != nil {
 		// the variables are needed for the sub-nodes too, so they are not loaded
 		report(err)
@@ -423,14 +423,14 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 
 		// Processing combination starts here
 		if hasInclude {
-			err = includeSubNodes(n, inc, raw, tree, sources, filePath, maxDepth, idx, level+1, combination, hasForVars)
+			err = includeSubNodes(n, inc, raw, tree, sources, filePath, maxDepth, idx, combination, hasForVars)
 			if err != nil {
 				report(err)
 			}
 		}
 
 		if hasNodes {
-			err = loadSubNodes(n, "nodes", nodes, tree, sources, filePath, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, "nodes", nodes, tree, sources, filePath, maxDepth, idx, combination)
 			if err != nil {
 				report(err)
 			}
@@ -439,7 +439,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		rl, ok := raw["seq"]
 		if ok {
 			n.Type = TypeSeq
-			err = loadSubNodes(n, "seq", rl, tree, sources, filePath, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, "seq", rl, tree, sources, filePath, maxDepth, idx, combination)
 			if err != nil {
 				report(err)
 			}
@@ -448,7 +448,7 @@ func LoadNode(defType Type, raw map[interface{}]interface{}, parent *Node, tree 
 		rl, ok = raw["par"]
 		if ok {
 			n.Type = TypePar
-			err = loadSubNodes(n, "par", rl, tree, sources, filePath, maxDepth, idx, level, combination)
+			err = loadSubNodes(n, "par", rl, tree, sources, filePath, maxDepth, idx, combination)
 			if err != nil {
 				report(err)
 			}
@@ -714,7 +714,7 @@ func parseOnError(raw map[interface{}]interface{}, key string) (OnError, bool, e
 // loadSubNodes loads sub-nodes from a list (the value of the key property: nodes, seq or par)
 func loadSubNodes(parent *Node, key string, rl interface{}, tree *Tree,
 	sources *Sources, filePath string,
-	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{}) error {
+	maxDepth uint, idx *uint, overrideVars map[string]interface{}) error {
 	l, ok := rl.([]interface{})
 	if !ok {
 		return propErrorf(key, "invalid %s: it is %s, expected a list of nodes", key, describeValue(rl))
@@ -724,10 +724,10 @@ func loadSubNodes(parent *Node, key string, rl interface{}, tree *Tree,
 		var err error
 		switch sub := rsub.(type) {
 		case map[interface{}]interface{}:
-			node, err = LoadNode(TypeRun, sub, parent, tree, sources, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
+			node, err = LoadNode(TypeRun, sub, parent, tree, sources, filePath, maxDepth-1, idx, nil, overrideVars)
 		case []interface{}:
 			node, err = LoadRunNodeFromArgs(sub, sources.ItemPos(l, i), parent, tree, sources, filePath, maxDepth, idx,
-				level+1, overrideVars)
+				overrideVars)
 		default:
 			sources.report(&ParseError{Pos: sources.ItemPos(l, i), Node: nodePath(parent),
 				Message: fmt.Sprintf("a node must be an object, or a list of arguments, got %T", rsub)})
@@ -748,7 +748,7 @@ func loadSubNodes(parent *Node, key string, rl interface{}, tree *Tree,
 // includeSubNodes includes sub-nodes when specified via "include" property (rl is its value in raw)
 func includeSubNodes(parent *Node, rl interface{}, raw map[interface{}]interface{}, tree *Tree,
 	sources *Sources, filePath string,
-	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{},
+	maxDepth uint, idx *uint, overrideVars map[string]interface{},
 	preventReduce bool) error {
 
 	var names []string
@@ -832,7 +832,7 @@ func includeSubNodes(parent *Node, rl interface{}, raw map[interface{}]interface
 			loadInto = parent
 		}
 		sources.pushInclude(IncludePos{Pos: incPos, Name: name})
-		node, err := LoadNode(TypeRun, itemRaw, parent, tree, sources, includeFilePath, maxDepth-1, idx, level+1, loadInto,
+		node, err := LoadNode(TypeRun, itemRaw, parent, tree, sources, includeFilePath, maxDepth-1, idx, loadInto,
 			overrideVars)
 		if err != nil {
 			sources.report(err)
@@ -864,11 +864,11 @@ func errorMessage(err error) string {
 // LoadRunNodeFromArgs loads a run node that is given as a list of arguments (at pos)
 func LoadRunNodeFromArgs(args []interface{}, pos Pos, parent *Node, tree *Tree,
 	sources *Sources, filePath string,
-	maxDepth uint, idx *uint, level uint, overrideVars map[string]interface{}) (*Node, error) {
+	maxDepth uint, idx *uint, overrideVars map[string]interface{}) (*Node, error) {
 	rl := make(map[interface{}]interface{})
 	rl["args"] = args
 	sources.setMapPos(rl, pos, "args")
-	return LoadNode(TypeRun, rl, parent, tree, sources, filePath, maxDepth-1, idx, level+1, nil, overrideVars)
+	return LoadNode(TypeRun, rl, parent, tree, sources, filePath, maxDepth-1, idx, nil, overrideVars)
 }
 
 func getString(raw map[interface{}]interface{}, name string) (string, error) {
