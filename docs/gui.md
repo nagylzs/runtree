@@ -15,7 +15,7 @@ Each row is a node: its title (or command line), its type (`Seq`, `Par`), its st
   for you: e.g. `Running, stopped: 1 paused, 1 frozen` when a failed host of a rollout is paused and the hosts after
   it are frozen;
 - the elapsed time (of the last run, when the node was run again); for seq and par nodes also the total time of the
-  processes below it (`tot=`) and the speedup that the parallel runs gave (`×2.0`);
+  processes below it (`tot=`) and the speedup that the parallel runs gave (`×2.0`), in the same run;
 - a terminal icon for the run nodes that have a terminal.
 
 The button above the tree chooses the view: **Tree** shows the whole tree, the others (Waiting, Frozen, Running,
