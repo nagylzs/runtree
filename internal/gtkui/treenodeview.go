@@ -34,6 +34,8 @@ type TreeNodeView struct {
 	shown        nodeViewState // what the widgets show, see Update
 	Node         *rt.Node
 	Selected     bool
+	searchText   string // what the search of the navigator looks in (nodeSearchText)
+	inContext    bool   // a parent of the nodes that the search found, it does not match (see setSearchContext)
 
 	// the position and the size in the navigator (see NodeNavigator.place)
 	x, y, width, height float64
@@ -49,6 +51,7 @@ type nodeViewState struct {
 	hasTerm, selected, inList, hasChild, expanded bool
 }
 
+// NewTreeNodeView creates the row of a node (with the tree locked)
 func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 	tl := gtk.NewLabel("")
 	tl.SetHExpand(true)
@@ -139,6 +142,7 @@ func NewTreeNodeView(tv *NodeNavigator, node *rt.Node) *TreeNodeView {
 		elapsedLabel: el,
 		Node:         node,
 		Selected:     false,
+		searchText:   nodeSearchText(node),
 	}
 	nw.toggled = exp.ConnectToggled(nw.toggleExpanded)
 	show.ConnectClicked(func() {
@@ -236,7 +240,7 @@ func (nw *TreeNodeView) Update(lockTree bool, who string) {
 		typeName:    rt.TypeName(typ),
 		hasTerm:     hasTerm,
 		selected:    selected,
-		inList:      nw.treeView.Mode() != NavModeTree,
+		inList:      nw.treeView.showsList(),
 		hasChild:    hasChild,
 		expanded:    expanded,
 	}
@@ -307,6 +311,20 @@ func (nw *TreeNodeView) show(st nodeViewState) {
 		} else {
 			nw.icon.SetFromIconName(IconCollapsed)
 		}
+	}
+}
+
+// setSearchContext fades the row of a node that the search shows only because it is a parent of the nodes that it
+// found
+func (nw *TreeNodeView) setSearchContext(inContext bool) {
+	if nw.inContext == inContext {
+		return
+	}
+	nw.inContext = inContext
+	if inContext {
+		nw.content.AddCSSClass("search-context")
+	} else {
+		nw.content.RemoveCSSClass("search-context")
 	}
 }
 

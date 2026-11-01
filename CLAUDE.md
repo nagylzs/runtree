@@ -137,8 +137,9 @@ when adding methods.
 Package-level globals `RunTree`, `Application`, `GtkApplication` (`global.go`). `RunTreeApp` owns the VTE terminals
 (one per node id). The GUI is updated every second by timers of the main loop (`RunTreeApp.Start`, `NodeFrame`), and
 by event-driven `navigator.UpdateNode` calls. `mainpaned.go` splits into `nodenavigator.go` (tree list,
-`treenodeview.go` rows) and `nodeframe*.go` (the selected node: the header with the operation buttons, whose icons are
-drawn in `opicons.go`, and the tabs: properties with the dependencies, log, description, vars, envs). Styling is in
+`treenodeview.go` rows, `search.go` the search) and `nodeframe*.go` (the selected node: the header with the operation
+buttons, whose icons are drawn in `opicons.go`, and the tabs: properties with the dependencies, log, description, vars,
+envs). Styling is in
 the embedded `main.css`, with named colors (`@rt_*`) from the dark or light palette (`palette.go`) that fits the
 theme in use (`appearance.go`: system/dark/light, the ☰ menu, saved in `settings.go`). All GTK calls must happen on
 the GTK main thread. `RunApplication` sets `GSK_RENDERER=cairo` when it is not set (fast without a GPU, e.g. over

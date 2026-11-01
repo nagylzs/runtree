@@ -37,6 +37,11 @@ this file for the appearance of the GUI (appearance.go).
     color: @rt_node_disabled_selected_fg;
 }
 
+/* a parent of the nodes that the search of the navigator found, that does not match (not when it is selected) */
+.search-context:not(:checked) {
+    opacity: 0.55;
+}
+
 .node-title {
     font-family: monospace;
 }

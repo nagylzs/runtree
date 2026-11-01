@@ -28,6 +28,15 @@ list.
 In a list, the location button of a node shows it in the tree: it switches to the Tree view, opens the parents of the
 node, selects it, and scrolls to it.
 
+The search field below the view button finds nodes by words: in their title, id, command line, working directory,
+runner, environment variables (`NAME=value`), description, resources and locks. A node must have every word, and none
+of the words with a minus: `upgrade web -web3` finds the nodes with "upgrade" and "web" but without "web3". `"pg
+clone"` is a phrase (with a `+` or `-` before it too), `+-v` a word that starts with a minus; the case does not matter.
+The Tree view shows the nodes found where they are: with their parents, which are faded. A list (e.g. Failed) shows the
+nodes found in it. Next to the field is the number of the nodes found. The location button shows a node in the whole
+tree, and so does clearing the search for the selected node: the clear button of the field, or Esc (it also leaves the
+field).
+
 Three properties control which nodes are shown opened: `expanded` (show the sub-nodes when the tree is loaded,
 `false` by default), `expand_on_active` (open the node when it becomes active, `true` by default) and
 `collapse_on_finished` (close it when it finishes, `true` by default).

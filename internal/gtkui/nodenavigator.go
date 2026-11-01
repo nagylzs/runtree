@@ -1,6 +1,7 @@
 package gtkui
 
 import (
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -120,6 +121,10 @@ type NodeNavigator struct {
 	viewport   *gtk.Viewport     // of the scrolled window that shows the navigator
 	scrollTo   *TreeNodeView     // ShowNode scrolls to it after the next layout (main gtk loop only)
 	widthTimer glib.SourceHandle // lays the rows out when the width has not changed for a while, see WidthChanged
+
+	query       nodeQuery  // the search (main gtk loop only), see SetQuery
+	found       *gtk.Label // the number of the nodes that the search found (set by MainPaned)
+	scrollToTop bool       // a new search: its result is shown from the top after the next layout
 }
 
 func NewNodeNavigator() *NodeNavigator {
@@ -176,6 +181,32 @@ func (t *NodeNavigator) OnlyShowRunNodes() bool {
 	return t.onlyShowRunNodes
 }
 
+// SetQuery searches the nodes: the tree view shows the matching nodes and their parents, the lists the matching nodes
+// of their status. When the search is cleared, the tree shows the selected node where it is. It must be called from
+// the main gtk loop, with the tree unlocked.
+func (t *NodeNavigator) SetQuery(q nodeQuery) {
+	cleared := !t.query.Empty() && q.Empty()
+	t.query = q
+	if cleared && t.mode == NavModeTree && t.selected != nil {
+		t.revealView(t.selected)
+	}
+	if !q.Empty() {
+		t.scrollToTop = true
+	}
+	t.EnqueueFullUpdate()
+}
+
+// searching tells if the navigator shows the nodes that a search found (main gtk loop only)
+func (t *NodeNavigator) searching() bool {
+	return !t.query.Empty()
+}
+
+// showsList tells if the rows are in a list, or the tree shows the result of a search: the rows have the location
+// button that shows the node in the tree, instead of the expander (main gtk loop only)
+func (t *NodeNavigator) showsList() bool {
+	return t.mode != NavModeTree || t.searching()
+}
+
 func (t *NodeNavigator) SetOnlyShowRunNodes(onlyRunNodes bool) {
 	t.onlyShowRunNodes = onlyRunNodes
 	t.EnqueueFullUpdate()
@@ -222,11 +253,20 @@ func (t *NodeNavigator) layoutItems() {
 	RunTree.RLock("LayoutItems")
 	defer RunTree.RUnlock()
 
+	var found int
 	switch t.mode {
 	case NavModeTree:
-		t.layoutTree()
+		found = t.layoutTree()
 	default:
-		t.layoutList(t.mode)
+		found = t.layoutList(t.mode)
+	}
+	if t.found != nil {
+		t.found.SetVisible(t.searching())
+		setText(t.found, foundText(found))
+	}
+	if t.scrollToTop && t.viewport != nil {
+		t.scrollToTop = false
+		t.viewport.VAdjustment().SetValue(0)
 	}
 	if nw := t.scrollTo; nw != nil && t.mode == NavModeTree && t.viewport != nil {
 		t.scrollTo = nil
@@ -252,30 +292,50 @@ func (t *NodeNavigator) scrollToView(nw *TreeNodeView) {
 }
 
 // ShowNode selects the node in the tree view mode, expands its parents, and scrolls to it. It must be called from
-// the main gtk loop, with the tree unlocked, after the mode is set to NavModeTree.
+// the main gtk loop, with the tree unlocked, after the mode is set to NavModeTree and the search is cleared.
 func (t *NodeNavigator) ShowNode(node *rt.Node) {
 	nw, ok := t.nodeViewById[node.Id]
 	if !ok {
 		return
 	}
-	RunTree.Lock("ShowNode")
-	for p := node.Parent; p != nil; p = p.Parent {
-		p.Expanded = true
-	}
-	RunTree.UnLock()
-	t.scrollTo = nw
+	t.revealView(nw)
 	t.selectView(nw)
 	t.EnqueueFullUpdate()
 }
 
-func (t *NodeNavigator) layoutList(mode NavMode) {
+// revealView expands the parents of the node view, and scrolls to it after the next layout (main gtk loop, the tree
+// unlocked)
+func (t *NodeNavigator) revealView(nw *TreeNodeView) {
+	RunTree.Lock("ShowNode")
+	for p := nw.Node.Parent; p != nil; p = p.Parent {
+		p.Expanded = true
+	}
+	RunTree.UnLock()
+	t.scrollTo = nw
+}
+
+// foundText tells how many nodes the search found
+func foundText(n int) string {
+	switch n {
+	case 0:
+		return "Not found"
+	case 1:
+		return "1 node found"
+	}
+	return strconv.Itoa(n) + " nodes found"
+}
+
+// layoutList lays out the list of a mode, and returns the number of its nodes
+func (t *NodeNavigator) layoutList(mode NavMode) int {
 	tw := rowWidth(t.visibleWidth(), 0)
 
 	var step float64 = 30
 	var y float64 = 0
+	count := 0
 	for _, nodeView := range t.nodeViews {
 		node := nodeView.Node
-		nodeVisible := listShows(mode, node, t.onlyShowRunNodes)
+		nodeVisible := listShows(mode, node, t.onlyShowRunNodes) && t.query.Matches(nodeView.searchText)
+		nodeView.setSearchContext(false)
 		added := t.added[node.Id]
 		if !nodeVisible && added {
 			//t.Fixed.Remove(nodeView)
@@ -285,9 +345,11 @@ func (t *NodeNavigator) layoutList(mode NavMode) {
 		if !nodeVisible {
 			continue
 		}
+		count++
 		step = t.place(nodeView, 0, y, tw, added)
 		y += step
 	}
+	return count
 }
 
 // navigatorRowWidth is the width of the rows before the navigator is shown
@@ -352,14 +414,35 @@ func (t *NodeNavigator) place(nodeView *TreeNodeView, x, y float64, tw int, adde
 	return float64(natural)
 }
 
-func (t *NodeNavigator) layoutTree() {
+// layoutTree lays out the tree, or the result of the search in it, and returns the number of the nodes that the search
+// found
+func (t *NodeNavigator) layoutTree() int {
 	visible := t.visibleWidth()
+
+	var shown map[*rt.Node]bool // the search shows the matching nodes and their parents (see searchTree)
+	count := 0
+	if t.searching() {
+		shown = searchTree(RunTree.Nodes, func(n *rt.Node) bool {
+			nw, ok := t.nodeViewById[n.Id]
+			return ok && t.query.Matches(nw.searchText)
+		})
+	}
 
 	var step float64 = 30
 	var y float64 = 0
 	for _, nodeView := range t.nodeViews {
 		node := nodeView.Node
 		nodeVisible, added := node.Visible(), t.added[node.Id]
+		if shown != nil {
+			matched, ok := shown[node]
+			nodeVisible = ok
+			nodeView.setSearchContext(ok && !matched)
+			if matched {
+				count++
+			}
+		} else {
+			nodeView.setSearchContext(false)
+		}
 		if !nodeVisible && added {
 			//t.Fixed.Remove(nodeView)
 			//t.added[node.Id] = false
@@ -372,6 +455,7 @@ func (t *NodeNavigator) layoutTree() {
 		step = t.place(nodeView, x, y, rowWidth(visible, x), added)
 		y += step
 	}
+	return count
 }
 
 // fullUpdate must be called from gtk main loop, in unlocked state.

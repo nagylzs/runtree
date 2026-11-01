@@ -198,6 +198,13 @@ connection still runs exactly one command, so a runner per run node needs no pro
   popover of the menu button, or a smaller minimum width of the left pane.
 * Done: the path in the header wraps, its nodes are links that show the node in the tree; the lists of the navigator
   have a "show in the tree" button; the Log tab has an End button.
+* Done (2026-11-01): the search of the navigator (`search.go`, docs/gui.md "The tree"). Maybe later: Enter selects the
+  first node found; `field:word` to search one field (e.g. `cwd:/srv`); the matching words highlighted in the rows.
+* a blinking text cursor costs CPU: with the focus in the search field, on a tree of 602 nodes, about 45% of a core more
+  for `gtk-cursor-blink-timeout` (10 s) after each key or focus (Xvfb, 2026-11-01; 10-15% with `gtk-cursor-blink=false`).
+  Not known why: maybe GTK fades the cursor (a frame at every tick during the blink), and each frame snapshots or diffs
+  the whole window, the navigator's `gtk.Fixed` with all the rows included. Check it with the GTK inspector or sysprof,
+  and whether a focused terminal (VTE's cursor) costs the same. Esc leaves the search field, so it stops at once there.
 * the GUI over VNC (2026-10-18): GTK's GL renderer without a GPU sends the whole window on every frame (18.5 MB/s
   idle, 195 MB/s with a streaming terminal, measured through a proxy); the cairo renderer sends the changed parts
   (docs/getting-started.md), it is runtree's default when `GSK_RENDERER` is not set. The node rows and the header call

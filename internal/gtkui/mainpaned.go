@@ -26,7 +26,13 @@ type MainPaned struct {
 	navModeMenu      *gtk.MenuButton // shows the mode, its popover has navModeButtons
 	cbRunOnly        *gtk.CheckButton
 	attention        map[NavMode]*attentionButton // next to cbRunOnly, see attentionModes
+	search           *gtk.SearchEntry             // the search of the navigator, below the view switcher
 }
+
+// searchTooltip explains the search entry
+const searchTooltip = `Find nodes by words in their title, id, command line, working directory, runner, environment ` +
+	`variables, description, resources and locks. A node must have every word, and none of the -words; ` +
+	`"two words" is a phrase. The tree shows the nodes found with their parents, a list the nodes found in it.`
 
 // attentionModes are the lists of the nodes that may need the user: next to the view switcher, a button shows how
 // many nodes they have (when they have any), and opens the list
@@ -58,12 +64,36 @@ func NewMainPaned() *MainPaned {
 	navRow.Append(navModeMenu)
 	leftSide.Append(navRow)
 
+	// the search, below the view switcher; Esc clears it and leaves it
+	search := gtk.NewSearchEntry()
+	search.SetPlaceholderText("Find nodes: word -word")
+	search.SetTooltipText(searchTooltip)
+	search.SetHExpand(true)
+	found := gtk.NewLabel("")
+	found.AddCSSClass("dim-label")
+	found.SetVisible(false)
+	searchRow := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	searchRow.Append(search)
+	searchRow.Append(found)
+	leftSide.Append(searchRow)
+
 	navScroll := gtk.NewScrolledWindow()
 	navScroll.SetHExpand(true)
 	navScroll.SetVExpand(true)
 	leftSide.Append(navScroll)
 
 	var nav = NewNodeNavigator()
+	nav.found = found
+	search.ConnectSearchChanged(func() {
+		nav.SetQuery(parseNodeQuery(search.Text()))
+	})
+	search.ConnectStopSearch(func() {
+		search.SetText("")
+		// leave the field: its blinking cursor redraws the window (it costs CPU for gtk-cursor-blink-timeout)
+		if root := search.Root(); root != nil {
+			root.SetFocus(nil)
+		}
+	})
 	nav.viewport = gtk.NewViewport(nil, nil)
 	nav.viewport.SetChild(nav)
 	navScroll.SetChild(nav.viewport)
@@ -178,6 +208,7 @@ func NewMainPaned() *MainPaned {
 		navModeMenu:    navModeMenu,
 		cbRunOnly:      cbRunOnly,
 		attention:      attention,
+		search:         search,
 	}
 	m.SetStartChild(leftSide)
 	m.SetEndChild(rightSide)
@@ -205,11 +236,13 @@ func setInitialPosition(p *gtk.Paned, pos int) {
 	})
 }
 
-// ShowInTree switches to the tree view mode, and selects the node there (see NodeNavigator.ShowNode). It must be
-// called from the main gtk loop, with the tree unlocked.
+// ShowInTree switches to the tree view mode, clears the search, and selects the node in the tree (see
+// NodeNavigator.ShowNode). It must be called from the main gtk loop, with the tree unlocked.
 func (m *MainPaned) ShowInTree(node *rt.Node) {
 	m.setNavMode(NavModeTree)
 	m.navigator.ShowNode(node)
+	m.navigator.SetQuery(nodeQuery{}) // at once (the search entry tells it later), after the node is selected
+	m.search.SetText("")
 }
 
 // setNavMode switches the navigator to a view mode (main gtk loop, the tree unlocked)
